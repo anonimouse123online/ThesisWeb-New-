@@ -1,0 +1,360 @@
+/* ─────────────────────────────────────────────
+   TimeLog.css  –  SitePulse Time Log page
+   Matches the design in the provided screenshots
+───────────────────────────────────────────── */
+
+/* Container */
+.timelog-container {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  padding: 32px 36px;
+  margin-left: 260px; /* ← ADD THIS */
+  background-color: #f0ebe3;
+  min-height: 100vh;
+  font-family: "Inter", "Segoe UI", sans-serif;
+  color: #1a1a1a;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+/* ── Header ───────────────────────────────── */
+.timelog-header {
+  margin-bottom: 24px;
+}
+
+.timelog-title {
+  font-size: 26px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  color: #111;
+  letter-spacing: -0.3px;
+}
+
+.timelog-subtitle {
+  font-size: 13.5px;
+  color: #666;
+  margin: 0;
+}
+
+/* ── Stats Cards ──────────────────────────── */
+.timelog-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.stat-label {
+  font-size: 12.5px;
+  color: #888;
+  font-weight: 500;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 30px;
+  font-weight: 700;
+  color: #111;
+  text-align: center;
+  line-height: 1;
+}
+
+/* ── Filters ──────────────────────────────── */
+.timelog-filters {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+
+/* Search */
+.search-wrapper {
+  position: relative;
+  flex: 1;
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+}
+
+.search-input {
+  width: 100%;
+  padding: 9px 12px 9px 36px;
+  border: 1px solid #e0d9d0;
+  border-radius: 8px;
+  font-size: 13px;
+  background: #fff;
+  color: #333;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.search-input::placeholder {
+  color: #aaa;
+}
+
+.search-input:focus {
+  border-color: #bbb;
+}
+
+/* Date picker */
+.date-wrapper {
+  flex-shrink: 0;
+}
+
+.date-input {
+  padding: 9px 12px;
+  border: 1px solid #e0d9d0;
+  border-radius: 8px;
+  font-size: 13px;
+  background: #fff;
+  color: #555;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  height: 38px;
+  box-sizing: border-box;
+}
+
+.date-input:focus {
+  border-color: #bbb;
+}
+
+/* Engineer select */
+.select-wrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.engineer-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 9px 36px 9px 14px;
+  border: 1px solid #e0d9d0;
+  border-radius: 8px;
+  font-size: 13px;
+  background: #fff;
+  color: #333;
+  outline: none;
+  cursor: pointer;
+  min-width: 140px;
+  height: 38px;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.engineer-select:focus {
+  border-color: #bbb;
+}
+
+.select-arrow {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+}
+
+/* ── Log Entries ──────────────────────────── */
+.timelog-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.log-card {
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+/* ── Log Row (collapsed header) ───────────── */
+.log-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  cursor: pointer;
+  user-select: none;
+  gap: 12px;
+  transition: background 0.12s;
+}
+
+.log-row:hover {
+  background: #faf8f5;
+}
+
+.log-row-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.log-chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #555;
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+
+.log-chevron.expanded {
+  /* chevron direction handled by path change in JSX */
+}
+
+.log-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.log-project-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111;
+}
+
+.log-engineer {
+  font-size: 12px;
+  color: #888;
+}
+
+.log-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.log-tag {
+  font-size: 11.5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid #ddd;
+  color: #555;
+  background: #fff;
+  white-space: nowrap;
+}
+
+/* ── Log Detail (expanded) ────────────────── */
+.log-detail {
+  padding: 4px 24px 24px;
+  border-top: 1px solid #f0ebe3;
+}
+
+.detail-section {
+  margin-top: 20px;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111;
+  margin: 0 0 12px;
+}
+
+/* Grid for manpower two-column */
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 24px;
+}
+
+.detail-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.detail-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.detail-label {
+  font-size: 12.5px;
+  color: #777;
+  min-width: 140px;
+  flex-shrink: 0;
+}
+
+.detail-value {
+  font-size: 12.5px;
+  color: #222;
+  font-weight: 500;
+}
+
+/* Text box (work completed, materials, etc.) */
+.detail-box {
+  border: 1px solid #e8e2d9;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #444;
+  background: #faf8f5;
+  line-height: 1.5;
+}
+
+/* Two-column layout for materials & equipment */
+.two-col-sections {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* ── Responsive ───────────────────────────── */
+@media (max-width: 768px) {
+  .timelog-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .timelog-filters {
+    flex-wrap: wrap;
+  }
+
+  .search-wrapper {
+    flex: 1 1 100%;
+  }
+
+  .detail-grid,
+  .two-col-sections {
+    grid-template-columns: 1fr;
+  }
+
+  .log-tags {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .timelog-container {
+    padding: 20px 16px;
+  }
+
+  .timelog-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
