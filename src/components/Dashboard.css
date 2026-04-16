@@ -398,3 +398,58 @@ body {
   background: var(--orange);
   border-color: var(--orange);
 }
+
+.view-btn {
+  background: #000;
+  color: #fff;
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 11px;
+  border: none;
+  cursor: pointer;
+}
+.status-planning {
+  background: var(--amber-bg);
+  color: var(--amber-text);
+}
+
+.status-ongoing {
+  background: var(--green-bg);
+  color: var(--green-text);
+}
+
+.status-completed {
+  background: var(--gray-bg);
+  color: var(--gray-text);
+}
+
+.modal {
+  width: 900px;
+  background: #fff;
+  border-radius: 18px;
+  padding: 28px;
+}
+
+.modal-form {
+  display: grid;
+  gap: 18px;
+}
+
+.form-row--2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.form-row--1 {
+  display: grid;
+}
+
+.form-input,
+.form-select {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #e5e5e5;
+  font-size: 13px;
+}

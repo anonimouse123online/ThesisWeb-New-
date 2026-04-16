@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import '../components/login.css';
 
 const LoginPage: React.FC = () => {
-  const [role, setRole] = useState<'Site Engineer' | 'Admin'>('Site Engineer');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -23,7 +22,7 @@ const LoginPage: React.FC = () => {
       const response = await fetch(`${BACKEND_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, role }),
+        body: JSON.stringify({ email, password}),
       });
 
       const data = await response.json();
@@ -50,32 +49,12 @@ const LoginPage: React.FC = () => {
     <div className="login-wrapper">
       <div className="left-panel">
         <div className="header-blue">
-          <div className="logo-label">Site Pulse</div>
           <h1 className="welcome-title">Welcome back !</h1>
           <p className="subtitle">Real Time Field-Tracking and Issue Reporting</p>
         </div>
 
         <div className="form-section">
           <form onSubmit={handleLogin}>
-            <div className="input-group">
-              <label className="label-sm">Access Role</label>
-              <div className="role-container">
-                <button
-                  type="button"
-                  className={`role-tab ${role === 'Site Engineer' ? 'active' : ''}`}
-                  onClick={() => setRole('Site Engineer')}
-                >
-                  Site Engineer
-                </button>
-                <button
-                  type="button"
-                  className={`role-tab ${role === 'Admin' ? 'active' : ''}`}
-                  onClick={() => setRole('Admin')}
-                >
-                  Admin
-                </button>
-              </div>
-            </div>
 
             <div className="input-group">
               <label className="label-sm">Username / Email</label>
@@ -99,6 +78,7 @@ const LoginPage: React.FC = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  style={{ backgroundColor: '#F9F9F9', paddingRight: '2.5rem' }}
                 />
                 {/* Toggle password visibility */}
                 <span onClick={() => setShowPassword(!showPassword)} style={{ cursor: 'pointer' }}>
@@ -134,6 +114,7 @@ const LoginPage: React.FC = () => {
             <span
               style={{ color: '#3b82f6', fontWeight: 'bold', cursor: 'pointer' }}
               onClick={() => navigate('/signup')}
+              
             >
               Sign up
             </span>
@@ -155,21 +136,7 @@ const LoginPage: React.FC = () => {
           "With its smart design and efficient workflow, SitePulse empowers every engineer
           to work faster, smarter, and with complete confidence in their data."
         </p>
-        <div className="user-card">
-          <img
-            src="https://upload.wikimedia.org/wikipedia/commons/e/ed/Elon_Musk_Royal_Society.jpg"
-            alt="Yelong Mhu"
-            className="user-avatar"
-          />
-          <div>
-            <div className="user-name">Yelong Mhu</div>
-            <div className="user-title">Head Engineer at Fedillaga Builders</div>
-          </div>
-        </div>
-        <div className="teams-row">
-          <span>JOIN 1K TEAMS</span>
-          <div className="divider"></div>
-        </div>
+        
       </div>
     </div>
   );

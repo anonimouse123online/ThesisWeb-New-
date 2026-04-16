@@ -9,6 +9,7 @@ import CreateTask from './pages/CreateTask';
 import TimeLog from '../src/pages/TimeLog';
 import ResourceManagement from '../src/pages/Resourcemanagement';
 import UserManagement from './pages/UserManagement';
+import RegisterPage from './pages/RegisterPage';
 
 
 export default function App() {
@@ -17,6 +18,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<LoginPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<RegisterPage />} />
         <Route 
           path="/dashboard" 
           element={

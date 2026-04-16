@@ -1,0 +1,304 @@
+
+/* ════════════════════════════════════════
+   PROJECT MANAGEMENT PAGE
+════════════════════════════════════════ */
+
+/* ── Page Header ── */
+.pm-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 28px;
+}
+
+.pm-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.pm-subtitle {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.pm-header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.pm-profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+/* ── Main Table Card ── */
+.pm-card {
+  background: var(--white);
+  border-radius: 18px;
+  padding: 24px 28px;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.05);
+}
+
+.pm-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.pm-new-btn {
+  background: var(--text);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 9px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.pm-new-btn:hover {
+  background: #333;
+}
+
+.pm-state-msg {
+  text-align: center;
+  padding: 3rem;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.pm-state-msg--error {
+  color: #e74c3c;
+}
+
+/* ── Table ── */
+.pm-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.pm-table th {    
+    text-align: center !important;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0ebe3;
+}
+
+.pm-table td {
+  font-size: 13px;
+  padding: 14px 0;
+  border-bottom: 1px solid #f7f4f0;
+  color: var(--text);
+}
+
+.pm-table th:last-child,
+.pm-table td:last-child {
+  text-align: right;
+}
+
+.pm-td-bold  { font-weight: 700; }
+.pm-td-muted { color: var(--muted); }
+
+/* ── Status Pills ── */
+.proj-pill {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.proj-pill--ongoing   { background: #dcfce7; color: #16a34a; }
+.proj-pill--planning  { background: #fef9c3; color: #a16207; }
+.proj-pill--completed { background: #dbeafe; color: #1d4ed8; }
+
+/* ── View Details Button ── */
+.pm-view-btn {
+  background: var(--text);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.pm-view-btn:hover {
+  background: #333;
+}
+
+/* ════════════════════════════════════════
+   CREATE PROJECT MODAL
+════════════════════════════════════════ */
+
+.pm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.pm-modal {
+  background: var(--white);
+  border-radius: 18px;
+  padding: 32px 36px;
+  width: 100%;
+  max-width: 780px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.15);
+}
+
+.pm-modal-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 20px;
+}
+
+.pm-form-error {
+  color: #e74c3c;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.pm-form-row {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.pm-form-row--1 { grid-template-columns: 1fr; }
+.pm-form-row--2 { grid-template-columns: 1fr 1fr; }
+.pm-form-row--3 { grid-template-columns: 1fr 1fr 1fr; }
+
+.pm-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pm-form-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.pm-required {
+  color: #e74c3c;
+}
+
+.pm-input {
+  background: #f5f5f5;
+  border: 1.5px solid transparent;
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.2s, background 0.2s;
+  width: 100%;
+}
+
+.pm-input:focus {
+  border-color: var(--text);
+  background: #fff;
+}
+
+.pm-input::placeholder {
+  color: #bbb;
+}
+
+.pm-textarea {
+  resize: vertical;
+  min-height: 90px;
+  line-height: 1.5;
+}
+
+.pm-select {
+  cursor: pointer;
+  appearance: auto;
+}
+
+.pm-modal-actions {
+  display: flex;
+  justify-content: flex-start;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.pm-btn-cancel {
+  background: transparent;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 10px 22px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text);
+  transition: background 0.15s;
+}
+
+.pm-btn-cancel:hover {
+  background: #f5f5f5;
+}
+
+.pm-btn-create {
+  background: var(--text);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 28px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.pm-btn-create:hover {
+  background: #333;
+}
+
+.pm-btn-create:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.items-center {
+    align-items: center;
+    gap: 14px;
+}
+.filter-btn {
+    background: var(--white);
+    border: 1px solid #e8e0d6;
+    border-radius: 10px;
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--text);
+    font-family: inherit;
+    white-space: nowrap;
+    height: 35px;
+}

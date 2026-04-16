@@ -1,98 +1,302 @@
-.detail-view-container {
-  min-height: 80vh;
-  padding: 40px !important;
-}
+/* ─────────────────────────────────────────
+   ProjectDetails.css  –  SitePulse
+───────────────────────────────────────── */
 
-.back-to-projects {
-  background: none;
-  border: none;
-  color: #1a1a1a;
-  font-weight: 700;
-  font-size: 14px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 24px;
-  padding: 0;
-}
-
-.project-header-info {
-  margin-bottom: 32px;
-}
-
-.detail-title {
-  font-size: 24px;
-  font-weight: 800;
-  margin-bottom: 8px;
-  color: #000000; /* Force black color for the whole title */
-}
-
-.detail-title span {
-  font-weight: 400;
-  color: inherit; /* Ensure the span inherits the black color */
-}
-
-.detail-meta {
-  color: #555;
-  font-size: 15px;
-  margin-bottom: 4px;
-}
-
-.details-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 24px;
-}
-
-.detail-stat-card {
-  background: #fff;
-  border-radius: 20px;
-  padding: 24px;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.02);
-}
-
-.detail-icon-box {
-  width: 45px;
-  height: 45px;
-  border-radius: 12px;
+/* ── State messages ── */
+.pd-state {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 16px;
-  font-size: 20px;
-}
-
-.detail-icon-box.purple {
-  background: #f3e8ff;
-  color: #9333ea;
-}
-
-.detail-label {
-  font-size: 12px;
+  min-height: 60vh;
+  font-size: 14px;
   color: #888;
-  font-weight: 600;
-  margin-bottom: 8px;
 }
 
-.detail-value {
-  font-size: 22px;
-  font-weight: 800;
-  color: #1a1a1a;
-}
+.pd-state--error { color: #e74c3c; }
 
-.detail-value.active-status {
-  font-weight: 500;
-}
-
-.detail-subtext {
-  font-size: 10px;
-  color: #bbb;
+/* ── Back button ── */
+.pd-back-btn {
+  background: none;
+  border: none;
+  font-size: 14px;
   font-weight: 700;
-  text-transform: uppercase;
-  margin-top: 4px;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pd-back-btn:hover { opacity: 0.7; }
+
+/* ── Hero Card ── */
+.pd-hero-card {
+  background: var(--white);
+  border-radius: 18px;
+  padding: 28px 32px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.05);
+}
+
+.pd-hero-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.pd-hero-left { flex: 1; }
+
+.pd-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.pd-title {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.pd-code-badge {
+  background: #f0f0f0;
+  color: #555;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid #e0e0e0;
+}
+
+.pd-location {
+  font-size: 13px;
+  color: var(--muted);    
+  text-align: left;
+  margin-top: -34px;
+}
+
+/* ── Status pills ── */
+.pd-status-pill {
+  display: inline-block;
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.pd-status--ongoing   { background: #dcfce7; color: #16a34a; }
+.pd-status--planning  { background: #fef9c3; color: #a16207; }
+.pd-status--completed { background: #dbeafe; color: #1d4ed8; }
+
+/* ── Hero Meta ── */
+.pd-hero-meta {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  border-top: 1px solid #f0ebe3;
+  padding-top: 20px;
+}
+
+.pd-meta-label {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.pd-meta-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* ── Hub Card ── */
+.pd-hub-card {
+  background: var(--white);
+  border-radius: 18px;
+  padding: 28px 32px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.05);
+}
+
+.pd-hub-header { margin-bottom: 20px; }
+
+.pd-hub-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.pd-hub-sub {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* ── Hub tiles ── */
+.pd-hub-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.pd-hub-tile {
+  border: 1.5px solid #e8e3dc;
+  border-radius: 14px;
+  padding: 28px 24px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  text-align: center;
+}
+
+.pd-hub-tile:hover {
+  background: #faf7f4;
+  border-color: #d0c8be;
+}
+
+.pd-hub-tile-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.pd-hub-tile-sub {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* ── Activate Banner ── */
+.pd-activate-banner {
+  background: #f0fdf4;
+  border: 1.5px solid #bbf7d0;
+  border-radius: 14px;
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.pd-activate-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #166534;
+  margin-bottom: 4px;
+  text-align: left;
+}
+
+.pd-activate-sub {
+  font-size: 13px;
+  color: #4ade80;
+  color: #16a34a;
+}
+
+.pd-activate-btn {
+  background: #16a34a;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 22px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+.pd-activate-btn:hover { background: #15803d; }
+.pd-activate-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ── Ongoing Banner ── */
+.pd-ongoing-banner {
+  background: #fefce8;
+  border: 1.5px solid #fde68a;
+  border-radius: 14px;
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.pd-ongoing-badge {
+  background: #fef9c3;
+  color: #a16207;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 18px;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
+
+/* ── Completed Banner ── */
+.pd-completed-banner {
+  background: #eff6ff;
+  border: 1.5px solid #bfdbfe;
+  border-radius: 14px;
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.pd-completed-badge {
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 18px;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
+
+/* ── Phase Card ── */
+.pd-phase-card {
+  background: var(--white);
+  border-radius: 18px;
+  padding: 28px 32px;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.05);
+  text-align: left;
+}
+
+.pd-phase-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+
+.pd-phase-sub {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+
+.pd-phase-list {
+  list-style: disc;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pd-phase-list li {
+  font-size: 14px;
+  color: #555;
+}
+
+.pd-phase-scope {
+  font-size: 14px;
+  color: #555;
+  line-height: 1.7;
 }
