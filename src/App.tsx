@@ -10,6 +10,8 @@ import TimeLog from '../src/pages/TimeLog';
 import ResourceManagement from '../src/pages/Resourcemanagement';
 import UserManagement from './pages/UserManagement';
 import RegisterPage from './pages/RegisterPage';
+import ManageTeam from './pages/manage-team';
+import Documents from './pages/Documents';
 
 
 export default function App() {
@@ -98,6 +100,24 @@ export default function App() {
             <div className="dashboard-wrapper">
               <Sidebar />
               <UserManagement />
+            </div>
+          }
+        />
+        <Route 
+          path="/projects/:projectCode/team"
+          element={
+            <div className="dashboard-wrapper">
+              <Sidebar />
+              <ManageTeam />
+            </div>
+          }
+        />
+        <Route 
+          path="/projects/:projectCode/documents"
+          element={
+            <div className="dashboard-wrapper">
+              <Sidebar />
+              <Documents />
             </div>
           }
         />

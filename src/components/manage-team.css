@@ -1,0 +1,392 @@
+/* ─────────────────────────────────────────
+   manage-team.css  –  SitePulse
+───────────────────────────────────────── */
+
+/* ── Page title row ── */
+.mt-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.mt-page-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text);
+  margin: 0 0 4px;
+  line-height: 1.15;
+}
+
+.mt-page-sub {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* ── Add Member button ── */
+.mt-add-btn {
+  background: var(--text);
+  color: var(--white);
+  border: none;
+  border-radius: 10px;
+  padding: 12px 22px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+
+.mt-add-btn:hover { opacity: 0.85; }
+
+.mt-add-btn--center {
+  margin-top: 20px;
+  background: #111827;
+}
+
+/* ── Content wrapper ── */
+.mt-content {
+  /* fills the remaining space */
+}
+
+/* ── State messages ── */
+.mt-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40vh;
+  font-size: 14px;
+  color: #888;
+}
+
+.mt-state--error { color: #e74c3c; }
+
+/* ── Empty state ── */
+.mt-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 38vh;
+  text-align: center;
+  padding: 40px 24px;
+}
+
+.mt-empty-icon {
+  width: 80px;
+  height: 80px;
+  background: #f0f0ee;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #aaa;
+  margin-bottom: 20px;
+}
+
+.mt-empty-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 8px;
+}
+
+.mt-empty-sub {
+  font-size: 13px;
+  color: var(--muted);
+  max-width: 320px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ── Members table ── */
+.mt-table-wrap {
+  background: var(--white);
+  border-radius: 16px;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.05);
+  overflow: hidden;
+  border: 1px solid #f0f0f0;
+}
+
+.mt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.mt-table thead tr {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.mt-table th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 14px 20px;
+  background: #fafafa;
+}
+
+.mt-table td {
+  padding: 16px 20px;
+  border-bottom: 1px solid #f7f7f7;
+  color: var(--text);
+  vertical-align: middle;
+}
+
+.mt-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.mt-table tbody tr:hover td {
+  background: #faf9f8;
+}
+
+/* ── Member cell (avatar + name) ── */
+.mt-member-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mt-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.mt-member-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ── Role chip ── */
+.mt-role-chip {
+  background: #f4f5f7;
+  border: 1px solid #e8e8e8;
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #555;
+  white-space: nowrap;
+}
+
+/* ── Email + joined ── */
+.mt-email {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.mt-joined {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* ── Remove button ── */
+.mt-remove-btn {
+  background: none;
+  border: 1px solid #fca5a5;
+  color: #dc2626;
+  border-radius: 7px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.mt-remove-btn:hover {
+  background: #fef2f2;
+}
+
+.mt-remove-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─────────────────────────────────────────────
+   Add Member Modal
+───────────────────────────────────────────── */
+
+.mt-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+  animation: mt-fade-in 0.18s ease;
+}
+
+@keyframes mt-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.mt-modal {
+  background: #fff;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  animation: mt-slide-up 0.22s ease;
+}
+
+@keyframes mt-slide-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.mt-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem 1rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.mt-modal-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111;
+  margin: 0;
+}
+
+.mt-modal-close {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  color: #aaa;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s;
+}
+
+.mt-modal-close:hover {
+  color: #333;
+  background: #f4f4f4;
+}
+
+.mt-modal-body {
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mt-modal-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #dc2626;
+  margin: 0;
+}
+
+/* ── Form fields ── */
+.mt-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mt-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #444;
+}
+
+.mt-required {
+  color: #dc2626;
+  margin-left: 2px;
+}
+
+.mt-optional {
+  color: #aaa;
+  font-weight: 400;
+  margin-left: 4px;
+}
+
+.mt-input {
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  color: #111;
+  background: #fafafa;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.mt-input:focus {
+  border-color: #111827;
+  background: #fff;
+}
+
+.mt-input::placeholder {
+  color: #bbb;
+}
+
+/* ── Modal footer ── */
+.mt-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  padding-top: 4px;
+}
+
+.mt-btn-cancel {
+  background: #f4f5f7;
+  color: #555;
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 1.1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.mt-btn-cancel:hover { background: #e8e9ec; }
+
+.mt-btn-add {
+  background: #111827;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s;
+}
+
+.mt-btn-add:hover { opacity: 0.85; }
+.mt-btn-add:disabled { opacity: 0.55; cursor: not-allowed; }

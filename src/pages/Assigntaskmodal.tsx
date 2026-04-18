@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import "../components/Assigntaskmodal.css";
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 /* ── Types ── */
 export interface TaskInfo {
@@ -7,7 +9,7 @@ export interface TaskInfo {
   name: string;
   description: string;
   phase: string;
-  priority: "high" | "medium" | "low";
+  priority: "High" | "Medium" | "Low";
 }
 
 export interface Engineer {
@@ -26,10 +28,9 @@ export interface TechDocument {
 
 interface AssignTaskModalProps {
   task: TaskInfo;
-  engineers: Engineer[];
   documents?: TechDocument[];
-  onAssign: (payload: AssignPayload) => void;
   onClose: () => void;
+  onSuccess?: () => void; // optional: refresh task list after assign
 }
 
 export interface AssignPayload {
@@ -44,13 +45,13 @@ export interface AssignPayload {
 
 /* ── Helpers ── */
 const priorityLabel: Record<string, string> = {
-  high: "High priority",
-  medium: "Medium priority",
-  low: "Low priority",
+  High: "High priority",
+  Medium: "Medium priority",
+  Low: "Low priority",
 };
 
 const initials = (name: string) =>
-  name
+  (name ?? "?")
     .split(" ")
     .map((n) => n[0])
     .join("")
@@ -60,20 +61,53 @@ const initials = (name: string) =>
 /* ── Component ── */
 export default function AssignTaskModal({
   task,
-  engineers,
   documents = [],
-  onAssign,
   onClose,
+  onSuccess,
 }: AssignTaskModalProps) {
-  const [selectedEngineer, setSelectedEngineer] = useState<string>(
-    engineers.find((e) => e.status === "available")?.id ?? engineers[0]?.id ?? ""
-  );
-  const [priority, setPriority] = useState(task.priority);
-  const [deadline, setDeadline] = useState("");
-  const [estimatedHours, setEstimatedHours] = useState("");
-  const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set());
-  const [notes, setNotes] = useState("");
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [engineers, setEngineers]               = useState<Engineer[]>([]);
+  const [engLoading, setEngLoading]             = useState(true);
+  const [selectedEngineer, setSelectedEngineer] = useState<string>("");
+  const [priority, setPriority]                 = useState(task.priority);
+  const [deadline, setDeadline]                 = useState("");
+  const [estimatedHours, setEstimatedHours]     = useState("");
+  const [selectedDocs, setSelectedDocs]         = useState<Set<string>>(new Set());
+  const [notes, setNotes]                       = useState("");
+  const [errors, setErrors]                     = useState<Record<string, string>>({});
+  const [submitting, setSubmitting]             = useState(false); // ← loading state
+  const [submitError, setSubmitError]           = useState<string | null>(null); // ← error banner
+
+  // ── Fetch real users from DB ──
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = localStorage.getItem("auth_token");
+        const res = await fetch(`${BACKEND_URL}/users`, {
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
+        if (!res.ok) throw new Error("Failed to fetch users.");
+        const { data } = await res.json();
+
+        const mapped: Engineer[] = data.map((u: any) => ({
+          id:           String(u.id),
+          name:         u.full_name ?? u.email,
+          role:         u.role,
+          status:       Number(u.current_tasks) > 0 ? "busy" : "available",
+          currentTasks: Number(u.current_tasks ?? 0),
+        }));
+
+        setEngineers(mapped);
+        if (mapped.length > 0) setSelectedEngineer(mapped[0].id);
+      } catch {
+        // silently fail — no users shown
+      } finally {
+        setEngLoading(false);
+      }
+    })();
+  }, []);
 
   const toggleDoc = (id: string) => {
     setSelectedDocs((prev) => {
@@ -85,29 +119,53 @@ export default function AssignTaskModal({
 
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!selectedEngineer) e.engineer = "Please select an engineer.";
-    if (!deadline) e.deadline = "Deadline is required.";
+    if (!selectedEngineer) e.engineer = "Please select a user.";
+    if (!deadline)         e.deadline = "Deadline is required.";
     return e;
   };
 
-  const handleSubmit = () => {
+  // ── handleAssign: POST to backend ──
+  const handleSubmit = async () => {
     const errs = validate();
-    if (Object.keys(errs).length) {
-      setErrors(errs);
-      return;
+    if (Object.keys(errs).length) { setErrors(errs); return; }
+
+    setSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch(`${BACKEND_URL}/tasks`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          taskName:          task.name,
+          phase:             task.phase,
+          assigneeId:        selectedEngineer,   // ← user.id FK
+          dueDate:           deadline,
+          priority,
+          manpowerNeeded:    estimatedHours,
+          materialsRequired: "",
+          siteInstructions:  notes,
+        }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? "Failed to assign task.");
+      }
+
+      onSuccess?.(); // refresh parent task list if provided
+      onClose();     // close modal
+    } catch (err: any) {
+      setSubmitError(err.message ?? "Something went wrong.");
+    } finally {
+      setSubmitting(false);
     }
-    onAssign({
-      taskId: task.id,
-      engineerId: selectedEngineer,
-      priority,
-      deadline,
-      estimatedHours,
-      documentIds: Array.from(selectedDocs),
-      notes,
-    });
   };
 
-  /* overlay click-outside */
   const handleOverlay = (e: React.MouseEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).classList.contains("atm-overlay")) onClose();
   };
@@ -115,32 +173,37 @@ export default function AssignTaskModal({
   return (
     <div className="atm-overlay" onMouseDown={handleOverlay}>
       <div className="atm-modal" role="dialog" aria-modal="true" aria-labelledby="atm-title">
+
         {/* ── Header ── */}
         <div className="atm-header">
           <div>
-            <h2 className="atm-title" id="atm-title">
-              Assign task to site engineer
-            </h2>
+            <h2 className="atm-title" id="atm-title">Assign task to site engineer</h2>
             <p className="atm-subtitle">Select an engineer and configure assignment details</p>
           </div>
-          <button className="atm-close" onClick={onClose} aria-label="Close">
-            &#x2715;
-          </button>
+          <button className="atm-close" onClick={onClose} aria-label="Close">&#x2715;</button>
         </div>
 
         <div className="atm-body">
+
+          {/* ── Submit error banner ── */}
+          {submitError && (
+            <div className="atm-error-banner">
+              {submitError}
+            </div>
+          )}
+
           {/* ── Task Card ── */}
           <div className="atm-task-card">
             <span className="atm-task-card__label">Task</span>
             <p className="atm-task-card__name">{task.name}</p>
             <p className="atm-task-card__desc">{task.description}</p>
             <div className="atm-task-card__meta">
-              <span>
-                <strong>Phase:</strong> {task.phase}
-              </span>
+              <span><strong>Phase:</strong> {task.phase}</span>
               <span>
                 <strong>Current priority:</strong>{" "}
-                <span className={`atm-badge atm-badge--${task.priority}`}>{task.priority}</span>
+                <span className={`atm-badge atm-badge--${task.priority.toLowerCase()}`}>
+                  {task.priority}
+                </span>
               </span>
             </div>
           </div>
@@ -151,35 +214,40 @@ export default function AssignTaskModal({
               Select site engineer <span className="atm-required">*</span>
             </p>
             {errors.engineer && <p className="atm-field-error">{errors.engineer}</p>}
-            <div className="atm-engineers">
-              {engineers.map((eng) => (
-                <button
-                  key={eng.id}
-                  className={`atm-eng-card${selectedEngineer === eng.id ? " atm-eng-card--selected" : ""}`}
-                  onClick={() => {
-                    setSelectedEngineer(eng.id);
-                    setErrors((e) => ({ ...e, engineer: "" }));
-                  }}
-                >
-                  <div className="atm-eng-card__top">
-                    <div className="atm-eng-card__avatar">{initials(eng.name)}</div>
-                    <span className={`atm-pill atm-pill--${eng.status}`}>{eng.status}</span>
-                  </div>
-                  <p className="atm-eng-card__name">{eng.name}</p>
-                  <p className="atm-eng-card__role">{eng.role}</p>
-                  <p className="atm-eng-card__tasks">Current tasks: {eng.currentTasks}</p>
-                </button>
-              ))}
-            </div>
+
+            {engLoading ? (
+              <p className="atm-section-label">Loading users…</p>
+            ) : engineers.length === 0 ? (
+              <p className="atm-section-label">No users found.</p>
+            ) : (
+              <div className="atm-engineers">
+                {engineers.map((eng) => (
+                  <button
+                    key={eng.id}
+                    className={`atm-eng-card${selectedEngineer === eng.id ? " atm-eng-card--selected" : ""}`}
+                    onClick={() => {
+                      setSelectedEngineer(eng.id);
+                      setErrors((e) => ({ ...e, engineer: "" }));
+                    }}
+                  >
+                    <div className="atm-eng-card__top">
+                      <div className="atm-eng-card__avatar">{initials(eng.name)}</div>
+                      <span className={`atm-pill atm-pill--${eng.status}`}>{eng.status}</span>
+                    </div>
+                    <p className="atm-eng-card__name">{eng.name}</p>
+                    <p className="atm-eng-card__role">{eng.role}</p>
+                    <p className="atm-eng-card__tasks">Current tasks: {eng.currentTasks}</p>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* ── Priority & Deadline ── */}
           <div className="atm-row">
             <div className="atm-field">
               <label className="atm-label">
-                <span className="atm-label__icon">
-                  <FlagIcon />
-                </span>
+                <span className="atm-label__icon"><FlagIcon /></span>
                 Task priority <span className="atm-required">*</span>
               </label>
               <select
@@ -187,19 +255,15 @@ export default function AssignTaskModal({
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as TaskInfo["priority"])}
               >
-                {(["high", "medium", "low"] as const).map((p) => (
-                  <option key={p} value={p}>
-                    {priorityLabel[p]}
-                  </option>
+                {(["High", "Medium", "Low"] as const).map((p) => (
+                  <option key={p} value={p}>{priorityLabel[p]}</option>
                 ))}
               </select>
             </div>
 
             <div className="atm-field">
               <label className="atm-label">
-                <span className="atm-label__icon">
-                  <CalendarIcon />
-                </span>
+                <span className="atm-label__icon"><CalendarIcon /></span>
                 Deadline <span className="atm-required">*</span>
               </label>
               <input
@@ -257,15 +321,13 @@ export default function AssignTaskModal({
           {/* ── Notes ── */}
           <div className="atm-field">
             <label className="atm-label">
-              <span className="atm-label__icon">
-                <NoteIcon />
-              </span>
+              <span className="atm-label__icon"><NoteIcon /></span>
               Special instructions / notes
             </label>
             <textarea
               className="atm-textarea"
               rows={3}
-              placeholder="Add any specific instructions, safety requirements, or important notes for the site engineer..."
+              placeholder="Add any specific instructions, safety requirements, or important notes..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
             />
@@ -273,13 +335,23 @@ export default function AssignTaskModal({
 
           {/* ── Footer ── */}
           <div className="atm-footer">
-            <button className="atm-btn atm-btn--cancel" onClick={onClose}>
+            <button
+              className="atm-btn atm-btn--cancel"
+              onClick={onClose}
+              disabled={submitting}
+            >
               Cancel
             </button>
-            <button className="atm-btn atm-btn--submit" onClick={handleSubmit}>
-              <AssignIcon /> Assign task
+            <button
+              className="atm-btn atm-btn--submit"
+              onClick={handleSubmit}
+              disabled={submitting}
+            >
+              <AssignIcon />
+              {submitting ? "Assigning…" : "Assign task"}
             </button>
           </div>
+
         </div>
       </div>
     </div>

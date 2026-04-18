@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import '../components/Dashboard.css';
 
-const API_URL = import.meta.env.VITE_BACKEND_URL;
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 // --- TYPES ---
 interface StatItem {
@@ -90,12 +90,12 @@ const Dashboard: React.FC = () => {
         setError(null);
 
         const [stats, projects, monitorItems, rfisRes, notes, gaugeStats] = await Promise.all([
-          fetch(`${API_URL}/dashboard/stats`).then(r => r.json()),
-          fetch(`${API_URL}/dashboard/projects`).then(r => r.json()),
-          fetch(`${API_URL}/dashboard/monitor`).then(r => r.json()),
-          fetch(`${API_URL}/dashboard/rfis`).then(r => r.json()),
-          fetch(`${API_URL}/dashboard/notes`).then(r => r.json()),
-          fetch(`${API_URL}/dashboard/gauge`).then(r => r.json()),
+          fetch(`${BACKEND_URL}/dashboard/stats`).then(r => r.json()),
+          fetch(`${BACKEND_URL}/dashboard/projects`).then(r => r.json()),
+          fetch(`${BACKEND_URL}/dashboard/monitor`).then(r => r.json()),
+          fetch(`${BACKEND_URL}/dashboard/rfis`).then(r => r.json()),
+          fetch(`${BACKEND_URL}/dashboard/notes`).then(r => r.json()),
+          fetch(`${BACKEND_URL}/dashboard/gauge`).then(r => r.json()),
         ]);
 
         setData({

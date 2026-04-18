@@ -1,0 +1,249 @@
+/* ─────────────────────────────────────────
+   documents.css  –  SitePulse
+───────────────────────────────────────── */
+
+/* ── Page layout ── */
+.docs-page {
+  padding: 28px 36px;
+  background-color: #f7f5f2;
+  min-height: 100vh;
+  font-family: inherit;
+  color: #111;
+  box-sizing: border-box;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+/* ── Back button ── */
+.docs-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: #666;
+  cursor: pointer;
+  margin-bottom: 8px;
+  padding: 0;
+  font-family: inherit;
+  transition: color 0.15s;
+  width: 100%;
+  text-align: center;
+}
+.docs-back:hover { color: #111; }
+.docs-back-arrow { font-size: 15px; }
+
+/* ── Header ── */
+.docs-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  margin-top: 16px;
+}
+.docs-title {
+  font-size: 26px;
+  font-weight: 800;
+  margin: 0 0 4px;
+  color: #111;
+}
+.docs-subtitle {
+  font-size: 13px;
+  color: #888;
+  margin: 0;
+}
+
+/* ── Upload button ── */
+.docs-upload-btn {
+  background: #111827;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 22px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.docs-upload-btn:hover { background: #1f2937; }
+
+/* ── Search ── */
+.docs-search-wrap {
+  position: relative;
+  margin-bottom: 14px;
+}
+.docs-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 13px;
+  color: #aaa;
+  pointer-events: none;
+}
+.docs-search {
+  width: 100%;
+  padding: 11px 16px 11px 40px;
+  border: 1.5px solid #ede9e3;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 13px;
+  color: #111;
+  outline: none;
+  box-sizing: border-box;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+.docs-search:focus { border-color: #d6cfc6; }
+.docs-search::placeholder { color: #bbb; }
+
+/* ── Filter tabs ── */
+.docs-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+.docs-filter-btn {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1.5px solid #ede9e3;
+  background: #fff;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #666;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.docs-filter-btn:hover {
+  border-color: #d6cfc6;
+  background: #f0ece6;
+  color: #111;
+}
+.docs-filter-btn--active {
+  background: #111827;
+  color: #fff;
+  border-color: #111827;
+}
+
+/* ── Section ── */
+.docs-section { margin-bottom: 36px; }
+.docs-section-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #444;
+  margin: 0 0 14px;
+  text-align: center;
+}
+
+/* ── Grid ── */
+.docs-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+/* ── Card ── */
+.doc-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  border: 1.5px solid #ede9e3;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.doc-card:hover {
+  border-color: #d6cfc6;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+/* ── Card top row ── */
+.doc-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+/* ── Type badge ── */
+.doc-type-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.type-dwg { background: #dbeafe; color: #1d4ed8; }
+.type-pdf { background: #fee2e2; color: #b91c1c; }
+.type-xls { background: #dcfce7; color: #15803d; }
+.type-doc { background: #ede9fe; color: #6d28d9; }
+
+/* ── Delete button ── */
+.doc-delete-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: #f87171;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.doc-delete-btn:hover { background: #fee2e2; }
+
+/* ── Card text ── */
+.doc-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  margin: 0;
+  color: #111;
+  line-height: 1.3;
+  text-align: center;
+}
+.doc-date {
+  font-size: 11.5px;
+  color: #aaa;
+  margin: 0;
+  text-align: center;
+}
+
+/* ── Download button ── */
+.doc-download-btn {
+  margin-top: 10px;
+  width: 100%;
+  padding: 9px;
+  border: 1.5px solid #ede9e3;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  color: #444;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s;
+}
+.doc-download-btn:hover {
+  background: #f0ece6;
+  border-color: #d6cfc6;
+}
+
+/* ── Responsive ── */
+@media (max-width: 1024px) {
+  .docs-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .docs-page { padding: 16px; }
+  .docs-grid { grid-template-columns: 1fr; }
+}

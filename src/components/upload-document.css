@@ -1,0 +1,317 @@
+/* ─────────────────────────────────────────
+   upload-document.css  –  SitePulse
+───────────────────────────────────────── */
+
+/* ── Overlay ── */
+.ud-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+  animation: ud-fade-in 0.18s ease;
+}
+
+@keyframes ud-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── Modal ── */
+.ud-modal {
+  background: #fff;
+  border-radius: 18px;
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.2);
+  animation: ud-slide-up 0.22s ease;
+  overflow: hidden;
+}
+
+@keyframes ud-slide-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Header ── */
+.ud-header {
+  padding: 1.5rem 1.5rem 0.75rem;
+  flex-shrink: 0;
+}
+
+.ud-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #111;
+  margin: 0 0 4px;
+}
+
+.ud-subtitle {
+  font-size: 0.82rem;
+  color: #888;
+  margin: 0;
+}
+
+/* ── Scrollable body ── */
+.ud-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1.5rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ud-body::-webkit-scrollbar { width: 4px; }
+.ud-body::-webkit-scrollbar-track { background: transparent; }
+.ud-body::-webkit-scrollbar-thumb { background: #e0e0e0; border-radius: 4px; }
+
+/* ── Field ── */
+.ud-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ud-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111;
+}
+
+.ud-required {
+  color: #e04646;
+  margin-left: 2px;
+}
+
+/* ── Input ── */
+.ud-input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1.5px solid #ede9e3;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #111;
+  background: #f7f5f2;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.ud-input:focus {
+  border-color: #d6cfc6;
+  background: #fff;
+}
+
+.ud-input::placeholder { color: #bbb; }
+
+/* ── Select ── */
+.ud-select-wrap {
+  position: relative;
+}
+
+.ud-select-wrap::after {
+  content: '▾';
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: #aaa;
+  pointer-events: none;
+}
+
+.ud-select {
+  width: 100%;
+  padding: 11px 36px 11px 14px;
+  border: 1.5px solid #ede9e3;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #111;
+  background: #f7f5f2;
+  font-family: inherit;
+  outline: none;
+  appearance: none;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.ud-select:focus {
+  border-color: #d6cfc6;
+  background: #fff;
+}
+
+/* ── Drop zone ── */
+.ud-dropzone {
+  border: 1.5px dashed #d6cfc6;
+  border-radius: 12px;
+  background: #f7f5f2;
+  padding: 32px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.ud-dropzone:hover,
+.ud-dropzone--dragging {
+  border-color: #111827;
+  background: #f0ece6;
+}
+
+.ud-drop-icon {
+  font-size: 24px;
+  color: #888;
+  margin-bottom: 4px;
+}
+
+.ud-drop-text {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #111;
+  margin: 0;
+}
+
+.ud-drop-sub {
+  font-size: 12px;
+  color: #888;
+  margin: 0;
+}
+
+.ud-drop-link {
+  color: #111827;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.ud-drop-hint {
+  font-size: 11px;
+  color: #bbb;
+  margin: 4px 0 0;
+}
+
+.ud-file-input {
+  display: none;
+}
+
+/* ── File preview ── */
+.ud-file-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #f7f5f2;
+  border: 1.5px solid #ede9e3;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.ud-file-badge {
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  letter-spacing: 0.04em;
+}
+
+.ud-file-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ud-file-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ud-file-size {
+  font-size: 11px;
+  color: #aaa;
+}
+
+.ud-file-remove {
+  background: #f0ece6;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #444;
+  cursor: pointer;
+  font-family: inherit;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.ud-file-remove:hover { background: #e6e0d8; }
+
+/* ── Error ── */
+.ud-error {
+  font-size: 12.5px;
+  color: #dc2626;
+  margin: 0;
+}
+
+/* ── Footer ── */
+.ud-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 1rem 1.5rem 1.5rem;
+  flex-shrink: 0;
+  border-top: 1px solid #f0f0f0;
+}
+
+.ud-btn-cancel {
+  flex: 1;
+  background: #f0ece6;
+  color: #444;
+  border: none;
+  border-radius: 10px;
+  padding: 13px 0;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.ud-btn-cancel:hover { background: #e6e0d8; }
+
+.ud-btn-submit {
+  flex: 1;
+  background: #111827;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 13px 0;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.ud-btn-submit:hover:not(:disabled) { background: #1f2937; }
+.ud-btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
