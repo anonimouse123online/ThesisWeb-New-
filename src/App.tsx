@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
-import Projects from './pages/Projects'; // 1. Import the new Projects page
+import Projects from './pages/Projects'; 
 import Sidebar from './components/Sidebar';
 import ProjectDetails from './pages/ProjectDetails';
 import Task from './pages/Task';
@@ -10,7 +10,7 @@ import TimeLog from '../src/pages/TimeLog';
 import ResourceManagement from '../src/pages/Resourcemanagement';
 import UserManagement from './pages/UserManagement';
 import RegisterPage from './pages/RegisterPage';
-import ManageTeam from './pages/manage-team';
+import ManageTeam from './pages/ManageTeam';
 import Documents from './pages/Documents';
 
 
