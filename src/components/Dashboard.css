@@ -238,9 +238,17 @@ body {
 
 .stat-card {
   background: var(--white);
-  border-radius: 22px;
+  border-radius: 18px;
   padding: 22px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  border: 1px solid #ede5dc;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+  transition: all 0.15s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  border-color: #dbc9b5;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
 }
 
 .stat-icon-box {

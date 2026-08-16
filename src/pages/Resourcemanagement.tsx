@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import "../components/Resourcemanagement.css";
+import { fetchWithAuth } from "../utils/api";
+import { showToast } from "../components/Toast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,8 +35,6 @@ interface NewResourceForm {
 
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-
-const PROJECTS = ["Downtown Office Complex", "Riverside Bridge Renovation", "Northside Residential"];
 
 const emptyForm: NewResourceForm = {
   name: "", category: "Material", quantity: "", unit: "",
@@ -80,19 +80,32 @@ const ResourceManagement: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState("All Resources");
-  const [filterCategory, setFilterCategory] = useState("All Categories");
+  const [filterProject, setFilterProject] = useState("All Projects");
   const [filterStatus, setFilterStatus] = useState("All Status");
 
-  // ── Fetch all resources on mount ──────────────────────────────────────────
+  const [projectNames, setProjectNames] = useState<string[]>([]);
+
+  // ── Fetch all resources + projects on mount ───────────────────────────────
   useEffect(() => {
     fetchResources();
+    fetchProjectNames();
   }, []);
+
+  const fetchProjectNames = async () => {
+    try {
+      const res = await fetchWithAuth(`${BACKEND_URL}/projects`);
+      if (!res.ok) return;
+      const json = await res.json();
+      const names = (json.data ?? []).map((p: { name: string }) => p.name);
+      setProjectNames(names);
+    } catch { /* ignore */ }
+  };
 
   const fetchResources = async () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`${BACKEND_URL}/resources`);
+      const res = await fetchWithAuth(`${BACKEND_URL}/resources`);
       if (!res.ok) throw new Error("Failed to fetch resources");
       const json = await res.json();
       setResources(json.data);
@@ -112,11 +125,11 @@ const ResourceManagement: React.FC = () => {
   // ── Client-side filtering ─────────────────────────────────────────────────
   const filtered = resources.filter(r => {
     const q = searchQuery.toLowerCase();
-    const matchSearch   = !q || r.name.toLowerCase().includes(q) || r.supplier.toLowerCase().includes(q);
-    const matchType     = filterType     === "All Resources"   || r.category === filterType;
-    const matchCat      = filterCategory === "All Categories"  || r.category === filterCategory;
-    const matchStatus   = filterStatus   === "All Status"      || r.status   === filterStatus;
-    return matchSearch && matchType && matchCat && matchStatus;
+    const matchSearch   = !q || r.name.toLowerCase().includes(q) || r.supplier.toLowerCase().includes(q) || (r.project && r.project.toLowerCase().includes(q));
+    const matchType     = filterType    === "All Resources" || r.category === filterType;
+    const matchProject  = filterProject === "All Projects"  || r.project === filterProject || (r.project && r.project.toLowerCase() === filterProject.toLowerCase());
+    const matchStatus   = filterStatus  === "All Status"     || r.status   === filterStatus;
+    return matchSearch && matchType && matchProject && matchStatus;
   });
 
   const filteredMaterials  = filtered.filter(r => r.category === "Material");
@@ -133,10 +146,13 @@ const ResourceManagement: React.FC = () => {
 
   // ── CREATE ────────────────────────────────────────────────────────────────
   const handleAddResource = async () => {
-    if (!form.name || !form.quantity || !form.unitPrice || !form.assignedProject) return;
+    if (!form.name || !form.quantity || !form.unitPrice || !form.assignedProject) {
+      showToast("Please fill in all required fields including the project.", "warning");
+      return;
+    }
 
     try {
-      const res = await fetch(`${BACKEND_URL}/resources`, {
+      const res = await fetchWithAuth(`${BACKEND_URL}/resources`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -156,8 +172,9 @@ const ResourceManagement: React.FC = () => {
       setResources(prev => [...prev, json.data]);
       setForm(emptyForm);
       setShowModal(false);
+      showToast("Resource added successfully!", "success");
     } catch (err: any) {
-      alert(err.message || "Failed to add resource");
+      showToast(err.message || "Failed to add resource", "error");
     }
   };
 
@@ -182,7 +199,7 @@ const ResourceManagement: React.FC = () => {
     if (!editingResource) return;
 
     try {
-      const res = await fetch(`${BACKEND_URL}/resources/${editingResource.id}`, {
+      const res = await fetchWithAuth(`${BACKEND_URL}/resources/${editingResource.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -202,8 +219,9 @@ const ResourceManagement: React.FC = () => {
       setResources(prev => prev.map(r => r.id === editingResource.id ? json.data : r));
       setShowEditModal(false);
       setEditingResource(null);
+      showToast("Resource updated successfully!", "success");
     } catch (err: any) {
-      alert(err.message || "Failed to update resource");
+      showToast(err.message || "Failed to update resource", "error");
     }
   };
 
@@ -212,11 +230,12 @@ const ResourceManagement: React.FC = () => {
     if (!window.confirm("Are you sure you want to delete this resource?")) return;
 
     try {
-      const res = await fetch(`${BACKEND_URL}/resources/${id}`, { method: "DELETE" });
+      const res = await fetchWithAuth(`${BACKEND_URL}/resources/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete resource");
       setResources(prev => prev.filter(r => r.id !== id));
+      showToast("Resource deleted successfully!", "success");
     } catch (err: any) {
-      alert(err.message || "Failed to delete resource");
+      showToast(err.message || "Failed to delete resource", "error");
     }
   };
 
@@ -310,7 +329,7 @@ const ResourceManagement: React.FC = () => {
           <div className="select-wrap">
             <select name="assignedProject" value={values.assignedProject} onChange={onChange} className="form-select">
               <option value="">Select a project</option>
-              {PROJECTS.map(p => <option key={p} value={p}>{p}</option>)}
+              {projectNames.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
         </div>
@@ -376,10 +395,11 @@ const ResourceManagement: React.FC = () => {
           </select>
         </div>
         <div className="rm-select-wrap">
-          <select className="rm-select" value={filterCategory} onChange={e => setFilterCategory(e.target.value)}>
-            <option>All Categories</option>
-            <option>Material</option>
-            <option>Equipment</option>
+          <select className="rm-select" value={filterProject} onChange={e => setFilterProject(e.target.value)}>
+            <option value="All Projects">All Projects</option>
+            {projectNames.map((name) => (
+              <option key={name} value={name}>{name}</option>
+            ))}
           </select>
         </div>
         <div className="rm-select-wrap">

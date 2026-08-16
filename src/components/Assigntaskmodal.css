@@ -431,10 +431,11 @@
 .atm-btn--cancel:hover { background: #e5e7eb; }
 
 .atm-btn--submit {
-  background: #111827;
+  background: #f05a28;
   color: #ffffff;
+  box-shadow: 0 4px 14px rgba(240, 90, 40, 0.25);
 }
-.atm-btn--submit:hover:not(:disabled) { background: #1f2937; }
+.atm-btn--submit:hover:not(:disabled) { background: #d84818; }
 
 /* ── Responsive ── */
 @media (max-width: 600px) {

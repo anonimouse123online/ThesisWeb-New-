@@ -281,14 +281,14 @@
 }
 
 .ct-btn--submit {
-  background: #111827;
+  background: #f05a28;
   color: #ffffff;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+  box-shadow: 0 4px 14px rgba(240, 90, 40, 0.25);
 }
 
 .ct-btn--submit:hover {
-  background: #1f2937;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.22);
+  background: #d84818;
+  box-shadow: 0 6px 18px rgba(240, 90, 40, 0.32);
 }
 
 /* ── Scrollbar ── */

@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../components/Projects.css';
+import { fetchWithAuth } from '../utils/api';
+import Dropdown from '../components/Dropdown';
+import ProfileDropdown from '../components/ProfileDropdown';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -43,9 +46,9 @@ const emptyForm: NewProjectForm = {
 
 const PHASES = [
   'Phase 1 - Foundation',
-  'Phase 2 - Structure',
-  'Phase 3 - Envelope',
-  'Phase 4 - Interior',
+  'Phase 2 - Structural',
+  'Phase 3 - Electrical & Utilities',
+  'Phase 4 - Plumbing & MEP',
   'Phase 5 - Finishing',
 ];
 
@@ -59,19 +62,29 @@ const Projects: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Filters
+  const [selectedProjectFilter, setSelectedProjectFilter] = useState('All');
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState('All');
+
   useEffect(() => { fetchProjects(); }, []);
+
+  // Read logged-in user from localStorage
+  const storedUser = localStorage.getItem('user');
+  let userName = 'User';
+  let userRole = 'Member';
+  try {
+    if (storedUser) {
+      const parsed = JSON.parse(storedUser);
+      userName = parsed.name || parsed.email?.split('@')[0] || 'User';
+      userRole = parsed.role || 'Member';
+    }
+  } catch { /* ignore */ }
 
   const fetchProjects = async () => {
     try {
       setLoading(true);
       setError(null);
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${BACKEND_URL}/projects`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetchWithAuth(`${BACKEND_URL}/projects`);
       if (!response.ok) throw new Error(`Failed to fetch projects: ${response.statusText}`);
       const data = await response.json();
       setProjects(data.data ?? data);
@@ -91,14 +104,10 @@ const Projects: React.FC = () => {
     try {
       setSubmitting(true);
       setFormError(null);
-      const token = localStorage.getItem('token');
-
-      // status is always 'Planning' on create — set by backend
-      const res = await fetch(`${BACKEND_URL}/projects`, {
+      const res = await fetchWithAuth(`${BACKEND_URL}/projects`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(form),
       });
@@ -139,6 +148,25 @@ const Projects: React.FC = () => {
     return `${(n / 1_000_000).toFixed(2)}M`;
   };
 
+  // Filter options
+  const projectOptions = [
+    { value: 'All', label: 'All Projects' },
+    ...projects.map(p => ({ value: p.code, label: `${p.code} — ${p.name}` }))
+  ];
+
+  const statusOptions = [
+    { value: 'All', label: 'All Statuses' },
+    { value: 'Planning', label: 'Planning' },
+    { value: 'Ongoing', label: 'Ongoing' },
+    { value: 'Completed', label: 'Completed' },
+  ];
+
+  const filteredProjects = projects.filter(p => {
+    const matchProject = selectedProjectFilter === 'All' || p.code === selectedProjectFilter;
+    const matchStatus  = selectedStatusFilter === 'All' || p.status.toLowerCase() === selectedStatusFilter.toLowerCase();
+    return matchProject && matchStatus;
+  });
+
   return (
     <main className="main-content">
       {/* ── Header ── */}
@@ -148,18 +176,7 @@ const Projects: React.FC = () => {
           <p className="pm-subtitle">Create and manage construction projects</p>
         </div>
         <div className="pm-header-right">
-          <div className="pm-profile">
-            <img
-              src="https://api.dicebear.com/7.x/avataaars/svg?seed=Alex"
-              alt="Alex"
-              className="user-avatar"
-            />
-            <div className="profile-info">
-              <p className="profile-name">Alex meian</p>
-              <p className="profile-role">Product manager</p>
-            </div>
-            <span className="chevron">▾</span>
-          </div>
+          <ProfileDropdown userName={userName} userRole={userRole} />
         </div>
       </header>
 
@@ -167,9 +184,19 @@ const Projects: React.FC = () => {
       <div className="pm-card">
         <div className="pm-card-header">
           <h2 className="section-title">Active Project Table</h2>
-          <div className="flex gap-3 items-center ">
-            <button className="filter-btn">Project ▾</button>
-            <button className="filter-btn">Status ▾</button>
+          <div className="flex gap-3 items-center">
+            <Dropdown
+              options={projectOptions}
+              value={selectedProjectFilter}
+              onChange={setSelectedProjectFilter}
+              prefix="Project"
+            />
+            <Dropdown
+              options={statusOptions}
+              value={selectedStatusFilter}
+              onChange={setSelectedStatusFilter}
+              prefix="Status"
+            />
             <button className="pm-new-btn" onClick={() => setShowModal(true)}>
               + New Project
             </button>
@@ -178,11 +205,11 @@ const Projects: React.FC = () => {
 
         {loading && <p className="pm-state-msg">Loading projects...</p>}
         {error   && <p className="pm-state-msg pm-state-msg--error">{error}</p>}
-        {!loading && !error && projects.length === 0 && (
-          <p className="pm-state-msg">No projects found.</p>
+        {!loading && !error && filteredProjects.length === 0 && (
+          <p className="pm-state-msg">No projects match the selected filters.</p>
         )}
 
-        {!loading && !error && projects.length > 0 && (
+        {!loading && !error && filteredProjects.length > 0 && (
           <table className="pm-table">
             <thead>
               <tr>
@@ -197,7 +224,7 @@ const Projects: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {projects.map((prj) => (
+              {filteredProjects.map((prj) => (
                 <tr key={prj.code}>
                   <td className="pm-td-bold">{prj.code}</td>
                   <td>{prj.name}</td>

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import '../components/ProjectDetails.css';
+import { fetchWithAuth } from '../utils/api';
+import ProfileDropdown from '../components/ProfileDropdown';
 
 const API_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -57,7 +59,7 @@ const GenerateCodeModal: React.FC<GenerateCodeModalProps> = ({ project, onClose 
   useEffect(() => {
     const fetchActiveCode = async () => {
       try {
-        const res = await fetch(`${API_URL}/projects/${project.code}/active-code`);
+        const res = await fetchWithAuth(`${API_URL}/projects/${project.code}/active-code`);
         const data = await res.json();
         if (data.success && data.code) {
           setCodeValue(data.code);
@@ -75,7 +77,7 @@ const GenerateCodeModal: React.FC<GenerateCodeModalProps> = ({ project, onClose 
   const handleGenerate = async () => {
     setGenerating(true);
     try {
-      const res = await fetch(`${API_URL}/projects/${project.code}/generate-code`, {
+      const res = await fetchWithAuth(`${API_URL}/projects/${project.code}/generate-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -197,7 +199,7 @@ const ProjectDetails: React.FC = () => {
   useEffect(() => {
     const fetchProject = async () => {
       try {
-        const res = await fetch(`${API_URL}/projects/${projectId}`);
+        const res = await fetchWithAuth(`${API_URL}/projects/${projectId}`);
         const data = await res.json();
         if (!res.ok) throw new Error(data.message || 'Failed to fetch project');
         setProject(data.data);
@@ -218,9 +220,9 @@ const ProjectDetails: React.FC = () => {
       setDashboardLoading(true);
       try {
         const [statsRes, taskRes, membersRes] = await Promise.allSettled([
-          fetch(`${API_URL}/projects/${project.code}/stats`),
-          fetch(`${API_URL}/projects/${project.code}/active-task`),
-          fetch(`${API_URL}/projects/${project.code}/members`),
+          fetchWithAuth(`${API_URL}/projects/${project.code}/stats`),
+          fetchWithAuth(`${API_URL}/projects/${project.code}/active-task`),
+          fetchWithAuth(`${API_URL}/projects/${project.code}/members`),
         ]);
 
         if (statsRes.status === 'fulfilled' && statsRes.value.ok) {
@@ -253,7 +255,7 @@ const ProjectDetails: React.FC = () => {
     if (!project) return;
     try {
       setActivating(true);
-      const res = await fetch(`${API_URL}/projects/${project.code}/status`, {
+      const res = await fetchWithAuth(`${API_URL}/projects/${project.code}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'Ongoing' }),
@@ -290,6 +292,18 @@ const ProjectDetails: React.FC = () => {
     return 'pd-status-pill pd-status--planning';
   };
 
+  // Read logged-in user from localStorage
+  const storedUser = localStorage.getItem('user');
+  let userName = 'User';
+  let userRole = 'Member';
+  try {
+    if (storedUser) {
+      const parsed = JSON.parse(storedUser);
+      userName = parsed.name || parsed.email?.split('@')[0] || 'User';
+      userRole = parsed.role || 'Member';
+    }
+  } catch { /* ignore */ }
+
   if (loading) return <div className="pd-state">Loading project...</div>;
   if (error)   return <div className="pd-state pd-state--error">{error}</div>;
   if (!project) return <div className="pd-state">Project not found.</div>;
@@ -307,18 +321,7 @@ const ProjectDetails: React.FC = () => {
             ← Back to Projects
           </button>
         </div>
-        <div className="pm-profile">
-          <img
-            src="https://api.dicebear.com/7.x/avataaars/svg?seed=Alex"
-            alt="Alex"
-            className="user-avatar"
-          />
-          <div className="profile-info">
-            <p className="profile-name">Alex meian</p>
-            <p className="profile-role">Product manager</p>
-          </div>
-          <span className="chevron">▾</span>
-        </div>
+        <ProfileDropdown userName={userName} userRole={userRole} />
       </header>
 
       {/* ── ONGOING VIEW ── */}

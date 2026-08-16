@@ -27,21 +27,25 @@
 
 /* ── Add Member button ── */
 .mt-add-btn {
-  background: var(--text);
-  color: var(--white);
+  background: #f05a28;
+  color: #fff;
   border: none;
   border-radius: 10px;
-  padding: 12px 22px;
-  font-size: 14px;
+  padding: 10px 22px;
+  font-size: 13.5px;
   font-weight: 700;
   cursor: pointer;
   font-family: inherit;
   white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(240, 90, 40, 0.25);
+  transition: all 0.15s ease;
   flex-shrink: 0;
-  transition: opacity 0.15s;
 }
 
-.mt-add-btn:hover { opacity: 0.85; }
+.mt-add-btn:hover {
+  background: #d84818;
+  transform: translateY(-1px);
+}
 
 .mt-add-btn--center {
   margin-top: 20px;

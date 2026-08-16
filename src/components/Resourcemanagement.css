@@ -5,14 +5,14 @@
 /* ── Page container ─────────────────────────────── */
 .rm-container {
   flex: 1;
-  width: 100%;
+  width: calc(100% - 260px);
   min-width: 0;
-  padding: 32px 36px;
-  background-color: #f0ebe3;
+  padding: 28px 36px;
+  background-color: #f7f5f2;
   min-height: 100vh;
-  margin-left: 260px; /* ← ADD THIS */
+  margin-left: 260px;
   box-sizing: border-box;
-  font-family: "Inter", "Segoe UI", sans-serif;
+  font-family: 'DM Sans', -apple-system, sans-serif;
   color: #1a1a1a;
   overflow-y: auto;
 }

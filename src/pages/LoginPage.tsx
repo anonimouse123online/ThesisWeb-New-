@@ -13,6 +13,16 @@ const LoginPage: React.FC = () => {
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
+  const [rememberMe, setRememberMe] = useState(() => {
+    return localStorage.getItem('remember_me') === 'true';
+  });
+
+  // Pre-fill email if remembered
+  React.useEffect(() => {
+    const savedEmail = localStorage.getItem('remembered_email');
+    if (savedEmail) setEmail(savedEmail);
+  }, []);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -36,6 +46,14 @@ const LoginPage: React.FC = () => {
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
 
+      if (rememberMe) {
+        localStorage.setItem('remember_me', 'true');
+        localStorage.setItem('remembered_email', email);
+      } else {
+        localStorage.removeItem('remember_me');
+        localStorage.removeItem('remembered_email');
+      }
+
       navigate('/dashboard');
     } catch (err) {
       console.error('Login failed', err);
@@ -43,6 +61,11 @@ const LoginPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleForgotPassword = (e: React.MouseEvent) => {
+    e.preventDefault();
+    alert('Password resets are managed by your System Administrator. Please contact your organization admin or update your password in Settings > Security.');
   };
 
   return (
@@ -98,10 +121,14 @@ const LoginPage: React.FC = () => {
             )}
 
             <div className="row-links">
-              <label className="check-item">
-                <input type="checkbox" /> Remember me
+              <label className="check-item" style={{ cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                /> Remember me
               </label>
-              <a href="#" className="blue-link">Forgot Password?</a>
+              <a href="#" className="blue-link" onClick={handleForgotPassword}>Forgot Password?</a>
             </div>
 
             <button type="submit" className="btn-submit" disabled={loading}>

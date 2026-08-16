@@ -3,12 +3,15 @@
 ───────────────────────────────────────── */
 
 .tasks-page {
-  padding: 32px 36px;
+  flex: 1;
   margin-left: 260px;
-  background: #f3f0eb;
+  width: calc(100% - 260px);
+  padding: 28px 36px;
+  background: #f7f5f2;
   min-height: 100vh;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: 'DM Sans', -apple-system, sans-serif;
   box-sizing: border-box;
+  overflow-y: auto;
 }
 
 /* ── Page Header ── */
@@ -16,7 +19,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 28px;
+  margin-bottom: 24px;
 }
 
 .tasks-page-title {
@@ -24,29 +27,33 @@
   font-weight: 800;
   color: #111827;
   margin: 0 0 4px;
-  letter-spacing: -0.4px;
+  letter-spacing: -0.02em;
 }
 
 .tasks-page-subtitle {
-  font-size: 14px;
-  color: #6b7280;
+  font-size: 13px;
+  color: #64748b;
   margin: 0;
 }
 
 .tasks-create-btn {
-  background: #111827;
+  background: #f05a28;
   color: #fff;
   border: none;
   border-radius: 10px;
-  padding: 12px 24px;
-  font-size: 14px;
+  padding: 10px 22px;
+  font-size: 13.5px;
   font-weight: 700;
   cursor: pointer;
   font-family: inherit;
   white-space: nowrap;
-  transition: background 0.15s, transform 0.1s;
+  box-shadow: 0 4px 14px rgba(240, 90, 40, 0.25);
+  transition: all 0.15s ease;
 }
-.tasks-create-btn:hover  { background: #1f2937; }
+.tasks-create-btn:hover {
+  background: #d84818;
+  transform: translateY(-1px);
+}
 .tasks-create-btn:active { transform: scale(0.97); }
 
 /* ── Stats ── */
@@ -535,6 +542,182 @@
 .ct-modal::-webkit-scrollbar       { width: 6px; }
 .ct-modal::-webkit-scrollbar-track { background: transparent; }
 .ct-modal::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+
+/* ── Live Progress & Subtasks Styling ── */
+.task-progress-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 90px;
+}
+
+.task-progress-bar-bg {
+  flex: 1;
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+
+.task-progress-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s ease;
+}
+
+.task-progress-text {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #334155;
+  min-width: 32px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Status Quick Switcher */
+.tasks-status-select {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 20px;
+  padding: 4px 22px 4px 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  transition: all 0.15s ease;
+}
+
+.tasks-status-select:hover {
+  filter: brightness(0.96);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.tasks-status-select--completed   { background-color: #d1fae5; color: #065f46; }
+.tasks-status-select--in-progress { background-color: #fef3c7; color: #92400e; }
+.tasks-status-select--ongoing     { background-color: #fef3c7; color: #92400e; }
+.tasks-status-select--pending     { background-color: #f1f5f9; color: #475569; }
+.tasks-status-select--delayed     { background-color: #fee2e2; color: #991b1b; }
+
+/* Subtasks in Detail Panel */
+.tdp-subtasks-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.tdp-subtasks-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  background: #f1f5f9;
+  color: #475569;
+  border-radius: 12px;
+}
+
+.tdp-subtasks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.tdp-subtask-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.tdp-subtask-row:hover {
+  border-color: #cbd5e1;
+}
+
+.tdp-subtask-row--done {
+  background: #f8fafc;
+  opacity: 0.85;
+}
+
+.tdp-subtask-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #10b981;
+}
+
+.tdp-subtask-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1e293b;
+  flex: 1;
+}
+
+.tdp-subtask-row--done .tdp-subtask-title {
+  text-decoration: line-through;
+  color: #94a3b8;
+}
+
+.tdp-subtask-delete-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 14px;
+  border-radius: 4px;
+  transition: all 0.12s ease;
+}
+
+.tdp-subtask-delete-btn:hover {
+  color: #ef4444;
+  background: #fee2e2;
+}
+
+.tdp-add-subtask-form {
+  display: flex;
+  gap: 8px;
+}
+
+.tdp-add-subtask-input {
+  flex: 1;
+  padding: 7px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-family: inherit;
+  outline: none;
+  background: #fff;
+}
+
+.tdp-add-subtask-input:focus {
+  border-color: #f05a28;
+}
+
+.tdp-add-subtask-btn {
+  background: #111827;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease;
+}
+
+.tdp-add-subtask-btn:hover {
+  background: #f05a28;
+}
 
 /* ── Loading / Error / Empty ── */
 .tasks-loading     { text-align: center; padding: 48px; font-size: 14px; color: #6b7280; }
