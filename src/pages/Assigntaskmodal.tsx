@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import "../components/Assigntaskmodal.css";
+import { fetchWithAuth } from "../utils/api";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -31,6 +32,7 @@ interface AssignTaskModalProps {
   documents?: TechDocument[];
   onClose: () => void;
   onSuccess?: () => void; // optional: refresh task list after assign
+  onAssign?: (payload: AssignPayload) => void;
 }
 
 export interface AssignPayload {
@@ -64,6 +66,7 @@ export default function AssignTaskModal({
   documents = [],
   onClose,
   onSuccess,
+  onAssign,
 }: AssignTaskModalProps) {
   const [engineers, setEngineers]               = useState<Engineer[]>([]);
   const [engLoading, setEngLoading]             = useState(true);
@@ -81,11 +84,9 @@ export default function AssignTaskModal({
   useEffect(() => {
     (async () => {
       try {
-        const token = localStorage.getItem("auth_token");
-        const res = await fetch(`${BACKEND_URL}/users`, {
+        const res = await fetchWithAuth(`${BACKEND_URL}/users`, {
           headers: {
             "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
         });
         if (!res.ok) throw new Error("Failed to fetch users.");
@@ -124,7 +125,7 @@ export default function AssignTaskModal({
     return e;
   };
 
-  // ── handleAssign: POST to backend ──
+  // ── handleAssign: update existing task via PATCH ──
   const handleSubmit = async () => {
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
@@ -133,28 +134,37 @@ export default function AssignTaskModal({
     setSubmitError(null);
 
     try {
-      const token = localStorage.getItem("auth_token");
-      const res = await fetch(`${BACKEND_URL}/tasks`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          taskName:          task.name,
-          phase:             task.phase,
-          assigneeId:        selectedEngineer,   // ← user.id FK
-          dueDate:           deadline,
-          priority,
-          manpowerNeeded:    estimatedHours,
-          materialsRequired: "",
-          siteInstructions:  notes,
-        }),
-      });
+      const payload: AssignPayload = {
+        taskId: task.id,
+        engineerId: selectedEngineer,
+        priority,
+        deadline,
+        estimatedHours,
+        documentIds: Array.from(selectedDocs),
+        notes,
+      };
 
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? "Failed to assign task.");
+      if (onAssign) {
+        await onAssign(payload);
+      } else {
+        const res = await fetchWithAuth(`${BACKEND_URL}/tasks/${task.id}/assign`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            assigneeId:        selectedEngineer,
+            dueDate:           deadline,
+            priority,
+            manpowerNeeded:    estimatedHours,
+            siteInstructions:  notes,
+          }),
+        });
+
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error ?? "Failed to assign task.");
+        }
       }
 
       onSuccess?.(); // refresh parent task list if provided

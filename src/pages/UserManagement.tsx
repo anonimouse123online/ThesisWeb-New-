@@ -1,46 +1,24 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import "../components/UserManagement.css";
+import { fetchWithAuth } from "../utils/api";
+import { showToast } from "../components/Toast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Role = "Senior Site Engineer" | "Site Engineer" | "Project Manager" | "Supervisor";
+type Role = "Admin" | "Site Engineer" | "Project Manager" | "Supervisor";
 
 interface User {
   id: string;
-  name: string;
-  role: Role;
+  full_name: string;
   email: string;
-  createdAt: string;
+  role: Role;
+  current_tasks: string;
 }
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-
-const initialUsers: User[] = [
-  {
-    id: "USR-001",
-    name: "Mike Johnson",
-    role: "Senior Site Engineer",
-    email: "mike.j@construction.com",
-    createdAt: "02/01/2026",
-  },
-  {
-    id: "USR-002",
-    name: "Robert Martinez",
-    role: "Site Engineer",
-    email: "robert.m@construction.com",
-    createdAt: "02/01/2026",
-  },
-  {
-    id: "USR-003",
-    name: "Sarah Chen",
-    role: "Site Engineer",
-    email: "sarah.c@construction.com",
-    createdAt: "02/04/2026",
-  },
-];
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 const ROLES: Role[] = [
-  "Senior Site Engineer",
+  "Admin",
   "Site Engineer",
   "Project Manager",
   "Supervisor",
@@ -57,14 +35,65 @@ const ChevronDown = () => (
 // ─── Component ────────────────────────────────────────────────────────────────
 
 const UserManagement: React.FC = () => {
-  const [users, setUsers] = useState<User[]>(initialUsers);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [openRoleDropdown, setOpenRoleDropdown] = useState<string | null>(null);
+  const [updatingRole, setUpdatingRole] = useState<string | null>(null);
 
-  const handleRoleChange = (userId: string, newRole: Role) => {
-    setUsers(prev =>
-      prev.map(u => (u.id === userId ? { ...u, role: newRole } : u))
-    );
+  // Check if current user is admin
+  const storedUser = localStorage.getItem('user');
+  let isAdmin = false;
+  try {
+    if (storedUser) {
+      const parsed = JSON.parse(storedUser);
+      isAdmin = parsed.role === 'Admin';
+    }
+  } catch { /* ignore */ }
+
+  // ── Fetch users from backend ──
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetchWithAuth(`${BACKEND_URL}/users`);
+      if (!res.ok) throw new Error("Failed to fetch users");
+      const json = await res.json();
+      setUsers(json.data ?? []);
+    } catch (err: any) {
+      setError(err.message || "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRoleChange = async (userId: string, newRole: Role) => {
     setOpenRoleDropdown(null);
+    setUpdatingRole(userId);
+    try {
+      const res = await fetchWithAuth(`${BACKEND_URL}/users/${userId}/role`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: newRole }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to update role");
+      }
+      const { data } = await res.json();
+      setUsers(prev =>
+        prev.map(u => (u.id === userId ? { ...u, role: data.role } : u))
+      );
+      showToast("User role updated successfully!", "success");
+    } catch (err: any) {
+      showToast(err.message, "error");
+    } finally {
+      setUpdatingRole(null);
+    }
   };
 
   const toggleDropdown = (userId: string) => {
@@ -86,62 +115,79 @@ const UserManagement: React.FC = () => {
         <p className="um-subtitle">Manage Users</p>
       </div>
 
+      {/* Loading / Error states */}
+      {loading && <div className="um-loading">Loading users...</div>}
+      {error && <div className="um-error" style={{ color: 'red', padding: '1rem' }}>{error}</div>}
+
       {/* User Cards */}
-      <div className="um-list">
-        {users.map(user => (
-          <div key={user.id} className="um-card">
-            <div className="um-card__name">{user.name}</div>
+      {!loading && !error && (
+        <div className="um-list">
+          {users.length === 0 ? (
+            <div style={{ padding: '2rem', color: '#888', textAlign: 'center' }}>No users found.</div>
+          ) : (
+            users.map(user => (
+              <div key={user.id} className="um-card">
+                <div className="um-card__name">{user.full_name}</div>
 
-            <div className="um-card__grid">
-              {/* Role */}
-              <div className="um-field">
-                <span className="um-field__label">Role</span>
-                <div className="um-role-wrap">
-                  <button
-                    className="um-role-btn"
-                    onClick={() => toggleDropdown(user.id)}
-                  >
-                    <span>{user.role}</span>
-                    <ChevronDown />
-                  </button>
+                <div className="um-card__grid">
+                  {/* Role */}
+                  <div className="um-field">
+                    <span className="um-field__label">Role</span>
+                    <div className="um-role-wrap">
+                      {isAdmin ? (
+                        <>
+                          <button
+                            className="um-role-btn"
+                            onClick={() => toggleDropdown(user.id)}
+                            disabled={updatingRole === user.id}
+                          >
+                            <span>{updatingRole === user.id ? 'Saving...' : user.role}</span>
+                            <ChevronDown />
+                          </button>
 
-                  {openRoleDropdown === user.id && (
-                    <div className="um-dropdown">
-                      {ROLES.map(role => (
-                        <button
-                          key={role}
-                          className={`um-dropdown__item ${user.role === role ? "um-dropdown__item--active" : ""}`}
-                          onClick={() => handleRoleChange(user.id, role)}
-                        >
-                          {role}
-                        </button>
-                      ))}
+                          {openRoleDropdown === user.id && (
+                            <div className="um-dropdown">
+                              {ROLES.map(role => (
+                                <button
+                                  key={role}
+                                  className={`um-dropdown__item ${user.role === role ? "um-dropdown__item--active" : ""}`}
+                                  onClick={() => handleRoleChange(user.id, role)}
+                                >
+                                  {role}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <span className="um-field__value">{user.role}</span>
+                      )}
                     </div>
-                  )}
+                  </div>
+
+                  {/* Email */}
+                  <div className="um-field">
+                    <span className="um-field__label">Email</span>
+                    <span className="um-field__value">{user.email}</span>
+                  </div>
+
+                  {/* Active Tasks */}
+                  <div className="um-field">
+                    <span className="um-field__label">Active Tasks</span>
+                    <span className="um-field__value">{user.current_tasks || '0'}</span>
+                  </div>
+
+                  {/* User ID */}
+                  <div className="um-field">
+                    <span className="um-field__label">User ID</span>
+                    <span className="um-field__value" style={{ fontSize: '10px' }}>{user.id.slice(0, 8)}…</span>
+                  </div>
                 </div>
               </div>
-
-              {/* Email */}
-              <div className="um-field">
-                <span className="um-field__label">Email</span>
-                <span className="um-field__value">{user.email}</span>
-              </div>
-
-              {/* User ID */}
-              <div className="um-field">
-                <span className="um-field__label">User ID</span>
-                <span className="um-field__value">{user.id}</span>
-              </div>
-
-              {/* Created */}
-              <div className="um-field">
-                <span className="um-field__label">Created</span>
-                <span className="um-field__value">{user.createdAt}</span>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 };

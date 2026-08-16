@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import '../components/add-member.css';
+import { fetchWithAuth } from '../utils/api';
 
 const API_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -7,7 +8,7 @@ interface AvailableUser {
   id: string;
   name: string;
   email: string;
-  phone: string;
+  phone?: string;
   role: string; // e.g. "Civil Engineer"
 }
 
@@ -34,11 +35,11 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(
+        const res = await fetchWithAuth(
           `${API_URL}/projects/${projectCode}/available-members`
         );
         const data = await res.json();
-        if (!res.ok) throw new Error(data.message || 'Failed to load users');
+        if (!res.ok) throw new Error(data.message || data.error || 'Failed to load users');
         setUsers(data.data ?? []);
       } catch (err: any) {
         setError(err.message);
@@ -62,7 +63,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
     if (!selectedId) return;
     setAdding(true);
     try {
-      const res = await fetch(
+      const res = await fetchWithAuth(
         `${API_URL}/projects/${projectCode}/members`,
         {
           method: 'POST',
@@ -71,7 +72,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
         }
       );
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to add member');
+      if (!res.ok) throw new Error(data.message || data.error || 'Failed to add member');
       onAdded();
       onClose();
     } catch (err: any) {

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import '../components/register.css';
 
 const RegisterPage: React.FC = () => {
+  const [name, setName]             = useState('');
   const [role, setRole]             = useState('');
   const [email, setEmail]           = useState('');
   const [password, setPassword]     = useState('');
@@ -39,7 +40,7 @@ const RegisterPage: React.FC = () => {
       const response = await fetch(`${BACKEND_URL}/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, role }),
+        body: JSON.stringify({ name: name.trim(), email, password, role }),
       });
 
       const data = await response.json();
@@ -96,9 +97,22 @@ const RegisterPage: React.FC = () => {
               </select>
             </div>
 
+            {/* Full Name */}
+            <div className="input-group">
+              <label className="label-sm">Full Name</label>
+              <input
+                type="text"
+                placeholder="Enter your full name"
+                className="text-input"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </div>
+
             {/* Email */}
             <div className="input-group">
-              <label className="label-sm">Username / Email</label>
+              <label className="label-sm">Email Address</label>
               <input
                 type="email"
                 placeholder="Enter your email"

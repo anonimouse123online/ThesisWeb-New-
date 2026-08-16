@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import './Sidebar.css';
 
 const Icons: Record<string, React.FC> = {
@@ -59,6 +59,13 @@ const Icons: Record<string, React.FC> = {
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
     </svg>
   ),
+  Logout: () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+      <polyline points="16 17 21 12 16 7"/>
+      <line x1="21" y1="12" x2="9" y2="12"/>
+    </svg>
+  ),
 };
 
 const NAV_ITEMS = [
@@ -72,6 +79,49 @@ const NAV_ITEMS = [
 ];
 
 const Sidebar: React.FC = () => {
+  const navigate = useNavigate();
+
+  const [userName, setUserName] = React.useState<string>('User');
+  const [userRole, setUserRole] = React.useState<string>('Member');
+
+  React.useEffect(() => {
+    // Initial read from localStorage
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser);
+        setUserName(parsed.name || parsed.email?.split('@')[0] || 'User');
+        setUserRole(parsed.role || 'Member');
+      } catch { /* ignore */ }
+    }
+
+    // Live sync from /auth/me
+    const syncUser = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.user) {
+            setUserName(json.user.name || 'User');
+            setUserRole(json.user.role || 'Member');
+            localStorage.setItem('user', JSON.stringify(json.user));
+          }
+        }
+      } catch { /* ignore */ }
+    };
+    syncUser();
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    navigate('/login');
+  };
+
   return (
     <aside className="sidebar">
       <div className="logo">
@@ -99,6 +149,21 @@ const Sidebar: React.FC = () => {
         })}
       </nav>
 
+      {/* User profile & logout */}
+      <div className="sidebar-footer">
+        <div className="sidebar-user">
+          <div className="sidebar-avatar">
+            {userName.charAt(0).toUpperCase()}
+          </div>
+          <div className="sidebar-user-info">
+            <span className="sidebar-user-name">{userName}</span>
+            <span className="sidebar-user-role">{userRole}</span>
+          </div>
+        </div>
+        <button className="sidebar-logout" onClick={handleLogout} title="Logout">
+          <Icons.Logout />
+        </button>
+      </div>
     </aside>
   );
 };

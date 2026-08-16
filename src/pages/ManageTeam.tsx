@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AddMemberModal from './add-member';
 import '../components/manage-team.css';
+import { fetchWithAuth } from '../utils/api';
+import ProfileDropdown from '../components/ProfileDropdown';
 
 const API_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -24,13 +26,25 @@ const ManageTeam: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [removingId, setRemovingId]   = useState<string | null>(null);
 
+  // Read logged-in user from localStorage
+  const storedUser = localStorage.getItem('user');
+  let userName = 'User';
+  let userRole = 'Member';
+  try {
+    if (storedUser) {
+      const parsed = JSON.parse(storedUser);
+      userName = parsed.name || parsed.email?.split('@')[0] || 'User';
+      userRole = parsed.role || 'Member';
+    }
+  } catch { /* ignore */ }
+
   const fetchMembers = async () => {
     setLoading(true);
     setError(null);
     try {
       const [projRes, membersRes] = await Promise.all([
-        fetch(`${API_URL}/projects/${projectCode}`),
-        fetch(`${API_URL}/projects/${projectCode}/members`),
+        fetchWithAuth(`${API_URL}/projects/${projectCode}`),
+        fetchWithAuth(`${API_URL}/projects/${projectCode}/members`),
       ]);
       if (projRes.ok) {
         const projData = await projRes.json();
@@ -57,7 +71,7 @@ const ManageTeam: React.FC = () => {
     if (!window.confirm('Remove this member from the project?')) return;
     setRemovingId(memberId);
     try {
-      const res = await fetch(`${API_URL}/projects/${projectCode}/members/${memberId}`, { method: 'DELETE' });
+      const res = await fetchWithAuth(`${API_URL}/projects/${projectCode}/members/${memberId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to remove member');
       setMembers((prev) => prev.filter((m) => m.id !== memberId));
     } catch (err: any) {
@@ -81,14 +95,7 @@ const ManageTeam: React.FC = () => {
             ← Back to Project Overview
           </button>
         </div>
-        <div className="pm-profile">
-          <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Alex" alt="Alex" className="user-avatar" />
-          <div className="profile-info">
-            <p className="profile-name">Alex meian</p>
-            <p className="profile-role">Product manager</p>
-          </div>
-          <span className="chevron">▾</span>
-        </div>
+        <ProfileDropdown userName={userName} userRole={userRole} />
       </header>
 
       <div className="mt-title-row">

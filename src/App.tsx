@@ -6,121 +6,61 @@ import Sidebar from './components/Sidebar';
 import ProjectDetails from './pages/ProjectDetails';
 import Task from './pages/Task';
 import CreateTask from './pages/CreateTask';
-import TimeLog from '../src/pages/TimeLog';
-import ResourceManagement from '../src/pages/Resourcemanagement';
+import TimeLog from './pages/TimeLog';
+import ResourceManagement from './pages/Resourcemanagement';
 import UserManagement from './pages/UserManagement';
 import RegisterPage from './pages/RegisterPage';
 import ManageTeam from './pages/ManageTeam';
 import Documents from './pages/Documents';
+import NotFound from './pages/NotFound';
+import ProjectProgress from './pages/ProjectProgress';
+import IssueReport from './pages/IssueReport';
+import ProjectReports from './pages/ProjectReports';
+import Settings from './pages/Settings';
+import ProtectedRoute from './components/ProtectedRoute';
+import { ToastContainer } from './components/Toast';
 
+// ─── Layout wrapper for authenticated pages ─────────────────────────────────
+function AuthLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ProtectedRoute>
+      <div className="dashboard-wrapper">
+        <Sidebar />
+        {children}
+      </div>
+    </ProtectedRoute>
+  );
+}
 
 export default function App() {
   return (
     <Router>
+      <ToastContainer />
       <Routes>
+        {/* Public routes */}
         <Route path="/" element={<LoginPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<RegisterPage />} />
-        <Route 
-          path="/dashboard" 
-          element={
-            <div className="dashboard-wrapper">
-              <Sidebar />
-              <Dashboard />
-            </div>
-          } 
-        />
 
-        <Route 
-          path="/projects" 
-          element={
-            <div className="dashboard-wrapper">
-              <Sidebar />
-              <Projects />
-            </div>
-          } 
-        />
-        <Route 
-          path="/projects/:projectId" 
-          element={
-            <div className="dashboard-wrapper">
-              <Sidebar />
-              <ProjectDetails />
-            </div>
-          } 
-        />
-        <Route 
-          path="/task/:taskId" 
-          element={
-            <div className="dashboard-wrapper">
-              <Sidebar />
-              <Task/>
-            </div>
-          } 
-        />
-        <Route 
-          path="/tasks" 
-          element={
-            <div className="dashboard-wrapper">
-              <Sidebar />
-              <Task />
-            </div>
-          } 
-        />
-        <Route 
-          path="/tasks/new" 
-          element={
-            <div className="dashboard-wrapper">
-              <Sidebar />
-              <CreateTask />
-            </div>
-          } 
-        />
-        <Route 
-          path="/timelog" 
-          element={
-            <div className="dashboard-wrapper">
-              <Sidebar />
-              <TimeLog />
-            </div>
-          } 
-        />
-        <Route 
-          path="/resources" 
-          element={
-            <div className="dashboard-wrapper">
-              <Sidebar />
-              <ResourceManagement />
-            </div>
-          } 
-        />
-        <Route
-          path="/users"
-          element={
-            <div className="dashboard-wrapper">
-              <Sidebar />
-              <UserManagement />
-            </div>
-          }
-        />
-        <Route 
-          path="/projects/:projectCode/team"
-          element={
-            <div className="dashboard-wrapper">
-              <Sidebar />
-              <ManageTeam />
-            </div>
-          }
-        />
-        <Route 
-          path="/projects/:projectCode/documents"
-          element={
-            <div className="dashboard-wrapper">
-              <Sidebar />
-              <Documents />
-            </div>
-          }
-        />
+        {/* Protected routes */}
+        <Route path="/dashboard" element={<AuthLayout><Dashboard /></AuthLayout>} />
+        <Route path="/projects" element={<AuthLayout><Projects /></AuthLayout>} />
+        <Route path="/projects/:projectId" element={<AuthLayout><ProjectDetails /></AuthLayout>} />
+        <Route path="/task/:taskId" element={<AuthLayout><Task /></AuthLayout>} />
+        <Route path="/tasks" element={<AuthLayout><Task /></AuthLayout>} />
+        <Route path="/tasks/new" element={<AuthLayout><CreateTask /></AuthLayout>} />
+        <Route path="/timelog" element={<AuthLayout><TimeLog /></AuthLayout>} />
+        <Route path="/resources" element={<AuthLayout><ResourceManagement /></AuthLayout>} />
+        <Route path="/users" element={<AuthLayout><UserManagement /></AuthLayout>} />
+        <Route path="/settings" element={<AuthLayout><Settings /></AuthLayout>} />
+        <Route path="/projects/:projectCode/team" element={<AuthLayout><ManageTeam /></AuthLayout>} />
+        <Route path="/projects/:projectCode/documents" element={<AuthLayout><Documents /></AuthLayout>} />
+        <Route path="/projects/:projectCode/progress" element={<AuthLayout><ProjectProgress /></AuthLayout>} />
+        <Route path="/projects/:projectCode/issues/report" element={<AuthLayout><IssueReport /></AuthLayout>} />
+        <Route path="/projects/:projectCode/reports" element={<AuthLayout><ProjectReports /></AuthLayout>} />
+
+        {/* 404 catch-all */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </Router>
   );
