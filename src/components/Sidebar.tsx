@@ -70,10 +70,8 @@ const Icons: Record<string, React.FC> = {
 
 const NAV_ITEMS = [
   { icon: 'Dashboard',  label: 'Dashboard',      path: '/dashboard' },
-  { icon: 'Projects',   label: 'Projects',       path: '/projects' },
-  { icon: 'Tasks',      label: 'Tasks',          path: '/tasks' },
+  { icon: 'Projects',   label: 'Projects Hub',   path: '/projects' },
   { icon: 'Timelog',    label: 'Time log',       path: '/timelog' },
-  { icon: 'Resource',   label: 'Resource mgnt',  path: '/resources' },
   { icon: 'Users',      label: 'Users',          path: '/users' },
   { icon: 'Settings',   label: 'Menu settings',  path: '/settings' },
 ];

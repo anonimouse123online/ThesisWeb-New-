@@ -43,7 +43,7 @@ const Settings: React.FC = () => {
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab]     = useState<TabKey>('profile');
-  const [loading, setLoading]         = useState(true);
+  const [, setLoading]                = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
 
