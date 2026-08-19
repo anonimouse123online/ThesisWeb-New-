@@ -245,40 +245,34 @@ const TimeLog: React.FC = () => {
                     tabIndex={0}
                     onKeyDown={(e) => e.key === "Enter" && toggleLog(log.id)}
                   >
-                    <div className="log-col log-col-project">
-                      <span className="log-project-name">{log.projectName}</span>
-                      <span className="log-engineer-name">{log.engineerName}</span>
+                    <div className="log-row-left">
+                      <div className="log-meta">
+                        <span className="log-project-name">{log.projectName}</span>
+                        <span className="log-engineer">{log.engineerName} • {log.date}</span>
+                      </div>
                     </div>
 
-                    <div className="log-col log-col-date">
-                      <span className="log-date">{log.date}</span>
-                    </div>
-
-                    <div className="log-col log-col-tags">
+                    <div className="log-tags">
                       {log.tags.map((tag, i) => (
-                        <span
-                          key={i}
-                          className={`log-tag ${
-                            tag.includes("Incidents")
-                              ? "tag-incident"
-                              : tag.includes("workers")
-                              ? "tag-workers"
-                              : "tag-weather"
-                          }`}
-                        >
+                        <span key={i} className="log-tag">
                           {tag}
                         </span>
                       ))}
                     </div>
 
-                    <div className="log-col log-col-chevron">
+                    <div className="log-chevron">
                       <svg
-                        className={`chevron-icon ${isExpanded ? "open" : ""}`}
                         viewBox="0 0 20 20"
                         fill="none"
+                        width="18"
+                        height="18"
+                        style={{
+                          transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                          transition: "transform 0.2s ease"
+                        }}
                       >
                         <path
-                          d="M6 8l4 4 4-4"
+                          d="M5 8l5 5 5-5"
                           stroke="#666"
                           strokeWidth="2"
                           strokeLinecap="round"
@@ -290,10 +284,10 @@ const TimeLog: React.FC = () => {
 
                   {/* Expanded Details */}
                   {isExpanded && (
-                    <div className="log-details">
-                      <div className="details-grid">
-                        <div className="detail-section">
-                          <h4 className="section-heading">Manpower Breakdown</h4>
+                    <div className="log-detail">
+                      <div className="detail-grid">
+                        <div className="detail-col">
+                          <h4 className="section-title">Manpower Breakdown</h4>
                           <div className="detail-row">
                             <span className="detail-label">Active on Site:</span>
                             <span className="detail-value">{log.manpower.workOnSite}</span>
@@ -312,8 +306,8 @@ const TimeLog: React.FC = () => {
                           </div>
                         </div>
 
-                        <div className="detail-section">
-                          <h4 className="section-heading">Site Conditions</h4>
+                        <div className="detail-col">
+                          <h4 className="section-title">Site Conditions</h4>
                           <div className="detail-row">
                             <span className="detail-label">Weather:</span>
                             <span className="detail-value">{log.conditions.weather}</span>
@@ -329,14 +323,16 @@ const TimeLog: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="detail-full">
-                        <h4 className="section-heading">Work Completed Today</h4>
-                        <p className="detail-text">{log.workCompleted}</p>
+                      <div className="detail-section">
+                        <h4 className="section-title">Work Completed Today</h4>
+                        <div className="detail-box">{log.workCompleted}</div>
                       </div>
 
-                      <div className="detail-full">
-                        <h4 className="section-heading">Additional Notes & Field Logs</h4>
-                        <p className="detail-text">{log.additionalNotes}</p>
+                      <div className="two-col-sections" style={{ marginTop: '16px' }}>
+                        <div>
+                          <h4 className="section-title">Additional Notes</h4>
+                          <div className="detail-box">{log.additionalNotes}</div>
+                        </div>
                       </div>
                     </div>
                   )}

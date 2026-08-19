@@ -146,23 +146,23 @@ const UserManagement: React.FC = () => {
               <div key={user.id} className="um-card">
                 <div className="um-card__name" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span>{user.full_name}</span>
-                  {isAdmin && (
-                    <button
-                      onClick={() => handleRemoveUser(user.id)}
-                      style={{
-                        background: 'transparent',
-                        border: '1px solid #ff4d4f',
-                        color: '#ff4d4f',
-                        borderRadius: '6px',
-                        padding: '4px 10px',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        fontWeight: 600
-                      }}
-                    >
-                      Remove
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleRemoveUser(user.id)}
+                    disabled={!isAdmin}
+                    title={isAdmin ? "Remove User" : "Only Admins can remove users"}
+                    style={{
+                      background: 'transparent',
+                      border: isAdmin ? '1px solid #ff4d4f' : '1px solid #ccc',
+                      color: isAdmin ? '#ff4d4f' : '#ccc',
+                      borderRadius: '6px',
+                      padding: '4px 10px',
+                      fontSize: '12px',
+                      cursor: isAdmin ? 'pointer' : 'not-allowed',
+                      fontWeight: 600
+                    }}
+                  >
+                    Remove
+                  </button>
                 </div>
 
                 <div className="um-card__grid">
