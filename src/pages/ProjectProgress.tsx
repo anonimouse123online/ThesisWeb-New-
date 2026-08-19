@@ -44,7 +44,7 @@ const ProjectProgress: React.FC = () => {
   const [projectName, setProjectName] = useState('');
   const [currentPhase, setCurrentPhase] = useState<string>('Phase 1 - Foundation');
   const [overallProgress, setOverallProgress] = useState<number>(0);
-  const [taskBreakdown, setTaskBreakdown] = useState<TaskPhaseBreakdown[]>([]);
+  const [, setTaskBreakdown] = useState<TaskPhaseBreakdown[]>([]);
   const [logs, setLogs] = useState<ProgressLog[]>([]);
 
   // Form State for new progress update
