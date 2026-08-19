@@ -294,18 +294,7 @@ const Projects: React.FC = () => {
           >
             🏢 Projects Overview ({projects.length})
           </button>
-          <button
-            className={`pm-hub-tab ${activeView === 'tasks' ? 'pm-hub-tab--active' : ''}`}
-            onClick={() => setView('tasks')}
-          >
-            📋 All Tasks ({tasks.length})
-          </button>
-          <button
-            className={`pm-hub-tab ${activeView === 'resources' ? 'pm-hub-tab--active' : ''}`}
-            onClick={() => setView('resources')}
-          >
-            📦 All Resources ({resources.length})
-          </button>
+
         </div>
 
         <button className="pm-new-btn" onClick={() => setShowModal(true)}>
