@@ -160,9 +160,21 @@ const Projects: React.FC = () => {
     }
   };
 
+  const todayStr = new Date().toISOString().split('T')[0];
+
   const handleCreateProject = async () => {
     if (!form.code || !form.name || !form.location || !form.client || !form.start_date || !form.end_date || !form.budget || !form.scope) {
       setFormError('Please fill in all required fields.');
+      return;
+    }
+
+    if (form.start_date < todayStr) {
+      setFormError('Start date cannot be earlier than today.');
+      return;
+    }
+
+    if (form.end_date < form.start_date) {
+      setFormError('End date cannot be earlier than the start date.');
       return;
     }
 
@@ -387,29 +399,13 @@ const Projects: React.FC = () => {
                       </td>
                       <td><span className={getStatusClass(prj.status)}>{prj.status}</span></td>
                       <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: '6px' }}>
-                          <button
-                            className="pm-view-btn"
-                            onClick={() => navigate(`/projects/${prj.code}?tab=overview`)}
-                            title="Open Project Workspace"
-                          >
-                            Workspace →
-                          </button>
-                          <button
-                            className="pd-btn-sm"
-                            onClick={() => navigate(`/projects/${prj.code}?tab=tasks`)}
-                            title="Open Tasks"
-                          >
-                            Tasks
-                          </button>
-                          <button
-                            className="pd-btn-sm"
-                            onClick={() => navigate(`/projects/${prj.code}?tab=resources`)}
-                            title="Open Resources"
-                          >
-                            Resources
-                          </button>
-                        </div>
+                        <button
+                          className="pm-view-btn"
+                          onClick={() => navigate(`/projects/${prj.code}`)}
+                          title="Open Project Workspace"
+                        >
+                          Workspace →
+                        </button>
                       </td>
                     </tr>
                   );
@@ -613,15 +609,24 @@ const Projects: React.FC = () => {
                 <input
                   className="pm-input"
                   type="date"
+                  min={todayStr}
                   value={form.start_date}
-                  onChange={e => setForm({ ...form, start_date: e.target.value })}
+                  onChange={e => {
+                    const newStart = e.target.value;
+                    setForm(prev => ({
+                      ...prev,
+                      start_date: newStart,
+                      end_date: prev.end_date && prev.end_date < newStart ? newStart : prev.end_date
+                    }));
+                  }}
                 />
               </div>
               <div className="pm-form-group">
-                <label>End Date <span className="pm-required">*</span></label>
+                <label>End Date (Due Date) <span className="pm-required">*</span></label>
                 <input
                   className="pm-input"
                   type="date"
+                  min={form.start_date || todayStr}
                   value={form.end_date}
                   onChange={e => setForm({ ...form, end_date: e.target.value })}
                 />

@@ -43,6 +43,12 @@ const LoginPage: React.FC = () => {
         return;
       }
 
+      // Restrict web portal access to Admin users only
+      if (data.user?.role && data.user.role !== 'Admin') {
+        setError('Access Restricted: Only Administrators can log in to the web management portal. Site Engineers and field personnel must use the SitePulse mobile app.');
+        return;
+      }
+
       // Store token and user info
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
