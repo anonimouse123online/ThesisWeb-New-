@@ -10,10 +10,10 @@
   min-width: 0;
   padding: 28px 36px;
   margin-left: 260px;
-  background-color: #f7f5f2;
+  background-color: #f8fafc;
   min-height: 100vh;
   font-family: 'DM Sans', -apple-system, sans-serif;
-  color: #1a1a1a;
+  color: #0f172a;
   box-sizing: border-box;
   overflow-y: auto;
 }
@@ -25,15 +25,15 @@
 
 .timelog-title {
   font-size: 26px;
-  font-weight: 700;
+  font-weight: 800;
   margin: 0 0 4px;
-  color: #111;
-  letter-spacing: -0.3px;
+  color: #0f172a;
+  letter-spacing: -0.02em;
 }
 
 .timelog-subtitle {
   font-size: 13.5px;
-  color: #666;
+  color: #64748b;
   margin: 0;
 }
 
@@ -47,25 +47,26 @@
 
 .stat-card {
   background: #fff;
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 20px 24px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03), 0 4px 16px rgba(15, 23, 42, 0.03);
 }
 
 .stat-label {
   font-size: 12.5px;
-  color: #888;
-  font-weight: 500;
+  color: #64748b;
+  font-weight: 600;
   text-align: center;
 }
 
 .stat-value {
   font-size: 30px;
-  font-weight: 700;
-  color: #111;
+  font-weight: 800;
+  color: #0f172a;
   text-align: center;
   line-height: 1;
 }
@@ -92,27 +93,29 @@
   width: 16px;
   height: 16px;
   pointer-events: none;
+  color: #94a3b8;
 }
 
 .search-input {
   width: 100%;
   padding: 9px 12px 9px 36px;
-  border: 1px solid #e0d9d0;
-  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
   font-size: 13px;
   background: #fff;
-  color: #333;
+  color: #0f172a;
   outline: none;
   box-sizing: border-box;
-  transition: border-color 0.15s;
+  transition: all 0.15s;
 }
 
 .search-input::placeholder {
-  color: #aaa;
+  color: #94a3b8;
 }
 
 .search-input:focus {
-  border-color: #bbb;
+  border-color: #ea580c;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15);
 }
 
 /* Date picker */
@@ -122,20 +125,21 @@
 
 .date-input {
   padding: 9px 12px;
-  border: 1px solid #e0d9d0;
-  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
   font-size: 13px;
   background: #fff;
-  color: #555;
+  color: #0f172a;
   outline: none;
   cursor: pointer;
-  transition: border-color 0.15s;
+  transition: all 0.15s;
   height: 38px;
   box-sizing: border-box;
 }
 
 .date-input:focus {
-  border-color: #bbb;
+  border-color: #ea580c;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15);
 }
 
 /* Engineer select */
@@ -148,21 +152,22 @@
   appearance: none;
   -webkit-appearance: none;
   padding: 9px 36px 9px 14px;
-  border: 1px solid #e0d9d0;
-  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
   font-size: 13px;
   background: #fff;
-  color: #333;
+  color: #0f172a;
   outline: none;
   cursor: pointer;
   min-width: 140px;
   height: 38px;
   box-sizing: border-box;
-  transition: border-color 0.15s;
+  transition: all 0.15s;
 }
 
 .engineer-select:focus {
-  border-color: #bbb;
+  border-color: #ea580c;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15);
 }
 
 .select-arrow {

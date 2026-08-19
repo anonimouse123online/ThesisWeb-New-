@@ -385,7 +385,7 @@ const Projects: React.FC = () => {
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <div className="pd-progress-track" style={{ width: '80px', marginBottom: 0 }}>
-                            <div className="pd-progress-fill" style={{ width: `${pct}%`, background: '#2563eb' }} />
+                            <div className="pd-progress-fill" style={{ width: `${pct}%`, background: '#ea580c' }} />
                           </div>
                           <span style={{ fontSize: '12px', fontWeight: 600, color: '#475569' }}>
                             {done}/{total} ({pct}%)

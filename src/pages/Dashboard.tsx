@@ -350,9 +350,9 @@ const Dashboard: React.FC = () => {
             const clampedProgress = Math.min(100, Math.max(0, overallProgress));
             const dashOffset = arcLength * (1 - clampedProgress / 100);
             const gaugeColor = clampedProgress === 100
-              ? '#10b981'
+              ? '#16a34a'
               : clampedProgress >= 50
-              ? '#2563eb'
+              ? '#ea580c'
               : clampedProgress > 0
               ? '#f59e0b'
               : '#cbd5e1';
@@ -406,7 +406,7 @@ const Dashboard: React.FC = () => {
         <div className="monitor-grid">
 
           <div>
-            <p className="text-blue-500 font-bold text-xs mb-4 border-b-2 border-blue-500 inline-block pb-1">
+            <p className="font-bold text-xs mb-4 border-b-2 inline-block pb-1" style={{ color: '#ea580c', borderColor: '#ea580c' }}>
               All Sites ({filteredMonitor.length})
             </p>
             {filteredMonitor.length === 0 ? (

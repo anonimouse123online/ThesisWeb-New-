@@ -9,7 +9,7 @@
 
 .sp-dropdown-trigger {
   background: #ffffff;
-  border: 1px solid #e8e0d6;
+  border: 1px solid #e2e8f0;
   border-radius: 10px;
   padding: 7px 14px;
   font-size: 12px;
@@ -18,7 +18,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: #1a1a1a;
+  color: #0f172a;
   font-family: inherit;
   white-space: nowrap;
   transition: all 0.15s ease;
@@ -26,19 +26,19 @@
 }
 
 .sp-dropdown-trigger:hover {
-  background: #f5ede4;
-  border-color: #dbc9b5;
+  background: #f8fafc;
+  border-color: #cbd5e1;
 }
 
 .sp-dropdown-trigger--active {
-  background: #f5ede4;
-  border-color: #f05a28;
-  box-shadow: 0 0 0 2px rgba(240, 90, 40, 0.15);
+  background: #fff7ed;
+  border-color: #ea580c;
+  box-shadow: 0 0 0 2px rgba(234, 88, 12, 0.15);
 }
 
 .sp-dropdown-chevron {
   font-size: 11px;
-  color: #8e8e8e;
+  color: #94a3b8;
   transition: transform 0.2s ease;
 }
 
@@ -55,9 +55,9 @@
   max-height: 260px;
   overflow-y: auto;
   background: #ffffff;
-  border: 1px solid #e8e0d6;
+  border: 1px solid #e2e8f0;
   border-radius: 12px;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.05);
   padding: 6px;
   z-index: 1000;
   animation: spDropdownFadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
@@ -88,7 +88,7 @@
   padding: 8px 12px;
   font-size: 12px;
   font-weight: 500;
-  color: #374151;
+  color: #334155;
   background: transparent;
   border: none;
   border-radius: 8px;
@@ -100,19 +100,19 @@
 }
 
 .sp-dropdown-item:hover {
-  background: #fdf5ee;
-  color: #f05a28;
+  background: #fff7ed;
+  color: #ea580c;
 }
 
 .sp-dropdown-item--selected {
-  background: #fff0e8;
-  color: #f05a28;
+  background: #fff7ed;
+  color: #ea580c;
   font-weight: 700;
 }
 
 .sp-dropdown-check {
   font-size: 12px;
-  color: #f05a28;
+  color: #ea580c;
 }
 
 .sp-dropdown-badge {
@@ -120,8 +120,8 @@
   font-weight: 600;
   padding: 2px 7px;
   border-radius: 12px;
-  background: #f3f4f6;
-  color: #6b7280;
+  background: #f1f5f9;
+  color: #64748b;
 }
 
 /* ─────────────────────────────────────────
@@ -149,7 +149,7 @@
 
 .sp-profile-btn:hover,
 .sp-profile-btn--active {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(15, 23, 42, 0.04);
 }
 
 .sp-profile-menu {
@@ -158,9 +158,9 @@
   right: 0;
   width: 240px;
   background: #ffffff;
-  border: 1px solid #e8e0d6;
+  border: 1px solid #e2e8f0;
   border-radius: 16px;
-  box-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.12), 0 4px 12px -2px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 12px 30px -4px rgba(15, 23, 42, 0.12), 0 4px 12px -2px rgba(15, 23, 42, 0.06);
   padding: 8px;
   z-index: 1100;
   animation: spDropdownFadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
@@ -168,14 +168,14 @@
 
 .sp-profile-header {
   padding: 10px 12px;
-  border-bottom: 1px solid #f3ece3;
+  border-bottom: 1px solid #f1f5f9;
   margin-bottom: 6px;
 }
 
 .sp-profile-header-name {
   font-size: 13px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: #0f172a;
   line-height: 1.2;
 }
 
@@ -184,8 +184,8 @@
   margin-top: 4px;
   font-size: 10px;
   font-weight: 600;
-  color: #f05a28;
-  background: #fff0e8;
+  color: #ea580c;
+  background: #fff7ed;
   padding: 2px 8px;
   border-radius: 10px;
 }
@@ -198,7 +198,7 @@
   padding: 9px 12px;
   font-size: 12px;
   font-weight: 600;
-  color: #4b5563;
+  color: #475569;
   background: transparent;
   border: none;
   border-radius: 10px;
@@ -209,8 +209,8 @@
 }
 
 .sp-profile-action:hover {
-  background: #f7f0e9;
-  color: #1a1a1a;
+  background: #f8fafc;
+  color: #0f172a;
 }
 
 .sp-profile-action--danger {
@@ -224,6 +224,6 @@
 
 .sp-profile-divider {
   height: 1px;
-  background: #f3ece3;
+  background: #f1f5f9;
   margin: 6px 0;
 }

@@ -212,7 +212,7 @@ const Documents: React.FC = () => {
         </div>
 
         <div className="docs-stat-card">
-          <div className="docs-stat-icon-wrap" style={{ background: '#dbeafe', color: '#2563eb' }}>
+          <div className="docs-stat-icon-wrap" style={{ background: '#fff7ed', color: '#ea580c' }}>
             📋
           </div>
           <div className="docs-stat-info">

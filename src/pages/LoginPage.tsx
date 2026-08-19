@@ -146,7 +146,7 @@ const LoginPage: React.FC = () => {
           <p className="signup-text" style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '13px' }}>
             Don't have an account?{' '}
             <span
-              style={{ color: '#3b82f6', fontWeight: 'bold', cursor: 'pointer' }}
+              style={{ color: '#ea580c', fontWeight: 'bold', cursor: 'pointer' }}
               onClick={() => navigate('/signup')}
               
             >

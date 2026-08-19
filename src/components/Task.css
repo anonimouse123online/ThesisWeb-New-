@@ -227,9 +227,9 @@
 
 .tasks-project-tag {
   display: inline-block;
-  background: #eff6ff;
-  color: #1d4ed8;
-  border: 1px solid #bfdbfe;
+  background: #fff7ed;
+  color: #ea580c;
+  border: 1px solid #fed7aa;
   border-radius: 6px;
   padding: 3px 10px;
   font-size: 11px;
@@ -270,8 +270,8 @@
   white-space: nowrap;
 }
 .task-status-badge--completed   { background: #dcfce7; color: #16a34a; }
-.task-status-badge--in-progress { background: #dbeafe; color: #1d4ed8; }
-.task-status-badge--ongoing     { background: #dbeafe; color: #1d4ed8; }
+.task-status-badge--in-progress { background: #fff7ed; color: #ea580c; }
+.task-status-badge--ongoing     { background: #fff7ed; color: #ea580c; }
 .task-status-badge--delayed     { background: #fef9c3; color: #a16207; }
 .task-status-badge--blocked     { background: #fee2e2; color: #dc2626; }
 .task-status-badge--pending     { background: #f3f4f6; color: #374151; }
@@ -286,7 +286,7 @@
   white-space: nowrap;
 }
 .task-priority-badge--high   { background: #ef4444; color: #fff; }
-.task-priority-badge--medium { background: #3b82f6; color: #fff; }
+.task-priority-badge--medium { background: #f59e0b; color: #fff; }
 .task-priority-badge--low    { background: #e5e7eb; color: #374151; }
 
 /* ── Assign Button ── */
@@ -446,9 +446,9 @@
 }
 
 .tdp-tag {
-  background: #eff6ff;
-  color: #1d4ed8;
-  border: 1px solid #bfdbfe;
+  background: #fff7ed;
+  color: #ea580c;
+  border: 1px solid #fed7aa;
   border-radius: 6px;
   padding: 3px 10px;
   font-size: 12px;

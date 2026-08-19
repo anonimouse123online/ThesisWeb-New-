@@ -7,7 +7,7 @@
   width: 100vw;
   min-height: 100vh;
   font-family: 'DM Sans', -apple-system, sans-serif;
-  background-color: #f7f5f2;
+  background-color: #f8fafc;
 }
 
 /* ── Left Form Panel ── */
@@ -28,7 +28,7 @@
 .welcome-title {
   font-size: 30px;
   font-weight: 800;
-  color: #111827;
+  color: #0f172a;
   letter-spacing: -0.02em;
   margin-bottom: 6px;
 }
@@ -68,7 +68,7 @@
   border: 1.5px solid #e2e8f0;
   border-radius: 10px;
   outline: none;
-  color: #111827;
+  color: #0f172a;
   font-size: 13.5px;
   font-family: inherit;
   box-sizing: border-box;
@@ -76,9 +76,9 @@
 }
 
 .text-input:focus {
-  border-color: #f05a28;
+  border-color: #ea580c;
   background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(240, 90, 40, 0.12);
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15);
 }
 
 .pass-wrapper {
@@ -117,7 +117,7 @@
 }
 
 .blue-link {
-  color: #f05a28;
+  color: #ea580c;
   text-decoration: none;
   font-weight: 600;
   transition: color 0.12s ease;
@@ -130,7 +130,7 @@
 .btn-submit {
   width: 100%;
   padding: 13px;
-  background: #f05a28;
+  background: #ea580c;
   border: none;
   border-radius: 10px;
   font-weight: 700;
@@ -138,14 +138,14 @@
   color: #ffffff;
   cursor: pointer;
   font-family: inherit;
-  box-shadow: 0 4px 14px rgba(240, 90, 40, 0.28);
+  box-shadow: 0 4px 14px rgba(234, 88, 12, 0.28);
   transition: all 0.15s ease;
 }
 
 .btn-submit:hover:not(:disabled) {
-  background: #d84818;
+  background: #c2410c;
   transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(240, 90, 40, 0.35);
+  box-shadow: 0 6px 18px rgba(234, 88, 12, 0.35);
 }
 
 .btn-submit:disabled {
@@ -157,8 +157,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  background: #fdfaf6;
-  border: 1px solid #ede5dc;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
   border-radius: 12px;
   padding: 12px 16px;
   margin-top: 24px;
@@ -167,7 +167,7 @@
 /* ── Right Hero / Branding Panel ── */
 .right-panel {
   width: 50%;
-  background: linear-gradient(135deg, #111827 0%, #1e293b 100%);
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
   color: #ffffff;
   padding: 4rem 8%;
   display: flex;
@@ -186,7 +186,7 @@
   width: 500px;
   height: 500px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(240, 90, 40, 0.15), transparent 70%);
+  background: radial-gradient(circle, rgba(234, 88, 12, 0.18), transparent 70%);
   pointer-events: none;
 }
 

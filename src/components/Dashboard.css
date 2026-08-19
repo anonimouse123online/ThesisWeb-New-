@@ -7,21 +7,23 @@
 
 /* ── Tokens ── */
 :root {
-  --bg:           #f0e8df;
+  --bg:           #f8fafc;
   --white:        #ffffff;
-  --beige:        #f7f0e9;
-  --orange:       #f05a28;
-  --text:         #1a1a1a;
-  --muted:        #8e8e8e;
+  --beige:        #ffffff;
+  --orange:       #ea580c;
+  --text:         #0f172a;
+  --muted:        #64748b;
 
-  --green-bg:     #e1f5ea;
-  --green-text:   #2e9d60;
-  --amber-bg:     #fff4e0;
-  --amber-text:   #c48e0a;
-  --red-bg:       #ffeaea;
-  --red-text:     #e04646;
-  --gray-bg:      #f0f0f0;
-  --gray-text:    #666666;
+  --green-bg:     #dcfce7;
+  --green-text:   #15803d;
+  --amber-bg:     #fef3c7;
+  --amber-text:   #b45309;
+  --red-bg:       #fee2e2;
+  --red-text:     #b91c1c;
+  --gray-bg:      #f1f5f9;
+  --gray-text:    #475569;
+  --blue-bg:      #e0f2fe;
+  --blue-text:    #0369a1;
 }
 
 /* ── Reset ── */
@@ -139,13 +141,13 @@ body {
   align-items: center;
   gap: 8px;
   width: 280px;
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.04);
-  border: 1px solid #ece5dc;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+  border: 1px solid #e2e8f0;
 }
 
 .search-icon {
   font-size: 14px;
-  color: #bbb;
+  color: #94a3b8;
   flex-shrink: 0;
 }
 
@@ -160,7 +162,7 @@ body {
 }
 
 .search-bar input::placeholder {
-  color: #bbb;
+  color: #94a3b8;
 }
 
 /* ── Profile ── */
@@ -193,7 +195,7 @@ body {
 
 .chevron {
   font-size: 12px;
-  color: #bbb;
+  color: #94a3b8;
 }
 
 /* ════════════════════════════════════════
@@ -201,14 +203,14 @@ body {
 ════════════════════════════════════════ */
 
 .section-title {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--text);
 }
 
 .filter-btn {
   background: var(--white);
-  border: 1px solid #e8e0d6;
+  border: 1px solid #e2e8f0;
   border-radius: 10px;
   padding: 7px 14px;
   font-size: 11px;
@@ -220,10 +222,12 @@ body {
   color: var(--text);
   font-family: inherit;
   white-space: nowrap;
+  transition: all 0.15s ease;
 }
 
 .filter-btn:hover {
-  background: #f5ede4;
+  background: #f8fafc;
+  border-color: #cbd5e1;
 }
 
 /* ════════════════════════════════════════
@@ -240,15 +244,15 @@ body {
   background: var(--white);
   border-radius: 18px;
   padding: 22px;
-  border: 1px solid #ede5dc;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03), 0 4px 16px rgba(15, 23, 42, 0.03);
   transition: all 0.15s ease;
 }
 
 .stat-card:hover {
   transform: translateY(-2px);
-  border-color: #dbc9b5;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+  border-color: #cbd5e1;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.07);
 }
 
 .stat-icon-box {
@@ -270,8 +274,8 @@ body {
 }
 
 .stat-value {
-  font-size: 21px;
-  font-weight: 700;
+  font-size: 22px;
+  font-weight: 800;
   color: var(--text);
   margin-bottom: 6px;
 }
@@ -285,13 +289,15 @@ body {
 }
 
 /* ════════════════════════════════════════
-   DATA CONTAINER  (beige card)
+   DATA CONTAINER  (white card)
 ════════════════════════════════════════ */
 
 .data-container {
-  background: var(--beige);
-  border-radius: 22px;
-  padding: 22px;
+  background: var(--white);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03), 0 4px 16px rgba(15, 23, 42, 0.03);
+  border-radius: 20px;
+  padding: 24px;
 }
 
 /* ════════════════════════════════════════
@@ -306,23 +312,25 @@ body {
 .project-table th {
   text-align: left;
   font-size: 11px;
-  color: var(--muted);
-  font-weight: 600;
+  color: #475569;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   padding-bottom: 12px;
-  border-bottom: 1px solid #ede7df;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .project-table td {
-  font-size: 12px;
-  padding: 13px 0;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.03);
+  font-size: 13px;
+  padding: 14px 0;
+  border-bottom: 1px solid #f1f5f9;
   color: var(--text);
 }
 
 .project-table td:first-child  { font-weight: 600; }
 .project-table td:nth-child(2),
-.project-table td:nth-child(3) { color: #888; }
-.project-table td:last-child   { text-align: right; font-weight: 700; color: #aaa; }
+.project-table td:nth-child(3) { color: #64748b; }
+.project-table td:last-child   { text-align: right; font-weight: 700; color: #94a3b8; }
 
 /* ── Status pills ──
    pillClass() produces e.g. "status-pill status-approved"
@@ -331,9 +339,9 @@ body {
 ── */
 .status-pill {
   display: inline-block;
-  padding: 3px 10px;
+  padding: 4px 11px;
   border-radius: 20px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -341,7 +349,7 @@ body {
 .status-delayed   { background: var(--amber-bg); color: var(--amber-text); }
 .status-atrisk    { background: var(--red-bg);   color: var(--red-text);   }
 .status-inreview  { background: var(--gray-bg);  color: var(--gray-text);  }
-.status-ongoing   { background: var(--amber-bg); color: var(--amber-text); }
+.status-ongoing   { background: var(--blue-bg);  color: var(--blue-text);  }
 
 /* ════════════════════════════════════════
    GAUGE / OVERALL PROGRESS
