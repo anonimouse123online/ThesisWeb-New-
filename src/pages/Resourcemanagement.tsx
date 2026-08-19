@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "../components/Resourcemanagement.css";
-import { fetchWithAuth } from "../utils/api";
+import { API_BASE_URL, fetchWithAuth } from "../utils/api";
 import { showToast } from "../components/Toast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -34,7 +34,7 @@ interface NewResourceForm {
 }
 
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+const BACKEND_URL = API_BASE_URL;
 
 const emptyForm: NewResourceForm = {
   name: "", category: "Material", quantity: "", unit: "",

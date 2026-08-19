@@ -1,8 +1,8 @@
 import React, { useState, useRef } from 'react';
 import '../components/upload-document.css';
-import { fetchWithAuth } from '../utils/api';
+import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 
-const API_URL = import.meta.env.VITE_BACKEND_URL;
+const API_URL = API_BASE_URL;
 
 const CATEGORIES = ['Design & Engineering', 'Project Management', 'Site Reference'] as const;
 const DOC_TYPES  = ['PDF', 'DWG', 'DOC', 'DOCX', 'XLS', 'XLSX', 'JPG', 'PNG'] as const;

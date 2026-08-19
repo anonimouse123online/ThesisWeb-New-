@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import '../components/Projects.css';
-import { fetchWithAuth } from '../utils/api';
+import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import Dropdown from '../components/Dropdown';
 import ProfileDropdown from '../components/ProfileDropdown';
 import { showToast } from '../components/Toast';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+const BACKEND_URL = API_BASE_URL;
 
 interface ProjectRecord {
   id?: string;

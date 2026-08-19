@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../components/Settings.css';
-import { fetchWithAuth } from '../utils/api';
+import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import { showToast } from '../components/Toast';
 import ProfileDropdown from '../components/ProfileDropdown';
 
-const API_URL = import.meta.env.VITE_BACKEND_URL;
+const API_URL = API_BASE_URL;
 
 type TabKey = 'profile' | 'security' | 'notifications' | 'system';
 

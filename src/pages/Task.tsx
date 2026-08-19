@@ -1,11 +1,11 @@
 import React, { Fragment, useState, useEffect } from "react";
 import AssignTaskModal from "../pages/Assigntaskmodal";
-import { fetchWithAuth } from "../utils/api";
+import { API_BASE_URL, fetchWithAuth } from "../utils/api";
 import Dropdown from "../components/Dropdown";
 import { showToast } from "../components/Toast";
 import "../components/Task.css";
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+const BACKEND_URL = API_BASE_URL;
 
 type Priority = "High" | "Medium" | "Low";
 type Status = "in-progress" | "completed" | "blocked" | "Pending" | "pending" | "delayed" | "Delayed" | "Ongoing" | "ongoing" | "In Progress" | "Completed";

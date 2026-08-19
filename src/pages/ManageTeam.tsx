@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AddMemberModal from './add-member';
 import '../components/manage-team.css';
-import { fetchWithAuth } from '../utils/api';
+import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import ProfileDropdown from '../components/ProfileDropdown';
 
-const API_URL = import.meta.env.VITE_BACKEND_URL;
+const API_URL = API_BASE_URL;
 
 interface TeamMember {
   id: string;

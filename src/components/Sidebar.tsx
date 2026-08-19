@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
+import { fetchWithAuth } from '../utils/api';
 import './Sidebar.css';
 
 const Icons: Record<string, React.FC> = {
@@ -98,15 +99,14 @@ const Sidebar: React.FC = () => {
       try {
         const token = localStorage.getItem('token');
         if (!token) return;
-        const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await fetchWithAuth('/auth/me');
         if (res.ok) {
           const json = await res.json();
-          if (json.user) {
-            setUserName(json.user.name || 'User');
-            setUserRole(json.user.role || 'Member');
-            localStorage.setItem('user', JSON.stringify(json.user));
+          const user = json.data || json.user;
+          if (user) {
+            setUserName(user.name || user.full_name || 'User');
+            setUserRole(user.role || 'Member');
+            localStorage.setItem('user', JSON.stringify(user));
           }
         }
       } catch { /* ignore */ }

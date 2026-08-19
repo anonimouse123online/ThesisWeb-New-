@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchWithAuth } from '../utils/api';
+import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import Dropdown from '../components/Dropdown';
 import ProfileDropdown from '../components/ProfileDropdown';
 import '../components/Dashboard.css';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+const BACKEND_URL = API_BASE_URL;
 
 // --- TYPES ---
 interface StatItem {

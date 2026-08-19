@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ShieldCheck, EyeOff, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../utils/api';
 import '../components/login.css';
 
 const LoginPage: React.FC = () => {
@@ -11,7 +12,7 @@ const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+  const BACKEND_URL = API_BASE_URL;
 
   const [rememberMe, setRememberMe] = useState(() => {
     return localStorage.getItem('remember_me') === 'true';

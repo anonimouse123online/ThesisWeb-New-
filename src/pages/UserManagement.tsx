@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "../components/UserManagement.css";
-import { fetchWithAuth } from "../utils/api";
+import { API_BASE_URL, fetchWithAuth } from "../utils/api";
 import { showToast } from "../components/Toast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -15,7 +15,7 @@ interface User {
   current_tasks: string;
 }
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+const BACKEND_URL = API_BASE_URL;
 
 const ROLES: Role[] = [
   "Admin",
@@ -96,6 +96,23 @@ const UserManagement: React.FC = () => {
     }
   };
 
+  const handleRemoveUser = async (userId: string) => {
+    if (!window.confirm("Are you sure you want to remove this user?")) return;
+    try {
+      const res = await fetchWithAuth(`${BACKEND_URL}/users/${userId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to remove user");
+      }
+      setUsers(prev => prev.filter(u => u.id !== userId));
+      showToast("User removed successfully!", "success");
+    } catch (err: any) {
+      showToast(err.message, "error");
+    }
+  };
+
   const toggleDropdown = (userId: string) => {
     setOpenRoleDropdown(prev => (prev === userId ? null : userId));
   };
@@ -127,7 +144,26 @@ const UserManagement: React.FC = () => {
           ) : (
             users.map(user => (
               <div key={user.id} className="um-card">
-                <div className="um-card__name">{user.full_name}</div>
+                <div className="um-card__name" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>{user.full_name}</span>
+                  {isAdmin && (
+                    <button
+                      onClick={() => handleRemoveUser(user.id)}
+                      style={{
+                        background: 'transparent',
+                        border: '1px solid #ff4d4f',
+                        color: '#ff4d4f',
+                        borderRadius: '6px',
+                        padding: '4px 10px',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        fontWeight: 600
+                      }}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
 
                 <div className="um-card__grid">
                   {/* Role */}

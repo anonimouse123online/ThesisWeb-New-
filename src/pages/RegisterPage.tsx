@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ShieldCheck, Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../utils/api';
 import '../components/register.css';
 
 const RegisterPage: React.FC = () => {
@@ -16,7 +17,7 @@ const RegisterPage: React.FC = () => {
   const [loading, setLoading]       = useState(false);
   const navigate = useNavigate();
 
-  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+  const BACKEND_URL = API_BASE_URL;
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();

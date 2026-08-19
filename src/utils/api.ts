@@ -1,3 +1,15 @@
+export const API_BASE_URL = (
+  import.meta.env.VITE_BACKEND_URL || "http://localhost:5001"
+).replace(/\/+$/, "");
+
+export function apiUrl(path: string): string {
+  if (/^https?:\/\//i.test(path)) {
+    return path;
+  }
+
+  return `${API_BASE_URL}/${path.replace(/^\/+/, "")}`;
+}
+
 /**
  * Wrapper around fetch() that automatically includes the JWT token
  * from localStorage in the Authorization header.
@@ -6,13 +18,14 @@ export async function fetchWithAuth(
   url: string,
   options: RequestInit = {}
 ): Promise<Response> {
+  const requestUrl = apiUrl(url);
 
   const token =
     localStorage.getItem("token") ||
     localStorage.getItem("authToken") ||
     localStorage.getItem("accessToken");
 
-  console.log("[AUTH] Request:", url);
+  console.log("[AUTH] Request:", requestUrl);
   console.log("[AUTH] Token found:", !!token);
 
   const headers = new Headers(options.headers || {});
@@ -42,7 +55,7 @@ export async function fetchWithAuth(
     }
   }
 
-  const response = await fetch(url, {
+  const response = await fetch(requestUrl, {
     ...options,
     headers,
   });
@@ -50,14 +63,14 @@ export async function fetchWithAuth(
   console.log(
     "[AUTH] Response:",
     response.status,
-    url
+    requestUrl
   );
 
   if (
     response.status === 401 ||
     (
       response.status === 404 &&
-      url.includes("/auth/me")
+      requestUrl.includes("/auth/me")
     )
   ) {
 
