@@ -170,7 +170,7 @@ const ProjectProgress: React.FC = () => {
         </div>
 
         <div className="pp-metric-card">
-          <div className="pp-metric-icon" style={{ background: '#dbeafe', color: '#2563eb' }}>
+          <div className="pp-metric-icon" style={{ background: '#fff7ed', color: '#ea580c' }}>
             🏗️
           </div>
           <div className="pp-metric-info">

@@ -6,10 +6,10 @@
   flex: 1;
   margin-left: 260px;
   padding: 28px 36px;
-  background-color: #f7f5f2;
+  background-color: #f8fafc;
   min-height: 100vh;
   font-family: 'DM Sans', -apple-system, sans-serif;
-  color: #1a1a1a;
+  color: #0f172a;
   box-sizing: border-box;
   width: calc(100% - 260px);
   min-width: 0;
@@ -47,7 +47,7 @@
   transition: color 0.15s ease;
 }
 
-.st-breadcrumb-link:hover { color: #f05a28; }
+.st-breadcrumb-link:hover { color: #ea580c; }
 .st-breadcrumb-sep { color: #cbd5e1; font-size: 12px; }
 .st-breadcrumb-current { color: #1e293b; font-weight: 600; }
 
@@ -69,7 +69,7 @@
   font-size: 26px;
   font-weight: 800;
   margin: 0;
-  color: #111827;
+  color: #0f172a;
   letter-spacing: -0.02em;
 }
 
@@ -83,7 +83,7 @@
 .st-tabs-row {
   display: flex;
   gap: 8px;
-  border-bottom: 1.5px solid #ede5dc;
+  border-bottom: 1.5px solid #e2e8f0;
   padding-bottom: 2px;
   margin-bottom: 24px;
   overflow-x: auto;
@@ -108,12 +108,12 @@
 }
 
 .st-tab-btn:hover {
-  color: #111827;
+  color: #0f172a;
   background: rgba(255, 255, 255, 0.5);
 }
 
 .st-tab-btn--active {
-  color: #f05a28;
+  color: #ea580c;
   font-weight: 700;
 }
 
@@ -124,7 +124,7 @@
   left: 0;
   right: 0;
   height: 3px;
-  background: #f05a28;
+  background: #ea580c;
   border-radius: 3px 3px 0 0;
 }
 
@@ -138,17 +138,17 @@
 
 .st-card {
   background: #ffffff;
-  border-radius: 18px;
+  border-radius: 16px;
   padding: 24px 28px;
-  border: 1px solid #ede5dc;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03), 0 4px 16px rgba(15, 23, 42, 0.03);
   margin-bottom: 24px;
 }
 
 .st-card-title {
   font-size: 16px;
   font-weight: 800;
-  color: #111827;
+  color: #0f172a;
   margin: 0 0 4px;
 }
 
@@ -186,7 +186,7 @@
   border: 1.5px solid #e2e8f0;
   border-radius: 10px;
   font-size: 13px;
-  color: #111827;
+  color: #0f172a;
   outline: none;
   font-family: inherit;
   box-sizing: border-box;
@@ -194,9 +194,9 @@
 }
 
 .st-input:focus {
-  border-color: #f05a28;
+  border-color: #ea580c;
   background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(240, 90, 40, 0.1);
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15);
 }
 
 .st-input:disabled {
@@ -207,7 +207,7 @@
 
 /* ── Action Buttons ── */
 .st-btn-save {
-  background: #f05a28;
+  background: #ea580c;
   color: #ffffff;
   border: none;
   border-radius: 10px;
@@ -216,7 +216,7 @@
   font-weight: 700;
   cursor: pointer;
   font-family: inherit;
-  box-shadow: 0 4px 14px rgba(240, 90, 40, 0.25);
+  box-shadow: 0 4px 14px rgba(234, 88, 12, 0.25);
   transition: all 0.15s ease;
   display: inline-flex;
   align-items: center;
@@ -224,7 +224,8 @@
 }
 
 .st-btn-save:hover:not(:disabled) {
-  background: #d84818;
+  background: #c2410c;
+  box-shadow: 0 6px 18px rgba(234, 88, 12, 0.35);
   transform: translateY(-1px);
 }
 
@@ -264,14 +265,14 @@
   width: 72px;
   height: 72px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #f05a28, #ff8c42);
+  background: linear-gradient(135deg, #ea580c, #fb923c);
   color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 26px;
   font-weight: 800;
-  box-shadow: 0 4px 16px rgba(240, 90, 40, 0.3);
+  box-shadow: 0 4px 16px rgba(234, 88, 12, 0.3);
   margin-bottom: 12px;
 }
 

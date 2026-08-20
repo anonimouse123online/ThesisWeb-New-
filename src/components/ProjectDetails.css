@@ -103,9 +103,9 @@
   flex-shrink: 0;
 }
 
-.pd-status--ongoing   { background: #dcfce7; color: #16a34a; }
+.pd-status--ongoing   { background: #e0f2fe; color: #0369a1; }
 .pd-status--planning  { background: #fef9c3; color: #a16207; }
-.pd-status--completed { background: #dbeafe; color: #1d4ed8; }
+.pd-status--completed { background: #dcfce7; color: #15803d; }
 
 /* ── Hero Meta ── */
 .pd-hero-meta {
@@ -417,8 +417,8 @@
 
 /* ── Completed Banner ── */
 .pd-completed-banner {
-  background: #eff6ff;
-  border: 1.5px solid #bfdbfe;
+  background: #f0fdf4;
+  border: 1.5px solid #bbf7d0;
   border-radius: 14px;
   padding: 20px 24px;
   display: flex;
@@ -428,8 +428,8 @@
 }
 
 .pd-completed-badge {
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: #dcfce7;
+  color: #15803d;
   font-size: 13px;
   font-weight: 700;
   padding: 8px 18px;
@@ -866,9 +866,9 @@
 }
 
 .pd-tab-item--active {
-  background: #2563eb !important;
+  background: #ea580c !important;
   color: #ffffff !important;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+  box-shadow: 0 4px 14px rgba(234, 88, 12, 0.25);
 }
 
 .pd-tab-badge {
@@ -925,7 +925,8 @@
 }
 
 .pd-search-input:focus {
-  border-color: #2563eb;
+  border-color: #ea580c;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.12);
 }
 
 .pd-select-filter {
@@ -940,19 +941,21 @@
 }
 
 .pd-btn-primary {
-  background: #2563eb;
+  background: #ea580c;
   color: #ffffff;
   border: none;
   border-radius: 10px;
   padding: 8px 18px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: background 0.15s;
+  box-shadow: 0 4px 12px rgba(234, 88, 12, 0.22);
+  transition: all 0.15s ease;
 }
 
 .pd-btn-primary:hover {
-  background: #1d4ed8;
+  background: #c2410c;
+  box-shadow: 0 6px 16px rgba(234, 88, 12, 0.32);
 }
 
 .pd-btn-secondary {
@@ -969,7 +972,7 @@
 .pd-btn-link {
   background: none;
   border: none;
-  color: #2563eb;
+  color: #ea580c;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -1085,8 +1088,8 @@
 }
 
 .pd-phase-step--current {
-  background: #eff6ff;
-  border-color: #3b82f6;
+  background: #fff7ed;
+  border-color: #ea580c;
 }
 
 .pd-phase-step--passed {
@@ -1109,7 +1112,7 @@
 }
 
 .pd-phase-step--current .pd-step-badge {
-  background: #2563eb;
+  background: #ea580c;
 }
 
 .pd-phase-step--passed .pd-step-badge {
@@ -1217,7 +1220,7 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #2563eb;
+  background: #ea580c;
 }
 
 .pd-phase-group-title h3 {
@@ -1293,14 +1296,14 @@
 }
 
 .pd-task-name:hover {
-  color: #2563eb;
+  color: #ea580c;
 }
 
 .pd-subtask-pill {
   margin-left: 8px;
   font-size: 11px;
-  background: #eff6ff;
-  color: #2563eb;
+  background: #fff7ed;
+  color: #ea580c;
   padding: 2px 8px;
   border-radius: 12px;
   font-weight: 600;
@@ -1348,7 +1351,7 @@
 }
 
 .pd-status-select--pending { background: #fef9c3; color: #a16207; }
-.pd-status-select--inprogress { background: #dbeafe; color: #1d4ed8; }
+.pd-status-select--inprogress { background: #fff7ed; color: #ea580c; }
 .pd-status-select--completed { background: #dcfce7; color: #15803d; }
 .pd-status-select--delayed { background: #fee2e2; color: #b91c1c; }
 
@@ -1436,9 +1439,10 @@
 }
 
 .pd-cat-pill--active {
-  background: #2563eb;
+  background: #ea580c;
   color: white;
-  border-color: #2563eb;
+  border-color: #ea580c;
+  box-shadow: 0 2px 8px rgba(234, 88, 12, 0.25);
 }
 
 .pd-res-badge {
@@ -1448,7 +1452,7 @@
   border-radius: 12px;
 }
 
-.pd-res-badge--mat { background: #eff6ff; color: #1d4ed8; }
+.pd-res-badge--mat { background: #fff7ed; color: #ea580c; }
 .pd-res-badge--equip { background: #fdf4ff; color: #a21caf; }
 
 .pd-status--instock { background: #dcfce7; color: #16a34a; }

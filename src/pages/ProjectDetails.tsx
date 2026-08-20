@@ -708,7 +708,7 @@ const ProjectDetails: React.FC = () => {
           </div>
           <div className="pd-meta-item">
             <p className="pd-meta-label">Active Phase</p>
-            <p className="pd-meta-value" style={{ color: '#2563eb' }}>{project.phase || PHASES[0]}</p>
+            <p className="pd-meta-value" style={{ color: '#ea580c' }}>{project.phase || PHASES[0]}</p>
           </div>
         </div>
       </div>
@@ -766,12 +766,12 @@ const ProjectDetails: React.FC = () => {
           {/* KPI Stat Cards */}
           <div className="pd-kpi-grid">
             <div className="pd-kpi-card" onClick={() => setTab('tasks')} style={{ cursor: 'pointer' }}>
-              <div className="pd-kpi-icon" style={{ background: '#eff6ff', color: '#2563eb' }}>📋</div>
+              <div className="pd-kpi-icon" style={{ background: '#fff7ed', color: '#ea580c' }}>📋</div>
               <div>
                 <p className="pd-kpi-label">Tasks Progress</p>
                 <p className="pd-kpi-value">{completedTasksCount} / {totalTasksCount}</p>
                 <div className="pd-progress-track">
-                  <div className="pd-progress-fill" style={{ width: `${taskProgressPct}%`, background: '#2563eb' }} />
+                  <div className="pd-progress-fill" style={{ width: `${taskProgressPct}%`, background: '#ea580c' }} />
                 </div>
                 <span className="pd-kpi-sub">{taskProgressPct}% completed ({activeTasksCount} active)</span>
               </div>
@@ -842,7 +842,7 @@ const ProjectDetails: React.FC = () => {
           {/* Quick Actions & Short Cuts */}
           <div className="pd-actions-hub-grid">
             <div className="pd-action-box" onClick={() => setTab('tasks')}>
-              <div className="pd-action-box-icon" style={{ background: '#eff6ff', color: '#2563eb' }}>📋</div>
+              <div className="pd-action-box-icon" style={{ background: '#fff7ed', color: '#ea580c' }}>📋</div>
               <div>
                 <h3>Manage Project Tasks</h3>
                 <p>View, assign, update status, and track subtask steps for all phases.</p>

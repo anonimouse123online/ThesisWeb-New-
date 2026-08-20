@@ -174,7 +174,7 @@ const RegisterPage: React.FC = () => {
           <p style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '13px', color: '#475569' }}>
             Already have an account?{' '}
             <span
-              style={{ color: '#3b82f6', fontWeight: 'bold', cursor: 'pointer' }}
+              style={{ color: '#ea580c', fontWeight: 'bold', cursor: 'pointer' }}
               onClick={() => navigate('/login')}
             >
               Sign in

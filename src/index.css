@@ -3,25 +3,25 @@
 ───────────────────────────────────────────────────────────── */
 
 :root {
-  /* Brand Accents */
-  --sp-primary: #f05a28;
-  --sp-primary-hover: #d84818;
-  --sp-primary-light: #fff0e8;
-  --sp-primary-ring: rgba(240, 90, 40, 0.2);
+  /* Brand Accents — High-Vis Construction Safety Orange */
+  --sp-primary: #ea580c;
+  --sp-primary-hover: #c2410c;
+  --sp-primary-light: #fff7ed;
+  --sp-primary-ring: rgba(234, 88, 12, 0.22);
 
   /* Backgrounds & Surfaces */
-  --sp-bg: #f7f5f2;
+  --sp-bg: #f8fafc;
   --sp-card-bg: #ffffff;
-  --sp-card-subtle: #fdfaf6;
-  --sp-sidebar-bg: #0c0c0c;
+  --sp-card-subtle: #f8fafc;
+  --sp-sidebar-bg: #0f172a;
 
   /* Borders & Dividers */
-  --sp-border: #ede5dc;
-  --sp-border-hover: #dbc9b5;
+  --sp-border: #e2e8f0;
+  --sp-border-hover: #cbd5e1;
   --sp-border-subtle: #f1f5f9;
 
   /* Typography Colors */
-  --sp-text-main: #111827;
+  --sp-text-main: #0f172a;
   --sp-text-muted: #64748b;
   --sp-text-subtle: #94a3b8;
 
@@ -32,8 +32,8 @@
   --sp-warning-bg: #fef3c7;
   --sp-danger: #dc2626;
   --sp-danger-bg: #fee2e2;
-  --sp-info: #2563eb;
-  --sp-info-bg: #dbeafe;
+  --sp-info: #0284c7;
+  --sp-info-bg: #e0f2fe;
 
   /* Fonts */
   --font-heading: 'Plus Jakarta Sans', 'DM Sans', -apple-system, sans-serif;
@@ -45,9 +45,9 @@
   --sp-radius-md: 12px;
   --sp-radius-lg: 16px;
   --sp-radius-full: 9999px;
-  --sp-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
-  --sp-shadow-md: 0 4px 14px rgba(0, 0, 0, 0.04);
-  --sp-shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.08);
+  --sp-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.04);
+  --sp-shadow-md: 0 4px 16px rgba(15, 23, 42, 0.05);
+  --sp-shadow-lg: 0 10px 32px rgba(15, 23, 42, 0.08);
 }
 
 /* ── Global Reset ── */

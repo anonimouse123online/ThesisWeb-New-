@@ -177,7 +177,7 @@ const ProjectReports: React.FC = () => {
       {/* ── Stat Metrics ── */}
       <div className="pr-stats-grid">
         <div className="pr-stat-card">
-          <div className="pr-stat-icon" style={{ background: '#dbeafe', color: '#1d4ed8' }}>
+          <div className="pr-stat-icon" style={{ background: '#fff7ed', color: '#ea580c' }}>
             📋
           </div>
           <div className="pr-stat-info">

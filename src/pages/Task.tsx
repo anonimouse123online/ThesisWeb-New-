@@ -145,7 +145,7 @@ function TaskDetailPanel({
           <div className="tdp-section" style={{ background: '#f8fafc', padding: '16px 20px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
             <div className="tdp-subtasks-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
                 </svg>
                 <p className="tdp-section-title" style={{ margin: 0, color: '#1e293b' }}>
@@ -258,7 +258,7 @@ function TaskDetailPanel({
             )}
             <div className="tdp-info-item">
               <span className="tdp-info-label">Phase Milestone Target</span>
-              <span className="tdp-info-value" style={{ color: '#2563eb', fontWeight: 700 }}>
+              <span className="tdp-info-value" style={{ color: '#ea580c', fontWeight: 700 }}>
                 {task.phase_milestone_pct != null
                   ? `${task.phase_milestone_pct}% (Synced from Project Progress)`
                   : `${task.progress_pct ?? 0}% (Execution Target)`}
