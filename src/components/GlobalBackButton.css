@@ -1,0 +1,38 @@
+.global-back-button {
+  position: absolute;
+  top: 24px;
+  left: 284px; /* 260px (sidebar) + 24px padding */
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid #e0d9d0;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.global-back-button:hover {
+  background: #faf8f5;
+  border-color: #ccc;
+  transform: translateY(-1px);
+}
+
+.global-back-button:active {
+  transform: translateY(0);
+  background: #f0ebe3;
+}
+
+.global-back-button svg {
+  color: #666;
+  width: 14px;
+  height: 14px;
+}

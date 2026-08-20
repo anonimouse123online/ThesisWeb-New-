@@ -5,16 +5,14 @@ import { API_BASE_URL } from '../utils/api';
 import '../components/register.css';
 
 const RegisterPage: React.FC = () => {
-  const [name, setName]             = useState('');
-  const [role, setRole]             = useState('');
-  const [email, setEmail]           = useState('');
-  const [password, setPassword]     = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword]       = useState(false);
-  const [showConfirm, setShowConfirm]         = useState(false);
-  {/*const [agreed, setAgreed]         = useState(false);*/}
-  const [error, setError]           = useState('');
-  const [loading, setLoading]       = useState(false);
+  const [name, setName]                         = useState('');
+  const [email, setEmail]                       = useState('');
+  const [password, setPassword]                 = useState('');
+  const [confirmPassword, setConfirmPassword]   = useState('');
+  const [showPassword, setShowPassword]         = useState(false);
+  const [showConfirm, setShowConfirm]           = useState(false);
+  const [error, setError]                       = useState('');
+  const [loading, setLoading]                   = useState(false);
   const navigate = useNavigate();
 
   const BACKEND_URL = API_BASE_URL;
@@ -23,25 +21,17 @@ const RegisterPage: React.FC = () => {
     e.preventDefault();
     setError('');
 
-    if (!role) {
-      setError('Please select a role.');
-      return;
-    }
     if (password !== confirmPassword) {
-      setError('Password do not match.');
+      setError('Passwords do not match.');
       return;
     }
-    {/*if (!agreed) {
-      setError('You must agree to the Terms of Service and Privacy Policy.');
-      return;
-    }*/}
 
     setLoading(true);
     try {
       const response = await fetch(`${BACKEND_URL}/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), email, password, role }),
+        body: JSON.stringify({ name: name.trim(), email, password, role: 'Admin' }),
       });
 
       const data = await response.json();
@@ -81,22 +71,6 @@ const RegisterPage: React.FC = () => {
 
         <div className="rform-section">
           <form onSubmit={handleRegister}>
-
-            {/* Role Dropdown */}
-            <div className="input-group">
-              <label className="label-sm">Role</label>
-              <select
-                className="text-input"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                required
-                style={{ backgroundColor: '#F9F9F9', cursor: 'pointer', color: role ? '#1a1a1a' : '#aaa' }}
-              >
-                <option value="" disabled>Select your role</option>
-                <option value="Admin">Admin</option>
-                <option value="Site Engineer">Site Engineer</option>
-              </select>
-            </div>
 
             {/* Full Name */}
             <div className="input-group">
