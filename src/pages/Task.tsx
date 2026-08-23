@@ -299,7 +299,7 @@ interface CreateTaskFormProps {
 const EMPTY_FORM = {
   taskName: "", phase: "", assigneeId: "", projectId: "", dueDate: "",
   priority: "Medium" as Priority, manpowerNeeded: "",
-  materialsRequired: "", siteInstructions: "",
+  siteInstructions: "",
 };
 
 function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: CreateTaskFormProps) {
@@ -353,6 +353,8 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
+  const todayStr = new Date().toISOString().split('T')[0];
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.taskName.trim())          { setError("Task name is required."); return; }
@@ -361,8 +363,8 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
     if (!form.assigneeId)               { setError("Please select an assignee engineer."); return; }
     if (!form.priority)                 { setError("Priority is required."); return; }
     if (!form.dueDate)                  { setError("Due date is required."); return; }
+    if (form.dueDate < todayStr)        { setError("Due date cannot be a past date."); return; }
     if (!form.manpowerNeeded.trim())    { setError("Manpower needed is required (e.g. 5 workers)."); return; }
-    if (!form.materialsRequired.trim()) { setError("Materials required is required (e.g. Cement, Rebar)."); return; }
     if (!form.siteInstructions.trim())  { setError("Site instructions are required."); return; }
 
     setLoading(true);
@@ -380,7 +382,6 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
           dueDate:           form.dueDate,
           priority:          form.priority,
           manpowerNeeded:    form.manpowerNeeded.trim(),
-          materialsRequired: form.materialsRequired.trim(),
           siteInstructions:  form.siteInstructions.trim(),
         }),
       });
@@ -475,18 +476,13 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
           <div className="ct-row">
             <div className="ct-field">
               <label className="ct-label">Due Date <span className="ct-required">*</span></label>
-              <input name="dueDate" type="date" className="ct-input" value={form.dueDate} onChange={handleChange} required />
+              <input name="dueDate" type="date" min={todayStr} className="ct-input" value={form.dueDate} onChange={handleChange} required />
             </div>
 
             <div className="ct-field">
               <label className="ct-label">Manpower Needed <span className="ct-required">*</span></label>
               <input name="manpowerNeeded" className="ct-input" placeholder="e.g. 5 workers" value={form.manpowerNeeded} onChange={handleChange} required />
             </div>
-          </div>
-
-          <div className="ct-field">
-            <label className="ct-label">Materials Required <span className="ct-required">*</span></label>
-            <input name="materialsRequired" className="ct-input" placeholder="e.g. Cement, Rebar, Gravel (comma-separated)" value={form.materialsRequired} onChange={handleChange} required />
           </div>
 
           <div className="ct-field">

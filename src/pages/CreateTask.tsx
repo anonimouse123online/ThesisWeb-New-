@@ -41,7 +41,6 @@ const CreateTask: React.FC = () => {
     dueDate: '',
     priority: 'Medium',
     manpowerNeeded: 5,
-    materialsRequired: '',
     siteInstructions: '',
   });
 
@@ -83,6 +82,8 @@ const CreateTask: React.FC = () => {
     fetchOptions();
   }, []);
 
+  const todayStr = new Date().toISOString().split('T')[0];
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.taskName.trim()) {
@@ -105,12 +106,12 @@ const CreateTask: React.FC = () => {
       setError('Due date is required.');
       return;
     }
-    if (!formData.manpowerNeeded || formData.manpowerNeeded <= 0) {
-      setError('Estimated manpower is required (e.g. 5 workers).');
+    if (formData.dueDate < todayStr) {
+      setError('Due date cannot be a past date.');
       return;
     }
-    if (!formData.materialsRequired.trim()) {
-      setError('Required materials & equipment is required.');
+    if (!formData.manpowerNeeded || formData.manpowerNeeded <= 0) {
+      setError('Estimated manpower is required (e.g. 5 workers).');
       return;
     }
     if (!formData.siteInstructions.trim()) {
@@ -223,6 +224,7 @@ const CreateTask: React.FC = () => {
               <label>Due Date *</label>
               <input
                 type="date"
+                min={todayStr}
                 required
                 value={formData.dueDate}
                 onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
@@ -261,17 +263,6 @@ const CreateTask: React.FC = () => {
           </div>
 
           <div className="form-full-width">
-            <div className="form-group">
-              <label>Required Materials & Equipment *</label>
-              <textarea
-                placeholder="List required cement, rebar, excavators, or scaffolding..."
-                rows={3}
-                required
-                value={formData.materialsRequired}
-                onChange={(e) => setFormData({ ...formData, materialsRequired: e.target.value })}
-              />
-            </div>
-
             <div className="form-group">
               <label>Site Specific Instructions *</label>
               <textarea

@@ -297,7 +297,6 @@ const ProjectDetails: React.FC = () => {
     dueDate: '',
     priority: 'Medium' as 'High' | 'Medium' | 'Low',
     manpowerNeeded: '5 workers',
-    materialsRequired: '',
     siteInstructions: '',
   });
   const [addingTask, setAddingTask] = useState(false);
@@ -488,6 +487,12 @@ const ProjectDetails: React.FC = () => {
       return;
     }
 
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (newTaskForm.dueDate && newTaskForm.dueDate < todayStr) {
+      showToast('Due date cannot be a past date', 'warning');
+      return;
+    }
+
     try {
       setAddingTask(true);
       const payload = {
@@ -498,7 +503,6 @@ const ProjectDetails: React.FC = () => {
         dueDate: newTaskForm.dueDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
         priority: newTaskForm.priority,
         manpowerNeeded: newTaskForm.manpowerNeeded,
-        materialsRequired: newTaskForm.materialsRequired,
         siteInstructions: newTaskForm.siteInstructions,
       };
 
@@ -520,7 +524,6 @@ const ProjectDetails: React.FC = () => {
         dueDate: '',
         priority: 'Medium',
         manpowerNeeded: '5 workers',
-        materialsRequired: '',
         siteInstructions: '',
       });
       fetchProjectData();
@@ -1360,6 +1363,7 @@ const ProjectDetails: React.FC = () => {
                   <label>Due Date</label>
                   <input
                     type="date"
+                    min={new Date().toISOString().split('T')[0]}
                     className="pm-input"
                     value={newTaskForm.dueDate}
                     onChange={e => setNewTaskForm({ ...newTaskForm, dueDate: e.target.value })}
@@ -1384,18 +1388,6 @@ const ProjectDetails: React.FC = () => {
                     value={newTaskForm.manpowerNeeded}
                     onChange={e => setNewTaskForm({ ...newTaskForm, manpowerNeeded: e.target.value })}
                     placeholder="e.g., 8 workers"
-                  />
-                </div>
-              </div>
-
-              <div className="pm-form-row pm-form-row--1">
-                <div className="pm-form-group">
-                  <label>Materials Required</label>
-                  <input
-                    className="pm-input"
-                    value={newTaskForm.materialsRequired}
-                    onChange={e => setNewTaskForm({ ...newTaskForm, materialsRequired: e.target.value })}
-                    placeholder="e.g., 50 bags cement, 2 tons rebar"
                   />
                 </div>
               </div>
