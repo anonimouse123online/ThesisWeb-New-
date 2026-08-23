@@ -13,17 +13,33 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (userStr) {
-    try {
-      const user = JSON.parse(userStr);
-      if (user.role && user.role !== 'Admin') {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        return <Navigate to="/login" replace />;
-      }
-    } catch {
-      // ignore
+  if (!userStr) {
+    localStorage.removeItem('token');
+    return <Navigate to="/login" replace />;
+  }
+
+  try {
+    const user = JSON.parse(userStr);
+
+    const userRole = user.role
+      ?.trim()
+      .toLowerCase();
+
+    // Web portal is Admin-only
+    if (userRole !== 'admin') {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+
+      return <Navigate to="/login" replace />;
     }
+
+  } catch (error) {
+    console.error('Invalid stored user data:', error);
+
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+
+    return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;

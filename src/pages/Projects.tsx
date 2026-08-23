@@ -292,7 +292,7 @@ const Projects: React.FC = () => {
             className={`pm-hub-tab ${activeView === 'projects' ? 'pm-hub-tab--active' : ''}`}
             onClick={() => setView('projects')}
           >
-            🏢 Projects Overview ({projects.length})
+          Projects Overview ({projects.length})
           </button>
 
         </div>
@@ -383,7 +383,7 @@ const Projects: React.FC = () => {
                       </td>
                       <td>
                         <span style={{ fontSize: '12px', background: '#f1f5f9', padding: '3px 8px', borderRadius: '12px', fontWeight: 600 }}>
-                          📦 {resCount} items
+                          {resCount} items
                         </span>
                       </td>
                       <td><span className={getStatusClass(prj.status)}>{prj.status}</span></td>

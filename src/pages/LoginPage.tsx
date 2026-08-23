@@ -25,50 +25,128 @@ const LoginPage: React.FC = () => {
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
+  e.preventDefault();
 
-    try {
-      const response = await fetch(`${BACKEND_URL}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password}),
-      });
+  setError('');
+  setLoading(true);
 
-      const data = await response.json();
+  try {
+    console.log('Attempting login...');
 
-      if (!response.ok) {
-        setError(data.error || 'Login failed. Please try again.');
-        return;
-      }
+    const response = await fetch(`${BACKEND_URL}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+        password,
+      }),
+    });
 
-      // Restrict web portal access to Admin users only
-      if (data.user?.role && data.user.role !== 'Admin') {
-        setError('Access Restricted: Only Administrators can log in to the web management portal. Site Engineers and field personnel must use the SitePulse mobile app.');
-        return;
-      }
+    const data = await response.json();
 
-      // Store token and user info
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+    console.log('LOGIN STATUS:', response.status);
+    console.log('LOGIN RESPONSE:', data);
+    console.log('LOGIN ROLE:', data.user?.role);
+    console.log(
+      'TOKEN RECEIVED:',
+      data.token ? 'YES' : 'NO'
+    );
 
-      if (rememberMe) {
-        localStorage.setItem('remember_me', 'true');
-        localStorage.setItem('remembered_email', email);
-      } else {
-        localStorage.removeItem('remember_me');
-        localStorage.removeItem('remembered_email');
-      }
-
-      navigate('/dashboard');
-    } catch (err) {
-      console.error('Login failed', err);
-      setError('Cannot connect to server. Check your connection.');
-    } finally {
-      setLoading(false);
+    if (!response.ok) {
+      setError(
+        data.error ||
+        'Login failed. Please try again.'
+      );
+      return;
     }
-  };
+
+    if (!data.token || !data.user) {
+      setError(
+        'Invalid login response from server.'
+      );
+      return;
+    }
+
+    // Only administrators may use the web portal
+    const userRole =
+      data.user.role
+        ?.trim()
+        .toLowerCase();
+
+    if (userRole !== 'admin') {
+      setError(
+        'Access Restricted: Only Administrators can log in to the web management portal. Site Engineers and field personnel must use the SitePulse mobile app.'
+      );
+      return;
+    }
+
+    // Store authentication
+    localStorage.setItem(
+      'token',
+      data.token
+    );
+
+    localStorage.setItem(
+      'user',
+      JSON.stringify(data.user)
+    );
+
+    console.log(
+      'TOKEN SAVED:',
+      localStorage.getItem('token')
+        ? 'YES'
+        : 'NO'
+    );
+
+    console.log(
+      'USER SAVED:',
+      localStorage.getItem('user')
+    );
+
+    if (rememberMe) {
+      localStorage.setItem(
+        'remember_me',
+        'true'
+      );
+
+      localStorage.setItem(
+        'remembered_email',
+        email.trim().toLowerCase()
+      );
+    } else {
+      localStorage.removeItem(
+        'remember_me'
+      );
+
+      localStorage.removeItem(
+        'remembered_email'
+      );
+    }
+
+    console.log(
+      'Login successful. Navigating to dashboard...'
+    );
+
+    navigate('/dashboard', {
+      replace: true,
+    });
+
+  } catch (err) {
+    console.error(
+      'Login failed:',
+      err
+    );
+
+    setError(
+      'Cannot connect to server. Check your connection.'
+    );
+
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleForgotPassword = (e: React.MouseEvent) => {
     e.preventDefault();

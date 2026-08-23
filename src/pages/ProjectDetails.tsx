@@ -461,21 +461,68 @@ const ProjectDetails: React.FC = () => {
   };
 
   // 5. Task Status Change
-  const handleTaskStatusChange = async (taskId: string | number, newStatus: string) => {
-    setTasks(prev => prev.map(t =>
-      String(t.id) === String(taskId) ? { ...t, status: newStatus } : t
-    ));
+  const handleTaskStatusChange = async (
+    taskId: string | number,
+    newStatus: string
+  ) => {
+    const currentTask = tasks.find(
+      t => String(t.id) === String(taskId)
+    );
+
+    if (
+      currentTask?.status?.toLowerCase() === 'completed'
+    ) {
+      showToast(
+        'Completed tasks are locked and cannot be modified.',
+        'warning'
+      );
+      return;
+    }
+
+    setTasks(prev =>
+      prev.map(t =>
+        String(t.id) === String(taskId)
+          ? { ...t, status: newStatus }
+          : t
+      )
+    );
 
     try {
-      const res = await fetchWithAuth(`${API_URL}/tasks/${taskId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      if (!res.ok) throw new Error('Status update failed');
-      showToast(`Task marked as ${newStatus}`, 'success');
-    } catch {
-      showToast('Failed to update task status', 'error');
+      const res = await fetchWithAuth(
+        `${API_URL}/tasks/${taskId}/status`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            status: newStatus,
+          }),
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(
+          data.message ||
+          data.error ||
+          'Status update failed'
+        );
+      }
+
+      showToast(
+        `Task marked as ${newStatus}`,
+        'success'
+      );
+    } catch (err: any) {
+      showToast(
+        err.message ||
+        'Failed to update task status',
+        'error'
+      );
+
+      fetchProjectData();
     }
   };
 
@@ -1025,16 +1072,38 @@ const ProjectDetails: React.FC = () => {
                                     </td>
                                     <td className="pd-td-muted">{task.manpower_needed || '—'}</td>
                                     <td>
-                                      <select
-                                        className={`pd-status-select pd-status-select--${(task.status || 'pending').toLowerCase().replace(/\s+/g, '')}`}
-                                        value={task.status || 'Pending'}
-                                        onChange={e => handleTaskStatusChange(task.id, e.target.value)}
-                                      >
-                                        <option value="Pending">Pending</option>
-                                        <option value="In Progress">In Progress</option>
-                                        <option value="Completed">Completed</option>
-                                        <option value="Delayed">Delayed</option>
-                                      </select>
+                                      {(task.status || '').toLowerCase() === 'completed' ? (
+                                        <span
+                                          className="pd-status-select pd-status-select--completed"
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            cursor: 'default',
+                                            fontWeight: 600,
+                                            minWidth: '118px',
+                                          }}
+                                        >
+                                          ✓ Completed
+                                        </span>
+                                      ) : (
+                                        <select
+                                          className={`pd-status-select pd-status-select--${(task.status || 'pending')
+                                            .toLowerCase()
+                                            .replace(/\s+/g, '')}`}
+                                          value={task.status || 'Pending'}
+                                          onChange={e =>
+                                            handleTaskStatusChange(
+                                              task.id,
+                                              e.target.value
+                                            )
+                                          }
+                                        >
+                                          <option value="Pending">Pending</option>
+                                          <option value="In Progress">In Progress</option>
+                                          <option value="Delayed">Delayed</option>
+                                        </select>
+                                      )}
                                     </td>
                                     <td>
                                       <button
@@ -1065,7 +1134,21 @@ const ProjectDetails: React.FC = () => {
                                                       <input
                                                         type="checkbox"
                                                         checked={st.completed}
-                                                        onChange={() => handleToggleSubtask(task.id, st.id)}
+                                                        disabled={
+                                                          (task.status || '')
+                                                            .toLowerCase() === 'completed'
+                                                        }
+                                                        onChange={() => {
+                                                          if (
+                                                            (task.status || '')
+                                                              .toLowerCase() !== 'completed'
+                                                          ) {
+                                                            handleToggleSubtask(
+                                                              task.id,
+                                                              st.id
+                                                            );
+                                                          }
+                                                        }}
                                                       />
                                                       <span className={st.completed ? 'pd-subtask-done' : ''}>
                                                         {st.title}
@@ -1081,6 +1164,18 @@ const ProjectDetails: React.FC = () => {
                                               <h4>Materials &amp; Instructions</h4>
                                               <p><strong>Materials:</strong> {task.materials_required || 'None specified'}</p>
                                               <p><strong>Instructions:</strong> {task.site_instructions || 'Standard engineering protocol'}</p>
+
+                                              {(task.status || '').toLowerCase() === 'completed' && (
+                                                <p
+                                                  style={{
+                                                    marginTop: '12px',
+                                                    fontWeight: 600,
+                                                    color: '#16a34a',
+                                                  }}
+                                                >
+                                                  ✓ Completed by engineer — this task is locked.
+                                                </p>
+                                              )}
                                             </div>
                                           </div>
                                         </div>
