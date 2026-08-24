@@ -64,7 +64,6 @@ const pillClass = (status: string): string => {
 // --- SUB-COMPONENTS ---
 const StatCard: React.FC<StatItem> = ({ label, value, trend, up, bg, clr, icon }) => (
   <div className="stat-card">
-    <div className="stat-icon-box" style={{ background: bg, color: clr }}>{icon}</div>
     <p className="stat-label text-muted">{label}</p>
     <p className="stat-value">{value}</p>
     <p className={`stat-trend ${up ? 'text-green' : 'text-red'}`}>
@@ -237,7 +236,6 @@ const Dashboard: React.FC = () => {
         </div>
         <div className="flex items-center gap-4">
           <div className="search-bar">
-            <span className="search-icon">🔍</span>
             <input
               type="text"
               placeholder="Search projects, sites, RFIs..."

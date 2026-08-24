@@ -766,7 +766,6 @@ const ProjectDetails: React.FC = () => {
           className={`pd-tab-item ${currentTab === 'overview' ? 'pd-tab-item--active' : ''}`}
           onClick={() => setTab('overview')}
         >
-          <span className="pd-tab-icon">📊</span>
           Overview &amp; Hub
         </button>
 
@@ -774,7 +773,6 @@ const ProjectDetails: React.FC = () => {
           className={`pd-tab-item ${currentTab === 'tasks' ? 'pd-tab-item--active' : ''}`}
           onClick={() => setTab('tasks')}
         >
-          <span className="pd-tab-icon">📋</span>
           Tasks &amp; Milestones
           <span className="pd-tab-badge">{tasks.length}</span>
         </button>
@@ -783,7 +781,6 @@ const ProjectDetails: React.FC = () => {
           className={`pd-tab-item ${currentTab === 'resources' ? 'pd-tab-item--active' : ''}`}
           onClick={() => setTab('resources')}
         >
-          <span className="pd-tab-icon">📦</span>
           Resources &amp; Inventory
           <span className="pd-tab-badge">{resources.length}</span>
         </button>
@@ -792,7 +789,6 @@ const ProjectDetails: React.FC = () => {
           className={`pd-tab-item ${currentTab === 'team' ? 'pd-tab-item--active' : ''}`}
           onClick={() => setTab('team')}
         >
-          <span className="pd-tab-icon">👥</span>
           Team ({teamMembers.length})
         </button>
 
@@ -800,7 +796,6 @@ const ProjectDetails: React.FC = () => {
           className={`pd-tab-item ${currentTab === 'documents' ? 'pd-tab-item--active' : ''}`}
           onClick={() => setTab('documents')}
         >
-          <span className="pd-tab-icon">📁</span>
           Documents &amp; Reports
         </button>
       </div>
@@ -813,7 +808,6 @@ const ProjectDetails: React.FC = () => {
           {/* KPI Stat Cards */}
           <div className="pd-kpi-grid">
             <div className="pd-kpi-card" onClick={() => setTab('tasks')} style={{ cursor: 'pointer' }}>
-              <div className="pd-kpi-icon" style={{ background: '#fff7ed', color: '#ea580c' }}>📋</div>
               <div>
                 <p className="pd-kpi-label">Tasks Progress</p>
                 <p className="pd-kpi-value">{completedTasksCount} / {totalTasksCount}</p>
@@ -825,7 +819,6 @@ const ProjectDetails: React.FC = () => {
             </div>
 
             <div className="pd-kpi-card" onClick={() => setTab('resources')} style={{ cursor: 'pointer' }}>
-              <div className="pd-kpi-icon" style={{ background: '#ecfdf5', color: '#059669' }}>📦</div>
               <div>
                 <p className="pd-kpi-label">Inventory &amp; Materials</p>
                 <p className="pd-kpi-value">{resources.length} Items</p>
@@ -836,7 +829,6 @@ const ProjectDetails: React.FC = () => {
             </div>
 
             <div className="pd-kpi-card">
-              <div className="pd-kpi-icon" style={{ background: '#fef3c7', color: '#d97706' }}>💰</div>
               <div>
                 <p className="pd-kpi-label">Allocated Inventory Cost</p>
                 <p className="pd-kpi-value">{formatCurrency(totalResourceCost)}</p>
@@ -845,7 +837,6 @@ const ProjectDetails: React.FC = () => {
             </div>
 
             <div className="pd-kpi-card" onClick={() => setTab('team')} style={{ cursor: 'pointer' }}>
-              <div className="pd-kpi-icon" style={{ background: '#f3e8ff', color: '#7c3aed' }}>👷</div>
               <div>
                 <p className="pd-kpi-label">Site Team</p>
                 <p className="pd-kpi-value">{teamMembers.length} Members</p>
