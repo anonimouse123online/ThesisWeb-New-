@@ -168,10 +168,6 @@ const ProjectReports: React.FC = () => {
             {projectCode} • Executive summaries, QA audits, safety observations, and daily site journals
           </p>
         </div>
-
-        <button className="pr-create-btn" onClick={() => setShowModal(true)}>
-          <span>+ Generate New Report</span>
-        </button>
       </div>
 
       {/* ── Stat Metrics ── */}

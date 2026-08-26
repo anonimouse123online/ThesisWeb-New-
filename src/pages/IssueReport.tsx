@@ -203,10 +203,6 @@ const IssueReport: React.FC = () => {
             {projectCode} • Log and resolve hazards, defect tickets, quality clashes, and blockers
           </p>
         </div>
-
-        <button className="ir-report-btn" onClick={() => setShowModal(true)}>
-          <span>+ Report New Issue</span>
-        </button>
       </div>
 
       {/* ── Metric Cards ── */}
