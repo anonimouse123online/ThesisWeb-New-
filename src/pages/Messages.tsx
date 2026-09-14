@@ -1,11 +1,47 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { Search, Send, Users, User, Plus, X, Check, Paperclip, FileText, Download, ArrowLeft, MoreVertical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { CONVERSATIONS, CURRENT_USER, CONTACTS } from '../data/messages.data';
-import type { Conversation, Message, Contact, Attachment } from '../data/messages.data';
+import { io, Socket } from 'socket.io-client';
 import './Messages.css';
 
-const MAX_BYTES = 4 * 1024 * 1024; // ~4MB cap (client-side base64)
+export interface Attachment {
+  name: string;
+  type: string;
+  size: number;
+  dataUrl: string;
+  isImage: boolean;
+}
+
+export interface Conversation {
+  id: string;
+  type: 'dm' | 'group';
+  name: string;
+  subtitle: string;
+  avatar: string;
+  lastMessage: string;
+  lastTime: string;
+  unread: number;
+}
+
+export interface Message {
+  id: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+  time: string;
+  is_mine: boolean;
+  attachment?: Attachment;
+  replyTo?: { id: string; senderName: string; text: string };
+}
+
+export interface UserContact {
+  id: string;
+  full_name: string;
+  email: string;
+  role: string;
+}
+
+const MAX_BYTES = 4 * 1024 * 1024;
 
 const fmtSize = (bytes: number) => {
   if (bytes < 1024) return `${bytes} B`;
@@ -33,20 +69,117 @@ const isValidEmail = (email: string) => {
 
 const Messages: React.FC = () => {
   const navigate = useNavigate();
-  const [conversations, setConversations] = useState<Conversation[]>(CONVERSATIONS);
-  const [activeId, setActiveId] = useState<string>(CONVERSATIONS[0]?.id ?? '');
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeId, setActiveId] = useState<string>('');
+  const [messages, setMessages] = useState<Message[]>([]);
   const [search, setSearch] = useState('');
   const [draft, setDraft] = useState('');
-  const [pending, setPending] = useState<Attachment | null>(null); // staged attachment
+  const [pending, setPending] = useState<Attachment | null>(null);
   const [attachError, setAttachError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  
+  // Modals/Dropdowns
   const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [forwardModalMsg, setForwardModalMsg] = useState<Message | null>(null);
   const [emailModalMsg, setEmailModalMsg] = useState<Message | null>(null);
   const [emailRecipient, setEmailRecipient] = useState('');
+  
   const threadEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const socketRef = useRef<Socket | null>(null);
+
+  const token = localStorage.getItem('token') || '';
+
+  const fetchConversations = async () => {
+    try {
+      const res = await fetch('http://localhost:5001/messages/conversations', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.success) {
+        const formatted = data.conversations.map((c: any) => {
+          const isGroup = c.is_group;
+          const name = isGroup ? c.group_name : (c.dm_user?.full_name || 'Unknown User');
+          const subtitle = isGroup ? 'Group Chat' : (c.dm_user?.email || '');
+          const avatar = isGroup ? '👥' : (name.charAt(0).toUpperCase());
+          
+          return {
+            id: c.conversation_id,
+            type: isGroup ? 'group' : 'dm',
+            name,
+            subtitle,
+            avatar,
+            lastMessage: c.last_message || (isGroup ? 'New group' : 'New conversation'),
+            lastTime: c.last_message_time ? new Date(c.last_message_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+            unread: c.unread_count || 0
+          };
+        });
+        setConversations(formatted);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const fetchMessages = async (convId: string) => {
+    try {
+      const res = await fetch(`http://localhost:5001/messages/conversations/${convId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.success) {
+        const formatted = data.messages.map((m: any) => ({
+          id: m.id,
+          senderId: m.sender_id,
+          senderName: m.sender_name || 'User',
+          text: m.message_type === 'text' ? m.message_text : 'Sent an attachment',
+          time: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          is_mine: m.is_mine,
+        }));
+        setMessages(formatted);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    fetchConversations();
+    
+    // Connect socket
+    socketRef.current = io('http://localhost:5001', {
+      auth: { token }
+    });
+    
+    socketRef.current.on('new_message', (msg: any) => {
+      // Re-fetch conversations to update latest message
+      fetchConversations();
+      
+      // If it belongs to active conversation, append it
+      if (msg.conversation_id === activeId) {
+        // Only append if it's not our own message to prevent duplicates (our local send already updates UI)
+        // Actually wait, sending doesn't append locally immediately in our new code, we re-fetch! So we should re-fetch or append safely.
+        fetchMessages(msg.conversation_id);
+      }
+    });
+
+    return () => {
+      socketRef.current?.disconnect();
+    };
+  }, [activeId, token]);
+
+  useEffect(() => {
+    if (activeId) {
+      fetchMessages(activeId);
+      socketRef.current?.emit('join_conversation', activeId);
+    } else {
+      setMessages([]);
+    }
+  }, [activeId, token]);
 
   const active = conversations.find((c) => c.id === activeId);
 
@@ -58,7 +191,7 @@ const Messages: React.FC = () => {
 
   useEffect(() => {
     threadEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [active?.messages.length, activeId]);
+  }, [messages.length, activeId]);
 
   useEffect(() => {
     const handleClickOutside = () => setActiveDropdownId(null);
@@ -95,30 +228,32 @@ const Messages: React.FC = () => {
     }
   };
 
-  const handleForward = (targetConvId: string) => {
+  const handleForward = async (targetConvId: string) => {
     if (!forwardModalMsg) return;
-    const now = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-    const msg: Message = {
-      id: `m-${Date.now()}`,
-      senderId: CURRENT_USER.id,
-      senderName: CURRENT_USER.name,
-      text: forwardModalMsg.text,
-      time: now,
-      attachment: forwardModalMsg.attachment,
-    };
-    
-    setConversations((prev) =>
-      prev.map((c) =>
-        c.id === targetConvId
-          ? { ...c, messages: [...c.messages, msg], lastMessage: msg.text || 'Attachment', lastTime: now }
-          : c
-      )
-    );
-    setForwardModalMsg(null);
+    try {
+      await fetch('http://localhost:5001/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          conversationId: targetConvId,
+          message: forwardModalMsg.text,
+        })
+      });
+      fetchConversations();
+      if (activeId === targetConvId) fetchMessages(targetConvId);
+      setForwardModalMsg(null);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const openConversation = (id: string) => {
     setActiveId(id);
+    fetch(`http://localhost:5001/messages/conversations/${id}/read`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}` }
+    }).catch(console.error);
+    
     setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, unread: 0 } : c)));
   };
 
@@ -139,7 +274,7 @@ const Messages: React.FC = () => {
   const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) stageFile(file);
-    e.target.value = ''; // allow re-picking same file
+    e.target.value = '';
   };
 
   const onPaste = (e: React.ClipboardEvent) => {
@@ -150,49 +285,69 @@ const Messages: React.FC = () => {
     }
   };
 
-  const send = () => {
+  const send = async () => {
     const text = draft.trim();
-    if ((!text && !pending) || !active) return;
-    const now = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-    const msg: Message = {
-      id: `m-${Date.now()}`,
-      senderId: CURRENT_USER.id,
-      senderName: CURRENT_USER.name,
-      text,
-      time: now,
-      attachment: pending ?? undefined,
-      replyTo: replyingTo ? { id: replyingTo.id, senderName: replyingTo.senderName, text: replyingTo.text } : undefined,
-    };
-    const preview = pending ? `📎 ${pending.name}` : text;
-    setConversations((prev) =>
-      prev.map((c) =>
-        c.id === active.id
-          ? { ...c, messages: [...c.messages, msg], lastMessage: preview, lastTime: now }
-          : c
-      )
-    );
-    setDraft('');
-    setPending(null);
-    setAttachError('');
-    setReplyingTo(null);
+    if ((!text && !pending) || !activeId) return;
+
+    if (pending) {
+      alert("Attachment sending via backend not fully implemented in UI yet.");
+      setPending(null);
+      return;
+    }
+
+    try {
+      const res = await fetch('http://localhost:5001/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          conversationId: activeId,
+          message: text,
+        })
+      });
+      if (res.ok) {
+        setDraft('');
+        fetchMessages(activeId);
+        fetchConversations();
+      }
+    } catch (e) {
+      console.error(e);
+    }
   };
 
-  const createGroup = (name: string, members: Contact[]) => {
-    const id = `g-${Date.now()}`;
-    const newGroup: Conversation = {
-      id, type: 'group', name,
-      subtitle: `${members.length + 1} members`,
-      avatar: name.charAt(0).toUpperCase(),
-      lastMessage: 'Group created', lastTime: 'now', unread: 0,
-      messages: [{
-        id: 'm0', senderId: 'system', senderName: 'System',
-        text: `${CURRENT_USER.name} created the group with ${members.map((m) => m.name).join(', ')}.`,
-        time: 'now',
-      }],
-    };
-    setConversations((prev) => [newGroup, ...prev]);
-    setActiveId(id);
-    setShowCreate(false);
+  const createChat = async (userId: string) => {
+    try {
+      const res = await fetch('http://localhost:5001/messages/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ receiverId: userId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchConversations();
+        setActiveId(data.conversationId);
+        setShowCreate(false);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const createGroupChat = async (name: string, userIds: string[]) => {
+    try {
+      const res = await fetch('http://localhost:5001/messages/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ isGroup: true, name, receiverIds: userIds })
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchConversations();
+        setActiveId(data.conversationId);
+        setShowCreateGroup(false);
+      }
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   return (
@@ -205,9 +360,14 @@ const Messages: React.FC = () => {
             </button>
             <h2>Messages</h2>
           </div>
-          <button className="msg-new-group" onClick={() => setShowCreate(true)} title="New group chat">
-            <Plus size={16} /> New Group
-          </button>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+            <button className="msg-new-group" onClick={() => setShowCreate(true)} title="New chat" style={{ flex: 1 }}>
+              <Plus size={16} /> New Chat
+            </button>
+            <button className="msg-new-group" onClick={() => setShowCreateGroup(true)} title="New Group" style={{ flex: 1, backgroundColor: 'var(--bg-secondary)', color: 'var(--text-main)', border: '1px solid var(--border)' }}>
+              <Users size={16} /> New Group
+            </button>
+          </div>
         </div>
         <div className="msg-search">
           <Search size={16} />
@@ -216,7 +376,7 @@ const Messages: React.FC = () => {
         <div className="msg-conversations">
           {filtered.map((c) => (
             <button key={c.id} className={`msg-conv${c.id === activeId ? ' active' : ''}`} onClick={() => openConversation(c.id)}>
-              <span className={`msg-avatar ${c.type}`}>{c.type === 'group' ? <Users size={16} /> : c.avatar}</span>
+              <span className={`msg-avatar dm`}>{c.avatar}</span>
               <span className="msg-conv-main">
                 <span className="msg-conv-top">
                   <span className="msg-conv-name">{c.name}</span>
@@ -227,6 +387,11 @@ const Messages: React.FC = () => {
               {c.unread > 0 && <span className="msg-unread">{c.unread}</span>}
             </button>
           ))}
+          {conversations.length === 0 && (
+             <div className="msg-empty" style={{ padding: '20px', minHeight: 'auto', textAlign: 'center' }}>
+               <p style={{ color: 'var(--text-sub)' }}>No conversations yet.</p>
+             </div>
+          )}
         </div>
       </aside>
 
@@ -234,7 +399,7 @@ const Messages: React.FC = () => {
         {active ? (
           <>
             <header className="msg-thread-header">
-              <span className={`msg-avatar ${active.type}`}>{active.type === 'group' ? <Users size={16} /> : active.avatar}</span>
+              <span className={`msg-avatar dm`}>{active.avatar}</span>
               <div>
                 <div className="msg-thread-name">{active.name}</div>
                 <div className="msg-thread-sub">{active.subtitle}</div>
@@ -242,11 +407,8 @@ const Messages: React.FC = () => {
             </header>
 
             <div className="msg-thread-body">
-              {active.messages.map((m) => {
-                if (m.senderId === 'system') {
-                  return <div key={m.id} className="msg-system">{m.text}</div>;
-                }
-                const mine = m.senderId === CURRENT_USER.id;
+              {messages.map((m) => {
+                const mine = m.is_mine;
                 return (
                   <div key={m.id} className={`msg-bubble-row${mine ? ' mine' : ''}`}>
                     {!mine && active.type === 'group' && <span className="msg-bubble-sender">{m.senderName}</span>}
@@ -258,7 +420,7 @@ const Messages: React.FC = () => {
                           </button>
                           {activeDropdownId === m.id && (
                             <div className="msg-options-dropdown right">
-                              <button onClick={() => { setForwardModalMsg(m); setActiveDropdownId(null); }}>Forward to another group</button>
+                              <button onClick={() => { setForwardModalMsg(m); setActiveDropdownId(null); }}>Forward</button>
                               <button onClick={() => { setEmailModalMsg(m); setEmailRecipient(''); setActiveDropdownId(null); }}>Forward as email</button>
                               <button onClick={() => { setReplyingTo(m); setActiveDropdownId(null); }}>Reply</button>
                               <button className="text-red" onClick={() => { handleReport(m.id); setActiveDropdownId(null); }}>Report</button>
@@ -285,7 +447,7 @@ const Messages: React.FC = () => {
                           </button>
                           {activeDropdownId === m.id && (
                             <div className="msg-options-dropdown left">
-                              <button onClick={() => { setForwardModalMsg(m); setActiveDropdownId(null); }}>Forward to another group</button>
+                              <button onClick={() => { setForwardModalMsg(m); setActiveDropdownId(null); }}>Forward</button>
                               <button onClick={() => { setEmailModalMsg(m); setEmailRecipient(''); setActiveDropdownId(null); }}>Forward as email</button>
                               <button onClick={() => { setReplyingTo(m); setActiveDropdownId(null); }}>Reply</button>
                               <button className="text-red" onClick={() => { handleReport(m.id); setActiveDropdownId(null); }}>Report</button>
@@ -301,7 +463,6 @@ const Messages: React.FC = () => {
               <div ref={threadEndRef} />
             </div>
 
-            {/* staged attachment preview */}
             {pending && (
               <div className="msg-attach-preview">
                 {pending.isImage ? (
@@ -335,7 +496,7 @@ const Messages: React.FC = () => {
               </button>
               <input
                 type="text"
-                placeholder={`Message ${active.name}...  (paste to attach)`}
+                placeholder={`Message ${active.name}...`}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onPaste={onPaste}
@@ -354,7 +515,8 @@ const Messages: React.FC = () => {
         )}
       </section>
 
-      {showCreate && <CreateGroupModal onClose={() => setShowCreate(false)} onCreate={createGroup} />}
+      {showCreate && <CreateChatModal onClose={() => setShowCreate(false)} onCreate={createChat} token={token} />}
+      {showCreateGroup && <CreateGroupModal onClose={() => setShowCreateGroup(false)} onCreate={createGroupChat} token={token} />}
 
       {forwardModalMsg && (
         <div className="msg-overlay" onClick={() => setForwardModalMsg(null)}>
@@ -365,7 +527,7 @@ const Messages: React.FC = () => {
             <div className="msg-member-list">
               {conversations.map((c) => (
                 <button key={c.id} className="msg-member" onClick={() => handleForward(c.id)}>
-                  <span className={`msg-avatar ${c.type}`}>{c.type === 'group' ? <Users size={16} /> : c.avatar}</span>
+                  <span className={`msg-avatar dm`}>{c.avatar}</span>
                   <span className="msg-member-main">
                     <span className="msg-member-name">{c.name}</span>
                     <span className="msg-member-role">{c.subtitle}</span>
@@ -441,56 +603,187 @@ const AttachmentView: React.FC<{ att: Attachment; mine: boolean }> = ({ att, min
   );
 };
 
-/* Create Group modal */
+/* Create Chat Modal */
+const CreateChatModal: React.FC<{
+  onClose: () => void;
+  onCreate: (userId: string) => void;
+  token: string;
+}> = ({ onClose, onCreate, token }) => {
+  const [users, setUsers] = useState<UserContact[]>([]);
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const res = await fetch(`http://localhost:5001/users/search?q=${search}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.success) {
+          setUsers(data.users);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    
+    const timeoutId = setTimeout(() => {
+      fetchUsers();
+    }, 300); // debounce search
+    
+    return () => clearTimeout(timeoutId);
+  }, [search, token]);
+
+  return (
+    <div className="msg-overlay" onClick={onClose}>
+      <div className="msg-modal" onClick={(e) => e.stopPropagation()}>
+        <button className="msg-modal-close" onClick={onClose} aria-label="Close"><X size={18} /></button>
+        <h3 className="msg-modal-title">New Chat</h3>
+        <p className="msg-modal-sub">Search for a user to start a conversation.</p>
+        <div className="msg-field">
+          <input 
+            type="text" 
+            value={search} 
+            onChange={(e) => setSearch(e.target.value)} 
+            placeholder="Search name or email..." 
+            autoFocus 
+          />
+        </div>
+        <div className="msg-member-list">
+          {users.map((u) => {
+            return (
+              <button key={u.id} className="msg-member" onClick={() => onCreate(u.id)}>
+                <span className="msg-avatar dm">{(u.full_name || 'U').charAt(0).toUpperCase()}</span>
+                <span className="msg-member-main">
+                  <span className="msg-member-name">{u.full_name}</span>
+                  <span className="msg-member-role">{u.email}</span>
+                </span>
+              </button>
+            );
+          })}
+          {users.length === 0 && search && (
+             <div className="msg-empty" style={{ padding: '20px', minHeight: 'auto', textAlign: 'center' }}>
+               <p style={{ color: 'var(--text-sub)' }}>No users found matching "{search}"</p>
+             </div>
+          )}
+          {users.length === 0 && !search && (
+             <div className="msg-empty" style={{ padding: '20px', minHeight: 'auto', textAlign: 'center' }}>
+               <p style={{ color: 'var(--text-sub)' }}>Type to search for users in the database.</p>
+             </div>
+          )}
+        </div>
+        <div className="msg-modal-actions">
+          <button className="msg-btn-cancel" onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* Create Group Chat Modal */
 const CreateGroupModal: React.FC<{
   onClose: () => void;
-  onCreate: (name: string, members: Contact[]) => void;
-}> = ({ onClose, onCreate }) => {
-  const [name, setName] = useState('');
-  const [picked, setPicked] = useState<Set<string>>(new Set());
+  onCreate: (name: string, userIds: string[]) => void;
+  token: string;
+}> = ({ onClose, onCreate, token }) => {
+  const [users, setUsers] = useState<UserContact[]>([]);
+  const [search, setSearch] = useState('');
+  const [groupName, setGroupName] = useState('');
+  const [selectedUsers, setSelectedUsers] = useState<UserContact[]>([]);
 
-  const toggle = (id: string) => {
-    setPicked((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const res = await fetch(`http://localhost:5001/users/search?q=${search}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.success) {
+          setUsers(data.users);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    
+    const timeoutId = setTimeout(() => {
+      fetchUsers();
+    }, 300);
+    
+    return () => clearTimeout(timeoutId);
+  }, [search, token]);
+
+  const toggleUser = (user: UserContact) => {
+    if (selectedUsers.find(u => u.id === user.id)) {
+      setSelectedUsers(selectedUsers.filter(u => u.id !== user.id));
+    } else {
+      setSelectedUsers([...selectedUsers, user]);
+    }
   };
-
-  const members = CONTACTS.filter((c) => picked.has(c.id));
-  const canCreate = name.trim().length > 0 && members.length >= 1;
 
   return (
     <div className="msg-overlay" onClick={onClose}>
       <div className="msg-modal" onClick={(e) => e.stopPropagation()}>
         <button className="msg-modal-close" onClick={onClose} aria-label="Close"><X size={18} /></button>
         <h3 className="msg-modal-title">New Group Chat</h3>
-        <p className="msg-modal-sub">Name the group and pick at least one member.</p>
-        <div className="msg-field">
-          <label>Group name</label>
-          <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Foundation Crew" autoFocus />
+        
+        <div className="msg-field" style={{ marginBottom: '16px' }}>
+          <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-sub)', marginBottom: '4px', display: 'block' }}>GROUP NAME</label>
+          <input 
+            type="text" 
+            value={groupName} 
+            onChange={(e) => setGroupName(e.target.value)} 
+            placeholder="e.g. Project Alpha Team" 
+            autoFocus 
+          />
         </div>
+
         <div className="msg-field">
-          <label>Members ({members.length} selected)</label>
+          <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-sub)', marginBottom: '4px', display: 'block' }}>ADD MEMBERS</label>
+          <input 
+            type="text" 
+            value={search} 
+            onChange={(e) => setSearch(e.target.value)} 
+            placeholder="Search name or email..." 
+          />
         </div>
-        <div className="msg-member-list">
-          {CONTACTS.map((c) => {
-            const on = picked.has(c.id);
+
+        {selectedUsers.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+            {selectedUsers.map(u => (
+              <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', backgroundColor: 'var(--primary)', color: 'white', borderRadius: '12px', fontSize: '12px' }}>
+                {u.full_name.split(' ')[0]}
+                <button onClick={() => toggleUser(u)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: 0, display: 'flex' }}><X size={12} /></button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="msg-member-list" style={{ maxHeight: '200px' }}>
+          {users.map((u) => {
+            const isSelected = selectedUsers.some(su => su.id === u.id);
             return (
-              <button key={c.id} className={`msg-member${on ? ' selected' : ''}`} onClick={() => toggle(c.id)}>
-                <span className="msg-avatar dm">{c.avatar}</span>
+              <button key={u.id} className="msg-member" onClick={() => toggleUser(u)} style={{ opacity: isSelected ? 0.6 : 1 }}>
+                <span className="msg-avatar dm">{(u.full_name || 'U').charAt(0).toUpperCase()}</span>
                 <span className="msg-member-main">
-                  <span className="msg-member-name">{c.name}</span>
-                  <span className="msg-member-role">{c.role}</span>
+                  <span className="msg-member-name">{u.full_name}</span>
+                  <span className="msg-member-role">{u.email}</span>
                 </span>
-                <span className="msg-check">{on ? <Check size={14} /> : null}</span>
+                {isSelected && <Check size={16} color="var(--primary)" />}
               </button>
             );
           })}
         </div>
-        <div className="msg-modal-actions">
+        
+        <div className="msg-modal-actions" style={{ marginTop: '16px' }}>
           <button className="msg-btn-cancel" onClick={onClose}>Cancel</button>
-          <button className="msg-btn-create" onClick={() => onCreate(name.trim(), members)} disabled={!canCreate}>Create Group</button>
+          <button 
+            className="msg-btn-create" 
+            onClick={() => onCreate(groupName, selectedUsers.map(u => u.id))}
+            disabled={!groupName.trim() || selectedUsers.length === 0}
+          >
+            Create Group
+          </button>
         </div>
       </div>
     </div>
