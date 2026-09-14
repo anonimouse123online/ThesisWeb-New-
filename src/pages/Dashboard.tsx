@@ -4,6 +4,17 @@ import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import Dropdown from '../components/Dropdown';
 import ProfileDropdown from '../components/ProfileDropdown';
 import '../components/Dashboard.css';
+import {
+  TrendingUp,
+  TrendingDown,
+  Check,
+  Search,
+  X,
+  FolderClosed,
+  CheckSquare,
+  Users,
+  AlertTriangle,
+} from 'lucide-react';
 
 const BACKEND_URL = API_BASE_URL;
 
@@ -24,8 +35,11 @@ interface ProjectItem {
   name: string;
   pm: string;
   date: string;
-  status: 'Approved' | 'Delayed' | 'At risk' | 'In Review';
-  prog: string;
+  status: 'Approved' | 'Delayed' | 'At risk' | 'In Review' | 'Ongoing' | string;
+  prog?: string;
+  progress_pct?: number;
+  completed_tasks?: number;
+  total_tasks?: number;
 }
 
 interface MonitorItem {
@@ -39,20 +53,12 @@ interface NoteItem {
   cls: string;
 }
 
-interface GaugeStat {
-  v: string;
-  l: string;
-  c: string;
-}
-
 interface DashboardData {
   stats: StatItem[];
   projects: ProjectItem[];
   monitorItems: MonitorItem[];
   rfis: string[];
   notes: NoteItem[];
-  gaugeStats: GaugeStat[];
-  overallProgress: number;
 }
 
 // --- HELPERS ---
@@ -61,21 +67,33 @@ const pillClass = (status: string): string => {
   return `status-pill status-${s}`;
 };
 
+const renderStatIcon = (label: string, icon: string) => {
+  const norm = (label || '').toLowerCase();
+  if (norm.includes('project') || icon === 'FolderClosed' || icon === '\uD83D\uDCCB') return <FolderClosed size={20} />;
+  if (norm.includes('task') || icon === 'CheckSquare' || icon === '\u2705') return <CheckSquare size={20} />;
+  if (norm.includes('team') || norm.includes('member') || icon === 'Users' || icon === '\uD83D\uDC65') return <Users size={20} />;
+  if (norm.includes('issue') || icon === 'AlertTriangle' || icon?.includes('\u26A0')) return <AlertTriangle size={20} />;
+  return <FolderClosed size={20} />;
+};
+
 // --- SUB-COMPONENTS ---
 const StatCard: React.FC<StatItem> = ({ label, value, trend, up, bg, clr, icon }) => (
   <div className="stat-card">
-    <div className="stat-icon-box" style={{ background: bg, color: clr }}>{icon}</div>
+    <div className="stat-icon-box" style={{ background: bg, color: clr, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {renderStatIcon(label, icon)}
+    </div>
     <p className="stat-label text-muted">{label}</p>
     <p className="stat-value">{value}</p>
-    <p className={`stat-trend ${up ? 'text-green' : 'text-red'}`}>
-      <span>{up ? '↗' : '↘'}</span> {trend} from last month
+    <p className={`stat-trend ${up ? 'text-green' : 'text-red'}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+      {up ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
+      <span>{trend} from last month</span>
     </p>
   </div>
 );
 
 const Checkbox: React.FC<{ checked: boolean }> = ({ checked }) => (
-  <div className={`monitor-checkbox ${checked ? 'checked' : ''}`}>
-    {checked && <span style={{ color: 'white', fontSize: '10px' }}>✓</span>}
+  <div className={`monitor-checkbox ${checked ? 'checked' : ''}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    {checked && <Check size={10} color="white" strokeWidth={3} />}
   </div>
 );
 
@@ -91,7 +109,6 @@ const Dashboard: React.FC = () => {
   const [selectedProjectFilter, setSelectedProjectFilter] = useState('All');
   const [selectedPmFilter, setSelectedPmFilter] = useState('All');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState('All');
-  const [progressCategory, setProgressCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Read logged-in user from localStorage
@@ -114,24 +131,20 @@ const Dashboard: React.FC = () => {
 
         const fetchData = (url: string) => fetchWithAuth(url).then(r => r.json());
 
-        const [stats, projects, monitorItems, rfisRes, notes, gaugeStats, progressRes] = await Promise.all([
+        const [stats, projects, monitorItems, rfisRes, notes] = await Promise.all([
           fetchData(`${BACKEND_URL}/dashboard/stats`),
           fetchData(`${BACKEND_URL}/dashboard/projects`),
           fetchData(`${BACKEND_URL}/dashboard/monitor`),
           fetchData(`${BACKEND_URL}/dashboard/rfis`),
           fetchData(`${BACKEND_URL}/dashboard/notes`),
-          fetchData(`${BACKEND_URL}/dashboard/gauge`),
-          fetchData(`${BACKEND_URL}/dashboard/progress`),
         ]);
 
         setData({
-          stats:           stats.data ?? [],
-          projects:        projects.data ?? [],
-          monitorItems:    monitorItems.data ?? [],
-          rfis:            rfisRes.data ?? [],
-          notes:           notes.data ?? [],
-          gaugeStats:      gaugeStats.data ?? [],
-          overallProgress: progressRes.data?.overallProgress ?? 0,
+          stats:        stats.data ?? [],
+          projects:     projects.data ?? [],
+          monitorItems: monitorItems.data ?? [],
+          rfis:         rfisRes.data ?? [],
+          notes:        notes.data ?? [],
         });
       } catch (err: any) {
         setError(err.message || "Something went wrong");
@@ -143,31 +156,11 @@ const Dashboard: React.FC = () => {
     fetchDashboard();
   }, []);
 
-  // Update Progress and Gauge Stats when category filter changes
-  useEffect(() => {
-    const updateCategoryProgress = async () => {
-      try {
-        const [gaugeRes, progRes] = await Promise.all([
-          fetchWithAuth(`${BACKEND_URL}/dashboard/gauge?category=${progressCategory}`).then(r => r.json()),
-          fetchWithAuth(`${BACKEND_URL}/dashboard/progress?category=${progressCategory}`).then(r => r.json()),
-        ]);
-        setData(prev => prev ? {
-          ...prev,
-          gaugeStats: gaugeRes.data ?? prev.gaugeStats,
-          overallProgress: progRes.data?.overallProgress ?? prev.overallProgress,
-        } : null);
-      } catch (err) {
-        console.error("Failed to update category progress:", err);
-      }
-    };
-    updateCategoryProgress();
-  }, [progressCategory]);
-
   if (loading) return <div className="rm-empty">Loading dashboard...</div>;
   if (error)   return <div className="rm-empty" style={{ color: 'red' }}>{error}</div>;
   if (!data)   return <div className="rm-empty">No data available.</div>;
 
-  const { stats, projects, monitorItems, rfis, notes, gaugeStats, overallProgress } = data;
+  const { stats, projects, monitorItems, rfis, notes } = data;
 
   // Filter options
   const projectOptions = [
@@ -194,15 +187,6 @@ const Dashboard: React.FC = () => {
     'Last 90 days',
     'This Year',
     'All time',
-  ];
-
-  const categoryOptions = [
-    'All',
-    'Foundation',
-    'Structural',
-    'Electrical',
-    'Plumbing',
-    'Finishing',
   ];
 
   // Filter projects table
@@ -237,7 +221,9 @@ const Dashboard: React.FC = () => {
         </div>
         <div className="flex items-center gap-4">
           <div className="search-bar">
-            <span className="search-icon">🔍</span>
+            <span className="search-icon" style={{ display: 'flex', alignItems: 'center' }}>
+              <Search size={14} />
+            </span>
             <input
               type="text"
               placeholder="Search projects, sites, RFIs..."
@@ -247,9 +233,10 @@ const Dashboard: React.FC = () => {
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#999', fontSize: '12px' }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#999', padding: '0', display: 'flex', alignItems: 'center' }}
+                aria-label="Clear search"
               >
-                ✕
+                <X size={13} />
               </button>
             )}
           </div>
@@ -273,131 +260,122 @@ const Dashboard: React.FC = () => {
         </div>
       </section>
 
-      {/* Summary + Gauge */}
-      <div className="grid grid-cols-3 gap-6 mb-8">
-        <div className="col-span-2 data-container">
-          <div className="flex justify-between items-center mb-6">
-            <p className="section-title">Project summary</p>
-            <div className="flex gap-2">
-              <Dropdown
-                options={projectOptions}
-                value={selectedProjectFilter}
-                onChange={setSelectedProjectFilter}
-                prefix="Project"
-              />
-              <Dropdown
-                options={pmOptions}
-                value={selectedPmFilter}
-                onChange={setSelectedPmFilter}
-                prefix="PM"
-              />
-              <Dropdown
-                options={statusOptions}
-                value={selectedStatusFilter}
-                onChange={setSelectedStatusFilter}
-                prefix="Status"
-              />
-            </div>
-          </div>
-
-          {filteredProjects.length === 0 ? (
-            <div style={{ padding: '2rem', textAlign: 'center', color: '#999', fontSize: '13px' }}>
-              No projects matching the selected filters.
-            </div>
-          ) : (
-            <table className="project-table">
-              <thead>
-                <tr>
-                  {['Name', 'Project manager', 'Due date', 'Status', 'Progress'].map(h => (
-                    <th key={h}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProjects.map(p => (
-                  <tr
-                    key={p.name}
-                    className="project-row"
-                    onClick={() => navigate(`/projects/${p.code || p.name}`)}
-                    style={{ cursor: 'pointer' }}
-                    title={`View ${p.name} details`}
-                  >
-                    <td style={{ fontWeight: 600 }}>{p.name}</td>
-                    <td>{p.pm}</td>
-                    <td>{p.date}</td>
-                    <td><span className={pillClass(p.status)}>{p.status}</span></td>
-                    <td className="font-bold">{p.prog}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        <div className="data-container">
-          <div className="flex justify-between items-center mb-4">
-            <p className="section-title">Overall Progress</p>
+      {/* Project Summary */}
+      <div className="data-container mb-8">
+        <div className="flex justify-between items-center mb-6">
+          <p className="section-title">Project summary</p>
+          <div className="flex gap-2">
             <Dropdown
-              options={categoryOptions}
-              value={progressCategory}
-              onChange={setProgressCategory}
-              align="right"
+              options={projectOptions}
+              value={selectedProjectFilter}
+              onChange={setSelectedProjectFilter}
+              prefix="Project"
+            />
+            <Dropdown
+              options={pmOptions}
+              value={selectedPmFilter}
+              onChange={setSelectedPmFilter}
+              prefix="PM"
+            />
+            <Dropdown
+              options={statusOptions}
+              value={selectedStatusFilter}
+              onChange={setSelectedStatusFilter}
+              prefix="Status"
             />
           </div>
-          {/* Live Dynamic Semi-Circle Gauge */}
-          {(() => {
-            const arcLength = Math.PI * 40; // ~125.66
-            const clampedProgress = Math.min(100, Math.max(0, overallProgress));
-            const dashOffset = arcLength * (1 - clampedProgress / 100);
-            const gaugeColor = clampedProgress === 100
-              ? '#16a34a'
-              : clampedProgress >= 50
-              ? '#ea580c'
-              : clampedProgress > 0
-              ? '#f59e0b'
-              : '#cbd5e1';
-
-            return (
-              <div className="gauge-container py-8">
-                <div className="progress-container">
-                  <svg viewBox="0 0 100 55" className="w-full" style={{ overflow: 'visible' }}>
-                    <path
-                      d="M 10 50 A 40 40 0 0 1 90 50"
-                      fill="none"
-                      stroke="#f1f5f9"
-                      strokeWidth="8"
-                      strokeLinecap="round"
-                    />
-                    <path
-                      d="M 10 50 A 40 40 0 0 1 90 50"
-                      fill="none"
-                      stroke={gaugeColor}
-                      strokeWidth="8"
-                      strokeLinecap="round"
-                      strokeDasharray={arcLength}
-                      strokeDashoffset={dashOffset}
-                      style={{
-                        transition: "stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.4s ease",
-                      }}
-                    />
-                  </svg>
-                  <div className="gauge-percentage">{clampedProgress}%</div>
-                  <div className="text-muted text-[10px]">
-                    {progressCategory === 'All' ? 'Weighted Task Progress' : `${progressCategory} Progress`}
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-          <div className="grid grid-cols-4 gap-2 mt-4">
-            {gaugeStats.map(s => (
-              <div key={s.l} className="text-center">
-                <p className="text-sm font-bold" style={{ color: s.c }}>{s.v}</p>
-                <p className="text-[9px] text-muted uppercase">{s.l}</p>
-              </div>
-            ))}
-          </div>
         </div>
+
+        {filteredProjects.length === 0 ? (
+          <div style={{ padding: '2.5rem', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
+            {projects.length === 0 ? 'No projects logged yet. Head over to Projects Hub to create your first project.' : 'No projects matching the selected filters.'}
+          </div>
+        ) : (
+          <table className="project-table">
+            <thead>
+              <tr>
+                {['Name', 'Project manager', 'Due date', 'Status', 'Progress'].map(h => (
+                  <th key={h}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredProjects.map(p => (
+                <tr
+                  key={p.name}
+                  className="project-row"
+                  onClick={() => navigate(`/projects/${p.code || p.name}`)}
+                  style={{ cursor: 'pointer' }}
+                  title={`View ${p.name} details`}
+                >
+                  <td style={{ fontWeight: 600 }}>{p.name}</td>
+                  <td>{p.pm}</td>
+                  <td>{p.date}</td>
+                  <td><span className={pillClass(p.status)}>{p.status}</span></td>
+                  <td>
+                    {(() => {
+                      const pct = typeof p.progress_pct === 'number'
+                        ? Math.min(100, Math.max(0, Math.round(p.progress_pct)))
+                        : (p.prog && !isNaN(Number(String(p.prog).replace('%', ''))))
+                          ? Math.min(100, Math.max(0, Math.round(Number(String(p.prog).replace('%', '')))))
+                          : 0;
+
+                      return (
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'flex-end',
+                            gap: '10px',
+                            width: '100%',
+                            maxWidth: '180px',
+                          }}
+                          title={
+                            p.total_tasks !== undefined
+                              ? `${p.completed_tasks || 0} of ${p.total_tasks} tasks completed (${pct}%)`
+                              : `${pct}% completed`
+                          }
+                        >
+                          <div
+                            style={{
+                              flex: 1,
+                              height: '7px',
+                              backgroundColor: '#e2e8f0',
+                              borderRadius: '999px',
+                              overflow: 'hidden',
+                              minWidth: '70px',
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: `${pct}%`,
+                                height: '100%',
+                                backgroundColor: pct === 100 ? '#16a34a' : '#ea580c',
+                                borderRadius: '999px',
+                                transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                              }}
+                            />
+                          </div>
+                          <span
+                            style={{
+                              fontSize: '12px',
+                              fontWeight: 700,
+                              color: '#0f172a',
+                              minWidth: '34px',
+                              textAlign: 'right',
+                            }}
+                          >
+                            {pct}%
+                          </span>
+                        </div>
+                      );
+                    })()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {/* Active Monitoring */}
@@ -410,7 +388,7 @@ const Dashboard: React.FC = () => {
               All Sites ({filteredMonitor.length})
             </p>
             {filteredMonitor.length === 0 ? (
-              <p style={{ fontSize: '12px', color: '#999' }}>No sites matching search.</p>
+              <p style={{ fontSize: '12px', color: '#999' }}>{searchQuery ? 'No sites matching search.' : 'No active sites logged yet.'}</p>
             ) : (
               filteredMonitor.map(m => (
                 <div key={m.label} className="monitor-item">
@@ -426,7 +404,7 @@ const Dashboard: React.FC = () => {
               Urgent RFIs ({filteredRfis.length})
             </p>
             {filteredRfis.length === 0 ? (
-              <p style={{ fontSize: '12px', color: '#999' }}>No urgent RFIs matching search.</p>
+              <p style={{ fontSize: '12px', color: '#999' }}>{searchQuery ? 'No urgent RFIs matching search.' : 'No urgent RFIs pending.'}</p>
             ) : (
               filteredRfis.map(r => (
                 <div key={r} className="monitor-item">
@@ -442,7 +420,7 @@ const Dashboard: React.FC = () => {
               Notes ({filteredNotes.length < 10 ? `0${filteredNotes.length}` : filteredNotes.length})
             </p>
             {filteredNotes.length === 0 ? (
-              <p style={{ fontSize: '12px', color: '#999' }}>No notes matching search.</p>
+              <p style={{ fontSize: '12px', color: '#999' }}>{searchQuery ? 'No notes matching search.' : 'No field notes recorded yet.'}</p>
             ) : (
               filteredNotes.map(n => (
                 <div key={n.label} className="flex justify-between items-center mb-3">

@@ -4,6 +4,31 @@ import '../components/ProjectDetails.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import ProfileDropdown from '../components/ProfileDropdown';
 import { showToast } from '../components/Toast';
+import {
+  LayoutDashboard,
+  ClipboardList,
+  Boxes,
+  Users,
+  FolderClosed,
+  FileText,
+  AlertTriangle,
+  BarChart3,
+  DollarSign,
+  HardHat,
+  Package,
+  Truck,
+  Building2,
+  X,
+  Check,
+  CheckCircle2,
+  Clock,
+  UserPlus,
+  Play,
+  ChevronDown,
+  ChevronRight,
+  ArrowRight,
+  Info
+} from 'lucide-react';
 
 const API_URL = API_BASE_URL;
 
@@ -21,6 +46,7 @@ interface Project {
   status: 'Planning' | 'Ongoing' | 'Completed';
   phase: string;
   scope: string;
+  progress_pct?: number;
 }
 
 interface TeamMember {
@@ -36,6 +62,17 @@ interface SubTask {
   completed: boolean;
 }
 
+interface AllocatedMaterial {
+  id: string;
+  name: string;
+  category: 'Material' | 'Equipment';
+  supplier?: string;
+  quantity: string;
+  unit: string;
+  minThreshold?: string;
+  unitPrice?: string;
+}
+
 interface TaskItem {
   id: string | number;
   task_name: string;
@@ -48,6 +85,7 @@ interface TaskItem {
   materials_required: string;
   site_instructions: string;
   subtasks?: SubTask[];
+  progress_pct?: number;
   images?: string[];
   project_id?: string;
   project_code?: string;
@@ -75,11 +113,11 @@ interface UserOption {
 }
 
 const PHASES = [
-  'Phase 1 - Foundation',
-  'Phase 2 - Structural',
-  'Phase 3 - Electrical & Utilities',
-  'Phase 4 - Plumbing & MEP',
-  'Phase 5 - Finishing',
+  'Foundation',
+  'Structural',
+  'Electrical & Utilities',
+  'Plumbing & MEP',
+  'Finishing',
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -92,7 +130,7 @@ function normalizePhase(raw?: string): string {
   if (s.includes('phase 3') || s.includes('utilit') || s.includes('electr')) return PHASES[2];
   if (s.includes('phase 4') || s.includes('plumb') || s.includes('mep')) return PHASES[3];
   if (s.includes('phase 5') || s.includes('finish')) return PHASES[4];
-  return raw;
+  return raw.replace(/^Phase\s*\d+\s*[-–:]\s*/i, '').trim() || raw;
 }
 
 function getInitials(name?: string): string {
@@ -184,13 +222,13 @@ const GenerateCodeModal: React.FC<{ project: Project; onClose: () => void }> = (
       <div className="gc-modal" onClick={e => e.stopPropagation()}>
         <div className="gc-modal-header">
           <div className="gc-header-left">
-            <span className="gc-icon">⟨/⟩</span>
+            <span className="gc-icon"><UserPlus size={18} /></span>
             <div>
               <h2 className="gc-title">Project Invite Code</h2>
               <p className="gc-subtitle">Share this code with your team to join <strong>{project.name}</strong></p>
             </div>
           </div>
-          <button className="gc-close-btn" onClick={onClose}>✕</button>
+          <button className="gc-close-btn" onClick={onClose} aria-label="Close"><X size={16} /></button>
         </div>
 
         <div className="gc-modal-body">
@@ -215,7 +253,7 @@ const GenerateCodeModal: React.FC<{ project: Project; onClose: () => void }> = (
           ) : (
             <>
               <div className="gc-success-block">
-                <div className="gc-success-icon">✓</div>
+                <div className="gc-success-icon"><Check size={20} /></div>
                 <p className="gc-success-text">Active invite code ready to share!</p>
               </div>
               <div className="gc-code-display">
@@ -223,11 +261,14 @@ const GenerateCodeModal: React.FC<{ project: Project; onClose: () => void }> = (
                 <button
                   className={`gc-copy-btn ${copied ? 'gc-copy-btn--copied' : ''}`}
                   onClick={handleCopy}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                 >
-                  {copied ? '✓ Copied' : 'Copy'}
+                  {copied ? <><Check size={14} /> Copied</> : 'Copy'}
                 </button>
               </div>
-              <p className="gc-expiry-note">⏱ This code expires in 7 days or after use.</p>
+              <p className="gc-expiry-note" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <Clock size={13} /> This code expires in 7 days or after use.
+              </p>
             </>
           )}
         </div>
@@ -296,9 +337,32 @@ const ProjectDetails: React.FC = () => {
     assigneeId: '',
     dueDate: '',
     priority: 'Medium' as 'High' | 'Medium' | 'Low',
-    manpowerNeeded: '5 workers',
+    manpowerNeeded: '',
+    materialsRequired: '',
     siteInstructions: '',
+    subtasks: [] as SubTask[],
   });
+  const [modalSubtaskInput, setModalSubtaskInput] = useState('');
+  const [allocatedMaterials, setAllocatedMaterials] = useState<AllocatedMaterial[]>([]);
+  const [matItemInput, setMatItemInput] = useState<{
+    name: string;
+    category: 'Material' | 'Equipment';
+    supplier: string;
+    quantity: string;
+    unit: string;
+    minThreshold: string;
+    unitPrice: string;
+  }>({
+    name: '',
+    category: 'Material',
+    supplier: '',
+    quantity: '',
+    unit: 'bags',
+    minThreshold: '10',
+    unitPrice: '',
+  });
+  const [newSubtaskInputs, setNewSubtaskInputs] = useState<Record<string | number, string>>({});
+  const [submittingSubtask, setSubmittingSubtask] = useState<Record<string | number, boolean>>({});
   const [addingTask, setAddingTask] = useState(false);
 
   const [showAddResourceModal, setShowAddResourceModal] = useState(false);
@@ -444,8 +508,14 @@ const ProjectDetails: React.FC = () => {
       st.id === subtaskId ? { ...st, completed: !st.completed } : st
     );
 
+    const doneCount = updatedSubtasks.filter(s => s.completed).length;
+    const newPct = updatedSubtasks.length > 0 ? Math.round((doneCount / updatedSubtasks.length) * 100) : 0;
+    const allCompleted = updatedSubtasks.length > 0 && doneCount === updatedSubtasks.length;
+    const anyCompleted = doneCount > 0;
+    const newStatus = allCompleted ? 'Completed' : (anyCompleted ? 'In Progress' : task.status);
+
     setTasks(prev => prev.map(t =>
-      String(t.id) === String(taskId) ? { ...t, subtasks: updatedSubtasks } : t
+      String(t.id) === String(taskId) ? { ...t, subtasks: updatedSubtasks, status: newStatus, progress_pct: newPct } : t
     ));
 
     try {
@@ -456,6 +526,87 @@ const ProjectDetails: React.FC = () => {
       });
     } catch (err) {
       console.error('Failed to update subtasks', err);
+    }
+  };
+
+  // Add Subtask to Main Task in Table View
+  const handleAddSubtask = async (taskId: string | number) => {
+    const title = (newSubtaskInputs[taskId] || '').trim();
+    if (!title) return;
+
+    const task = tasks.find(t => String(t.id) === String(taskId));
+    if (!task) return;
+
+    const newSub: SubTask = {
+      id: `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      title,
+      completed: false,
+    };
+
+    const currentSubs: SubTask[] = Array.isArray(task.subtasks) ? task.subtasks : [];
+    const updatedSubs = [...currentSubs, newSub];
+    const doneCount = updatedSubs.filter(s => s.completed).length;
+    const newPct = Math.round((doneCount / updatedSubs.length) * 100);
+    const newStatus = newPct === 100 ? 'Completed' : 'In Progress';
+
+    setNewSubtaskInputs(prev => ({ ...prev, [taskId]: '' }));
+
+    setTasks(prev =>
+      prev.map(t =>
+        String(t.id) === String(taskId)
+          ? { ...t, subtasks: updatedSubs, progress_pct: newPct, status: newStatus }
+          : t
+      )
+    );
+
+    setSubmittingSubtask(prev => ({ ...prev, [taskId]: true }));
+    try {
+      const res = await fetchWithAuth(`${API_URL}/tasks/${taskId}/subtasks`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subtasks: updatedSubs }),
+      });
+      if (!res.ok) throw new Error('Failed to add subtask.');
+      showToast('Subtask added to task!', 'success');
+    } catch (err: any) {
+      console.error('Failed to add subtask', err);
+      showToast(err.message || 'Failed to add subtask', 'error');
+    } finally {
+      setSubmittingSubtask(prev => ({ ...prev, [taskId]: false }));
+    }
+  };
+
+  // Delete Subtask from Main Task
+  const handleDeleteSubtask = async (taskId: string | number, subtaskId: string) => {
+    const task = tasks.find(t => String(t.id) === String(taskId));
+    if (!task) return;
+
+    const currentSubs: SubTask[] = Array.isArray(task.subtasks) ? task.subtasks : [];
+    const updatedSubs = currentSubs.filter(s => s.id !== subtaskId);
+    const doneCount = updatedSubs.filter(s => s.completed).length;
+    const newPct = updatedSubs.length > 0 ? Math.round((doneCount / updatedSubs.length) * 100) : 0;
+    const allDone = updatedSubs.length > 0 && doneCount === updatedSubs.length;
+    const newStatus = allDone ? 'Completed' : (doneCount > 0 ? 'In Progress' : (task.status === 'Completed' ? 'In Progress' : task.status));
+
+    setTasks(prev =>
+      prev.map(t =>
+        String(t.id) === String(taskId)
+          ? { ...t, subtasks: updatedSubs, progress_pct: newPct, status: newStatus }
+          : t
+      )
+    );
+
+    try {
+      const res = await fetchWithAuth(`${API_URL}/tasks/${taskId}/subtasks`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subtasks: updatedSubs }),
+      });
+      if (!res.ok) throw new Error('Failed to delete subtask');
+      showToast('Subtask removed', 'info');
+    } catch (err: any) {
+      console.error('Failed to delete subtask', err);
+      showToast('Failed to remove subtask', 'error');
     }
   };
 
@@ -476,6 +627,70 @@ const ProjectDetails: React.FC = () => {
     } catch {
       showToast('Failed to update task status', 'error');
     }
+  };
+
+  const formatMaterialsString = (items: AllocatedMaterial[]) => {
+    return items
+      .map(item => {
+        let details = [];
+        if (item.supplier && item.supplier !== 'General Supplier') details.push(item.supplier);
+        if (item.unitPrice && Number(item.unitPrice) > 0) details.push(`₱${item.unitPrice}`);
+        const extra = details.length ? ` - ${details.join(', ')}` : '';
+        return `${item.quantity ? item.quantity + ' ' : ''}${item.unit ? item.unit + ' ' : ''}${item.name} (${item.category}${extra})`.trim();
+      })
+      .join(', ');
+  };
+
+  const handleAddMaterialItem = () => {
+    if (!matItemInput.name.trim()) return;
+    const newItem: AllocatedMaterial = {
+      id: `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      name: matItemInput.name.trim(),
+      category: matItemInput.category,
+      supplier: matItemInput.supplier.trim() || 'General Supplier',
+      quantity: matItemInput.quantity.trim() || '1',
+      unit: matItemInput.unit.trim() || (matItemInput.category === 'Material' ? 'bags' : 'units'),
+      minThreshold: matItemInput.minThreshold.trim() || '10',
+      unitPrice: matItemInput.unitPrice.trim() || '0',
+    };
+    const updated = [...allocatedMaterials, newItem];
+    setAllocatedMaterials(updated);
+    setNewTaskForm(prev => ({
+      ...prev,
+      materialsRequired: formatMaterialsString(updated),
+    }));
+    setMatItemInput(prev => ({
+      name: '',
+      category: prev.category,
+      supplier: '',
+      quantity: '',
+      unit: prev.unit || 'bags',
+      minThreshold: '10',
+      unitPrice: '',
+    }));
+  };
+
+  const handleRemoveMaterialItem = (id: string) => {
+    const updated = allocatedMaterials.filter(m => m.id !== id);
+    setAllocatedMaterials(updated);
+    setNewTaskForm(prev => ({
+      ...prev,
+      materialsRequired: formatMaterialsString(updated),
+    }));
+  };
+
+  const handleCloseAddTaskModal = () => {
+    setShowAddTaskModal(false);
+    setAllocatedMaterials([]);
+    setMatItemInput({
+      name: '',
+      category: 'Material',
+      supplier: '',
+      quantity: '',
+      unit: 'bags',
+      minThreshold: '10',
+      unitPrice: '',
+    });
   };
 
   // 6. Inline Add Task
@@ -504,6 +719,8 @@ const ProjectDetails: React.FC = () => {
         priority: newTaskForm.priority,
         manpowerNeeded: newTaskForm.manpowerNeeded,
         siteInstructions: newTaskForm.siteInstructions,
+        subtasks: newTaskForm.subtasks || [],
+        allocatedMaterials: allocatedMaterials,
       };
 
       const res = await fetchWithAuth(`${API_URL}/tasks`, {
@@ -517,15 +734,28 @@ const ProjectDetails: React.FC = () => {
 
       showToast('Task created successfully!', 'success');
       setShowAddTaskModal(false);
+      setAllocatedMaterials([]);
+      setMatItemInput({
+        name: '',
+        category: 'Material',
+        supplier: '',
+        quantity: '',
+        unit: 'bags',
+        minThreshold: '10',
+        unitPrice: '',
+      });
       setNewTaskForm({
         taskName: '',
         phase: PHASES[0],
         assigneeId: '',
         dueDate: '',
         priority: 'Medium',
-        manpowerNeeded: '5 workers',
+        manpowerNeeded: '',
+        materialsRequired: '',
         siteInstructions: '',
+        subtasks: [],
       });
+      setModalSubtaskInput('');
       fetchProjectData();
     } catch (err: any) {
       showToast(err.message, 'error');
@@ -611,6 +841,44 @@ const ProjectDetails: React.FC = () => {
   const totalTasksCount = tasks.length;
   const taskProgressPct = totalTasksCount > 0 ? Math.round((completedTasksCount / totalTasksCount) * 100) : 0;
 
+  // Overall Project Progress computation (from tasks and subtasks)
+  let totalTaskScore = 0;
+  let totalSubtasksCount = 0;
+  let completedSubtasksCount = 0;
+
+  tasks.forEach(t => {
+    const isCompleted = (t.status || '').toLowerCase().includes('completed');
+    const isOngoing = (t.status || '').toLowerCase().includes('progress') || (t.status || '').toLowerCase().includes('ongoing');
+    const subs: SubTask[] = Array.isArray(t.subtasks) ? t.subtasks : [];
+
+    if (subs.length > 0) {
+      totalSubtasksCount += subs.length;
+      const done = subs.filter(s => s.completed).length;
+      completedSubtasksCount += done;
+      if (isCompleted) {
+        totalTaskScore += 1;
+      } else {
+        totalTaskScore += done / subs.length;
+      }
+    } else {
+      if (isCompleted) {
+        totalTaskScore += 1;
+      } else if (isOngoing) {
+        const pPct = (t as any).progress_pct;
+        totalTaskScore += typeof pPct === 'number' && pPct > 0 ? pPct / 100 : 0.5;
+      } else {
+        totalTaskScore += 0;
+      }
+    }
+  });
+
+  const overallProgressPct = totalTasksCount > 0
+    ? Math.min(100, Math.max(0, Math.round((totalTaskScore / totalTasksCount) * 100)))
+    : (project.progress_pct || 0);
+
+  const circumference = 2 * Math.PI * 44;
+  const strokeDashoffset = circumference - (overallProgressPct / 100) * circumference;
+
   const lowStockResources = resources.filter(r => (r.status || '').toLowerCase().includes('low'));
   const totalResourceCost = resources.reduce((sum, r) => sum + (Number(r.quantity) || 0) * (Number(r.unitPrice) || 0), 0);
 
@@ -686,32 +954,80 @@ const ProjectDetails: React.FC = () => {
 
           <div className="pd-hero-actions">
             {project.status === 'Planning' && (
-              <button className="pd-btn-activate" onClick={handleActivateProject} disabled={activating}>
-                {activating ? 'Activating…' : '▶ Activate Construction'}
+              <button className="pd-btn-activate" onClick={handleActivateProject} disabled={activating} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                {activating ? 'Activating…' : <><Play size={13} fill="currentColor" /> Activate Construction</>}
               </button>
             )}
-            <button className="pd-btn-invite" onClick={() => setShowGenerateModal(true)}>
-              ⟨/⟩ Invite Team
+            <button className="pd-btn-invite" onClick={() => setShowGenerateModal(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <UserPlus size={15} /> Invite Team
             </button>
           </div>
         </div>
 
-        <div className="pd-hero-meta">
-          <div className="pd-meta-item">
-            <p className="pd-meta-label">Client</p>
-            <p className="pd-meta-value">{project.client || '—'}</p>
+        <div className="pd-hero-bottom">
+          <div className="pd-hero-meta">
+            <div className="pd-meta-item">
+              <p className="pd-meta-label">Client</p>
+              <p className="pd-meta-value">{project.client || '—'}</p>
+            </div>
+            <div className="pd-meta-item">
+              <p className="pd-meta-label">Timeline</p>
+              <p className="pd-meta-value">{formatTimeline(project.start_date, project.end_date)}</p>
+            </div>
+            <div className="pd-meta-item">
+              <p className="pd-meta-label">Budget Allocated</p>
+              <p className="pd-meta-value">{formatBudget(project.budget)}</p>
+            </div>
           </div>
-          <div className="pd-meta-item">
-            <p className="pd-meta-label">Timeline</p>
-            <p className="pd-meta-value">{formatTimeline(project.start_date, project.end_date)}</p>
-          </div>
-          <div className="pd-meta-item">
-            <p className="pd-meta-label">Budget Allocated</p>
-            <p className="pd-meta-value">{formatBudget(project.budget)}</p>
-          </div>
-          <div className="pd-meta-item">
-            <p className="pd-meta-label">Active Phase</p>
-            <p className="pd-meta-value" style={{ color: '#ea580c' }}>{project.phase || PHASES[0]}</p>
+
+          {/* ── Overall Progress Graph (from Tasks & Subtasks) ── */}
+          <div
+            className="pd-progress-graph-container"
+            onClick={() => setTab('tasks')}
+            title={`Overall Progress: ${overallProgressPct}% (${completedTasksCount}/${totalTasksCount} tasks completed)`}
+          >
+            <div className="pd-progress-graph-ring">
+              <svg className="pd-progress-graph-svg" width="116" height="116" viewBox="0 0 116 116">
+                <defs>
+                  <linearGradient id="pdHeroGraphGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#10b981" />
+                    <stop offset="100%" stopColor="#047857" />
+                  </linearGradient>
+                  <filter id="pdGraphGlow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#10b981" floodOpacity="0.3" />
+                  </filter>
+                </defs>
+                {/* Background Track */}
+                <circle
+                  cx="58"
+                  cy="58"
+                  r="46"
+                  fill="none"
+                  stroke="rgba(0, 0, 0, 0.08)"
+                  strokeWidth="9"
+                />
+                {/* Dynamic Progress Fill */}
+                <circle
+                  cx="58"
+                  cy="58"
+                  r="46"
+                  fill="none"
+                  stroke="url(#pdHeroGraphGrad)"
+                  strokeWidth="9"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={strokeDashoffset}
+                  strokeLinecap="round"
+                  transform="rotate(-90 58 58)"
+                  filter={overallProgressPct > 0 ? 'url(#pdGraphGlow)' : undefined}
+                  style={{ transition: 'stroke-dashoffset 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }}
+                />
+              </svg>
+              <div className="pd-progress-graph-center">
+                <span className="pd-progress-graph-pct">{overallProgressPct}%</span>
+                <span className="pd-progress-graph-sub">Progress</span>
+              </div>
+            </div>
+            <span className="pd-progress-graph-title">Overall Progress</span>
           </div>
         </div>
       </div>
@@ -722,7 +1038,7 @@ const ProjectDetails: React.FC = () => {
           className={`pd-tab-item ${currentTab === 'overview' ? 'pd-tab-item--active' : ''}`}
           onClick={() => setTab('overview')}
         >
-          <span className="pd-tab-icon">📊</span>
+          <span className="pd-tab-icon"><LayoutDashboard size={16} /></span>
           Overview &amp; Hub
         </button>
 
@@ -730,7 +1046,7 @@ const ProjectDetails: React.FC = () => {
           className={`pd-tab-item ${currentTab === 'tasks' ? 'pd-tab-item--active' : ''}`}
           onClick={() => setTab('tasks')}
         >
-          <span className="pd-tab-icon">📋</span>
+          <span className="pd-tab-icon"><ClipboardList size={16} /></span>
           Tasks &amp; Milestones
           <span className="pd-tab-badge">{tasks.length}</span>
         </button>
@@ -739,7 +1055,7 @@ const ProjectDetails: React.FC = () => {
           className={`pd-tab-item ${currentTab === 'resources' ? 'pd-tab-item--active' : ''}`}
           onClick={() => setTab('resources')}
         >
-          <span className="pd-tab-icon">📦</span>
+          <span className="pd-tab-icon"><Boxes size={16} /></span>
           Resources &amp; Inventory
           <span className="pd-tab-badge">{resources.length}</span>
         </button>
@@ -748,7 +1064,7 @@ const ProjectDetails: React.FC = () => {
           className={`pd-tab-item ${currentTab === 'team' ? 'pd-tab-item--active' : ''}`}
           onClick={() => setTab('team')}
         >
-          <span className="pd-tab-icon">👥</span>
+          <span className="pd-tab-icon"><Users size={16} /></span>
           Team ({teamMembers.length})
         </button>
 
@@ -756,7 +1072,7 @@ const ProjectDetails: React.FC = () => {
           className={`pd-tab-item ${currentTab === 'documents' ? 'pd-tab-item--active' : ''}`}
           onClick={() => setTab('documents')}
         >
-          <span className="pd-tab-icon">📁</span>
+          <span className="pd-tab-icon"><FolderClosed size={16} /></span>
           Documents &amp; Reports
         </button>
       </div>
@@ -769,7 +1085,9 @@ const ProjectDetails: React.FC = () => {
           {/* KPI Stat Cards */}
           <div className="pd-kpi-grid">
             <div className="pd-kpi-card" onClick={() => setTab('tasks')} style={{ cursor: 'pointer' }}>
-              <div className="pd-kpi-icon" style={{ background: '#fff7ed', color: '#ea580c' }}>📋</div>
+              <div className="pd-kpi-icon" style={{ background: '#fff7ed', color: '#ea580c' }}>
+                <ClipboardList size={22} />
+              </div>
               <div>
                 <p className="pd-kpi-label">Tasks Progress</p>
                 <p className="pd-kpi-value">{completedTasksCount} / {totalTasksCount}</p>
@@ -781,18 +1099,26 @@ const ProjectDetails: React.FC = () => {
             </div>
 
             <div className="pd-kpi-card" onClick={() => setTab('resources')} style={{ cursor: 'pointer' }}>
-              <div className="pd-kpi-icon" style={{ background: '#ecfdf5', color: '#059669' }}>📦</div>
+              <div className="pd-kpi-icon" style={{ background: '#ecfdf5', color: '#059669' }}>
+                <Boxes size={22} />
+              </div>
               <div>
                 <p className="pd-kpi-label">Inventory &amp; Materials</p>
                 <p className="pd-kpi-value">{resources.length} Items</p>
-                <span className="pd-kpi-sub" style={{ color: lowStockResources.length > 0 ? '#dc2626' : '#059669', fontWeight: 600 }}>
-                  {lowStockResources.length > 0 ? `⚠ ${lowStockResources.length} Low stock alerts` : '✓ All items in stock'}
+                <span className="pd-kpi-sub" style={{ color: lowStockResources.length > 0 ? '#dc2626' : '#059669', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  {lowStockResources.length > 0 ? (
+                    <><AlertTriangle size={13} /> {lowStockResources.length} Low stock alerts</>
+                  ) : (
+                    <><Check size={13} /> All items in stock</>
+                  )}
                 </span>
               </div>
             </div>
 
             <div className="pd-kpi-card">
-              <div className="pd-kpi-icon" style={{ background: '#fef3c7', color: '#d97706' }}>💰</div>
+              <div className="pd-kpi-icon" style={{ background: '#fef3c7', color: '#d97706' }}>
+                <DollarSign size={22} />
+              </div>
               <div>
                 <p className="pd-kpi-label">Allocated Inventory Cost</p>
                 <p className="pd-kpi-value">{formatCurrency(totalResourceCost)}</p>
@@ -801,7 +1127,9 @@ const ProjectDetails: React.FC = () => {
             </div>
 
             <div className="pd-kpi-card" onClick={() => setTab('team')} style={{ cursor: 'pointer' }}>
-              <div className="pd-kpi-icon" style={{ background: '#f3e8ff', color: '#7c3aed' }}>👷</div>
+              <div className="pd-kpi-icon" style={{ background: '#f3e8ff', color: '#7c3aed' }}>
+                <HardHat size={22} />
+              </div>
               <div>
                 <p className="pd-kpi-label">Site Team</p>
                 <p className="pd-kpi-value">{teamMembers.length} Members</p>
@@ -815,7 +1143,7 @@ const ProjectDetails: React.FC = () => {
             <div className="pd-phase-card-header">
               <div>
                 <h2 className="pd-card-heading">Construction Phases &amp; Milestones</h2>
-                <p className="pd-card-sub">Current Active Phase: <strong>{project.phase || PHASES[0]}</strong></p>
+                <p className="pd-card-sub">Track progress and tasks across all construction phases</p>
               </div>
               <button className="pd-btn-primary" onClick={() => setShowAddTaskModal(true)}>
                 + Add Task to Phase
@@ -826,11 +1154,19 @@ const ProjectDetails: React.FC = () => {
               {PHASES.map((pName, index) => {
                 const phaseTasks = tasksByPhase[pName] || [];
                 const phaseDone = phaseTasks.filter(t => (t.status || '').toLowerCase().includes('completed')).length;
-                const isCurrent = (project.phase || PHASES[0]) === pName;
-                const isPassed = PHASES.indexOf(project.phase || PHASES[0]) > index;
+                const isPassed = phaseTasks.length > 0 && phaseDone === phaseTasks.length;
+                const hasTasks = phaseTasks.length > 0 && phaseDone < phaseTasks.length;
 
                 return (
-                  <div key={pName} className={`pd-phase-step ${isCurrent ? 'pd-phase-step--current' : ''} ${isPassed ? 'pd-phase-step--passed' : ''}`}>
+                  <div
+                    key={pName}
+                    className={`pd-phase-step ${hasTasks ? 'pd-phase-step--current' : ''} ${isPassed ? 'pd-phase-step--passed' : ''}`}
+                    onClick={() => {
+                      setTab('tasks');
+                    }}
+                    style={{ cursor: 'pointer' }}
+                    title={`View tasks for ${pName}`}
+                  >
                     <div className="pd-step-badge">{index + 1}</div>
                     <div className="pd-step-body">
                       <p className="pd-step-name">{pName}</p>
@@ -842,40 +1178,6 @@ const ProjectDetails: React.FC = () => {
             </div>
           </div>
 
-          {/* Quick Actions & Short Cuts */}
-          <div className="pd-actions-hub-grid">
-            <div className="pd-action-box" onClick={() => setTab('tasks')}>
-              <div className="pd-action-box-icon" style={{ background: '#fff7ed', color: '#ea580c' }}>📋</div>
-              <div>
-                <h3>Manage Project Tasks</h3>
-                <p>View, assign, update status, and track subtask steps for all phases.</p>
-              </div>
-            </div>
-
-            <div className="pd-action-box" onClick={() => setTab('resources')}>
-              <div className="pd-action-box-icon" style={{ background: '#ecfdf5', color: '#059669' }}>📦</div>
-              <div>
-                <h3>Material &amp; Equipment Inventory</h3>
-                <p>Monitor stock quantities, unit prices, and allocate materials to site.</p>
-              </div>
-            </div>
-
-            <div className="pd-action-box" onClick={() => navigate(`/projects/${project.code}/progress`)}>
-              <div className="pd-action-box-icon" style={{ background: '#fef3c7', color: '#d97706' }}>📈</div>
-              <div>
-                <h3>Daily Site Progress Log</h3>
-                <p>Submit daily logs, weather conditions, manpower, and work summaries.</p>
-              </div>
-            </div>
-
-            <div className="pd-action-box" onClick={() => navigate(`/projects/${project.code}/issues/report`)}>
-              <div className="pd-action-box-icon" style={{ background: '#fef2f2', color: '#dc2626' }}>⚠️</div>
-              <div>
-                <h3>Report &amp; Track Issues</h3>
-                <p>Flag critical site hazards, engineering delays, or quality defects.</p>
-              </div>
-            </div>
-          </div>
 
           {/* Project Scope Description */}
           {project.scope && (
@@ -962,7 +1264,7 @@ const ProjectDetails: React.FC = () => {
                           setShowAddTaskModal(true);
                         }}
                       >
-                        + Add to {phaseName.split(' - ')[1] || 'Phase'}
+                        + Add to {phaseName.replace(/^Phase\s*\d+\s*[-–:]\s*/i, '') || phaseName}
                       </button>
                     </div>
 
@@ -978,9 +1280,8 @@ const ProjectDetails: React.FC = () => {
                               <th>Assignee</th>
                               <th>Due Date</th>
                               <th>Priority</th>
-                              <th>Manpower</th>
+                              <th>Progress</th>
                               <th>Status</th>
-                              <th>Actions</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -996,8 +1297,9 @@ const ProjectDetails: React.FC = () => {
                                       <button
                                         className="pd-expand-btn"
                                         onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
+                                        aria-label={isExpanded ? 'Collapse subtasks' : 'Expand subtasks'}
                                       >
-                                        {isExpanded ? '▼' : '▶'}
+                                        {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                                       </button>
                                     </td>
                                     <td>
@@ -1005,8 +1307,8 @@ const ProjectDetails: React.FC = () => {
                                         {task.task_name}
                                       </span>
                                       {subtasks.length > 0 && (
-                                        <span className="pd-subtask-pill">
-                                          ✓ {subtasksDone}/{subtasks.length} steps
+                                        <span className="pd-subtask-pill" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                          <Check size={11} strokeWidth={3} /> {subtasksDone}/{subtasks.length} steps
                                         </span>
                                       )}
                                     </td>
@@ -1026,12 +1328,48 @@ const ProjectDetails: React.FC = () => {
                                         {task.priority || 'Medium'}
                                       </span>
                                     </td>
-                                    <td className="pd-td-muted">{task.manpower_needed || '—'}</td>
+                                    <td>
+                                      {(() => {
+                                        const taskPct = subtasks.length > 0
+                                          ? Math.round((subtasksDone / subtasks.length) * 100)
+                                          : (typeof task.progress_pct === 'number'
+                                              ? task.progress_pct
+                                              : ((task.status || '').toLowerCase().includes('completed') ? 100 : ((task.status || '').toLowerCase().includes('progress') ? 50 : 0)));
+                                        return (
+                                          <div className="pd-task-progress-cell">
+                                            <div className="pd-task-progress-bar-bg">
+                                              <div
+                                                className="pd-task-progress-bar-fill"
+                                                style={{
+                                                  width: `${taskPct}%`,
+                                                  background:
+                                                    taskPct === 100
+                                                      ? 'linear-gradient(90deg, #10b981 0%, #059669 100%)'
+                                                      : taskPct > 0
+                                                      ? 'linear-gradient(90deg, #f97316 0%, #ea580c 100%)'
+                                                      : '#cbd5e1',
+                                                }}
+                                              />
+                                            </div>
+                                            <span className="pd-task-progress-pct">
+                                              {taskPct}%
+                                            </span>
+                                          </div>
+                                        );
+                                      })()}
+                                    </td>
                                     <td>
                                       <select
-                                        className={`pd-status-select pd-status-select--${(task.status || 'pending').toLowerCase().replace(/\s+/g, '')}`}
+                                        className={`pd-status-select pd-status-select--${(task.status || 'pending')
+                                          .toLowerCase()
+                                          .replace(/\s+/g, '')}`}
                                         value={task.status || 'Pending'}
-                                        onChange={e => handleTaskStatusChange(task.id, e.target.value)}
+                                        onChange={e =>
+                                          handleTaskStatusChange(
+                                            task.id,
+                                            e.target.value
+                                          )
+                                        }
                                       >
                                         <option value="Pending">Pending</option>
                                         <option value="In Progress">In Progress</option>
@@ -1039,51 +1377,154 @@ const ProjectDetails: React.FC = () => {
                                         <option value="Delayed">Delayed</option>
                                       </select>
                                     </td>
-                                    <td>
-                                      <button
-                                        className="pd-btn-sm"
-                                        onClick={() => navigate(`/task/${task.id}`)}
-                                      >
-                                        Inspect
-                                      </button>
-                                    </td>
                                   </tr>
 
                                   {/* Expanded Subtasks & Details Row */}
                                   {isExpanded && (
                                     <tr className="pd-task-detail-row">
                                       <td />
-                                      <td colSpan={7}>
+                                      <td colSpan={6}>
                                         <div className="pd-task-detail-card">
                                           <div className="pd-detail-grid">
                                             {/* Subtasks Checklist */}
                                             <div className="pd-subtasks-box">
-                                              <h4>Execution Steps &amp; Subtasks</h4>
+                                              <div className="pd-subtasks-header">
+                                                <h4>Execution Steps &amp; Subtasks</h4>
+                                                {subtasks.length > 0 && (
+                                                  <span className="pd-subtasks-progress-badge">
+                                                    {subtasksDone} / {subtasks.length} Done ({task.progress_pct ?? Math.round((subtasksDone / (subtasks.length || 1)) * 100)}%)
+                                                  </span>
+                                                )}
+                                              </div>
+
                                               {subtasks.length === 0 ? (
-                                                <p className="pd-td-muted" style={{ fontSize: '12px' }}>No subtasks defined. Break down this task into checklist steps.</p>
+                                                <p className="pd-td-muted" style={{ fontSize: '12px', margin: '4px 0 12px' }}>
+                                                  No subtasks defined yet. Break down this task into execution steps below.
+                                                </p>
                                               ) : (
                                                 <div className="pd-subtasks-list">
                                                   {subtasks.map(st => (
-                                                    <label key={st.id} className="pd-subtask-item">
-                                                      <input
-                                                        type="checkbox"
-                                                        checked={st.completed}
-                                                        onChange={() => handleToggleSubtask(task.id, st.id)}
-                                                      />
-                                                      <span className={st.completed ? 'pd-subtask-done' : ''}>
-                                                        {st.title}
-                                                      </span>
-                                                    </label>
+                                                    <div key={st.id} className="pd-subtask-row">
+                                                      <label className="pd-subtask-item">
+                                                        <input
+                                                          type="checkbox"
+                                                          checked={st.completed}
+                                                          onChange={() => {
+                                                            handleToggleSubtask(
+                                                              task.id,
+                                                              st.id
+                                                            );
+                                                          }}
+                                                        />
+                                                        <span className={st.completed ? 'pd-subtask-done' : ''}>
+                                                          {st.title}
+                                                        </span>
+                                                      </label>
+                                                      <button
+                                                        type="button"
+                                                        className="pd-subtask-delete-btn"
+                                                        title="Delete subtask"
+                                                        onClick={() => handleDeleteSubtask(task.id, st.id)}
+                                                      >
+                                                        <X size={12} />
+                                                      </button>
+                                                    </div>
                                                   ))}
                                                 </div>
                                               )}
+
+                                              {subtasks.length > 0 && subtasksDone === subtasks.length && (
+                                                <div className="pd-subtasks-completed-notice" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                  <Check size={14} /> All current execution steps completed! You can still add more steps below anytime.
+                                                </div>
+                                              )}
+
+                                              {/* Create / Add Subtask Input Form — ALWAYS VISIBLE */}
+                                              <form
+                                                className="pd-add-subtask-form"
+                                                onSubmit={e => {
+                                                  e.preventDefault();
+                                                  handleAddSubtask(task.id);
+                                                }}
+                                              >
+                                                <input
+                                                  type="text"
+                                                  className="pd-add-subtask-input"
+                                                  placeholder="Add execution step or subtask (e.g. Rebar inspection, Pour footing)..."
+                                                  value={newSubtaskInputs[task.id] || ''}
+                                                  disabled={submittingSubtask[task.id]}
+                                                  onChange={e =>
+                                                    setNewSubtaskInputs(prev => ({
+                                                      ...prev,
+                                                      [task.id]: e.target.value,
+                                                    }))
+                                                  }
+                                                />
+                                                <button
+                                                  type="submit"
+                                                  className="pd-add-subtask-btn"
+                                                  disabled={!newSubtaskInputs[task.id]?.trim() || submittingSubtask[task.id]}
+                                                >
+                                                  {submittingSubtask[task.id] ? 'Adding…' : '+ Add Subtask'}
+                                                </button>
+                                              </form>
                                             </div>
 
                                             {/* Site Instructions & Materials */}
                                             <div className="pd-notes-box">
                                               <h4>Materials &amp; Instructions</h4>
-                                              <p><strong>Materials:</strong> {task.materials_required || 'None specified'}</p>
+                                              <div style={{ marginBottom: '8px' }}>
+                                                <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                                                  Materials &amp; Resources:
+                                                </div>
+                                                {task.materials_required ? (
+                                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                                    {task.materials_required.split(',').map((mat, i) => {
+                                                      const trimmed = mat.trim();
+                                                      if (!trimmed) return null;
+                                                      const isEquip = trimmed.toLowerCase().includes('equipment');
+                                                      return (
+                                                        <span
+                                                          key={i}
+                                                          style={{
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '5px',
+                                                            background: isEquip ? '#eff6ff' : '#f8fafc',
+                                                            border: `1px solid ${isEquip ? '#bfdbfe' : '#e2e8f0'}`,
+                                                            color: isEquip ? '#1d4ed8' : '#334155',
+                                                            borderRadius: '6px',
+                                                            padding: '3px 8px',
+                                                            fontSize: '11.5px',
+                                                            fontWeight: 600,
+                                                          }}
+                                                        >
+                                                          <span>{isEquip ? <Truck size={13} style={{ color: '#2563eb' }} /> : <Package size={13} style={{ color: '#64748b' }} />}</span>
+                                                          <span>{trimmed}</span>
+                                                        </span>
+                                                      );
+                                                    })}
+                                                  </div>
+                                                ) : (
+                                                  <span style={{ fontSize: '12px', color: '#94a3b8' }}>None specified</span>
+                                                )}
+                                              </div>
                                               <p><strong>Instructions:</strong> {task.site_instructions || 'Standard engineering protocol'}</p>
+
+                                              {(task.status || '').toLowerCase() === 'completed' && (
+                                                <p
+                                                  style={{
+                                                    marginTop: '12px',
+                                                    fontWeight: 600,
+                                                    color: '#16a34a',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px',
+                                                  }}
+                                                >
+                                                  <CheckCircle2 size={15} /> Completed by engineer — this task is locked.
+                                                </p>
+                                              )}
                                             </div>
                                           </div>
                                         </div>
@@ -1207,8 +1648,9 @@ const ProjectDetails: React.FC = () => {
                             className="pd-btn-danger-sm"
                             onClick={() => handleDeleteResource(res.id)}
                             title="Remove resource"
+                            aria-label="Remove resource"
                           >
-                            ✕
+                            <X size={14} />
                           </button>
                         </td>
                       </tr>
@@ -1232,11 +1674,11 @@ const ProjectDetails: React.FC = () => {
               <p className="pd-card-sub">Site personnel collaborating on <strong>{project.name}</strong></p>
             </div>
             <div className="pd-tab-header-actions">
-              <button className="pd-btn-primary" onClick={() => setShowGenerateModal(true)}>
-                ⟨/⟩ Generate Invite Code
+              <button className="pd-btn-primary" onClick={() => setShowGenerateModal(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <UserPlus size={15} /> Generate Invite Code
               </button>
-              <button className="pd-btn-secondary" onClick={() => navigate(`/projects/${project.code}/team`)}>
-                Manage Full Roster →
+              <button className="pd-btn-secondary" onClick={() => navigate(`/projects/${project.code}/team`)} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                Manage Full Roster <ArrowRight size={14} />
               </button>
             </div>
           </div>
@@ -1253,7 +1695,10 @@ const ProjectDetails: React.FC = () => {
                   <div className="pd-member-info">
                     <h4>{m.name}</h4>
                     <p className="pd-member-role">{m.role || 'Site Member'}</p>
-                    <span className="pd-member-active-tag">● Active On Site</span>
+                    <span className="pd-member-active-tag" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', display: 'inline-block' }} />
+                      Active On Site
+                    </span>
                   </div>
                 </div>
               ))
@@ -1281,25 +1726,19 @@ const ProjectDetails: React.FC = () => {
 
           <div className="pd-docs-shortcuts-grid">
             <div className="pd-doc-tile" onClick={() => navigate(`/projects/${project.code}/documents`)}>
-              <span className="pd-doc-tile-icon">📄</span>
+              <span className="pd-doc-tile-icon"><FileText size={32} /></span>
               <h3>Technical Drawings &amp; Specs</h3>
               <p>DWG, PDF, and XLS design files</p>
             </div>
 
-            <div className="pd-doc-tile" onClick={() => navigate(`/projects/${project.code}/progress`)}>
-              <span className="pd-doc-tile-icon">📝</span>
-              <h3>Daily Site Progress Logs</h3>
-              <p>Daily activity logs &amp; manpower records</p>
-            </div>
-
             <div className="pd-doc-tile" onClick={() => navigate(`/projects/${project.code}/issues/report`)}>
-              <span className="pd-doc-tile-icon">⚠️</span>
+              <span className="pd-doc-tile-icon"><AlertTriangle size={32} /></span>
               <h3>Field Issue Reports</h3>
               <p>Report defects, delays, and safety hazards</p>
             </div>
 
             <div className="pd-doc-tile" onClick={() => navigate(`/projects/${project.code}/reports`)}>
-              <span className="pd-doc-tile-icon">📊</span>
+              <span className="pd-doc-tile-icon"><BarChart3 size={32} /></span>
               <h3>Executive Site Reports</h3>
               <p>Formal summaries for clients &amp; managers</p>
             </div>
@@ -1313,7 +1752,7 @@ const ProjectDetails: React.FC = () => {
 
       {/* 1. Add Task Modal */}
       {showAddTaskModal && (
-        <div className="pm-overlay" onClick={() => setShowAddTaskModal(false)}>
+        <div className="pm-overlay" onClick={handleCloseAddTaskModal}>
           <div className="pm-modal" onClick={e => e.stopPropagation()}>
             <h2 className="pm-modal-title">Create Task for {project.name}</h2>
             <form onSubmit={handleCreateTask}>
@@ -1358,7 +1797,7 @@ const ProjectDetails: React.FC = () => {
                 </div>
               </div>
 
-              <div className="pm-form-row pm-form-row--3">
+              <div className="pm-form-row pm-form-row--2">
                 <div className="pm-form-group">
                   <label>Due Date</label>
                   <input
@@ -1381,14 +1820,245 @@ const ProjectDetails: React.FC = () => {
                     <option value="Low">Low</option>
                   </select>
                 </div>
+              </div>
+
+              {/* Materials & Resources Required Builder */}
+              <div className="pm-form-row pm-form-row--1">
                 <div className="pm-form-group">
-                  <label>Manpower Needed</label>
-                  <input
-                    className="pm-input"
-                    value={newTaskForm.manpowerNeeded}
-                    onChange={e => setNewTaskForm({ ...newTaskForm, manpowerNeeded: e.target.value })}
-                    placeholder="e.g., 8 workers"
-                  />
+                  <div className="pm-mat-section-header">
+                    <label className="pm-mat-main-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <Package size={16} style={{ color: '#ea580c' }} /> Materials &amp; Resources Required
+                    </label>
+                    <p className="pm-mat-hint">Allocate specific materials, tools, or equipment needed for this task</p>
+                  </div>
+
+                  <div className="pm-mat-builder-panel">
+                    <div className="pm-mat-inputs-stack">
+                      {/* Row 1: Item Name, Category, Supplier */}
+                      <div className="pm-mat-row-1">
+                        <div className="pm-mat-field">
+                          <label className="pm-mat-label">Resource / Item Name <span className="pm-required">*</span></label>
+                          <input
+                            type="text"
+                            className="pm-input pm-mat-input"
+                            list="project-stock-options"
+                            placeholder="e.g., Portland Cement Type 1"
+                            value={matItemInput.name}
+                            onChange={e => {
+                              const val = e.target.value;
+                              const match = resources.find(r => r.name.toLowerCase() === val.toLowerCase());
+                              if (match) {
+                                setMatItemInput(prev => ({
+                                  ...prev,
+                                  name: val,
+                                  category: match.category || prev.category,
+                                  supplier: match.supplier || prev.supplier,
+                                  unit: match.unit || prev.unit,
+                                  minThreshold: match.minThreshold !== undefined ? String(match.minThreshold) : prev.minThreshold,
+                                  unitPrice: match.unitPrice !== undefined ? String(match.unitPrice) : prev.unitPrice,
+                                }));
+                              } else {
+                                setMatItemInput(prev => ({ ...prev, name: val }));
+                              }
+                            }}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddMaterialItem();
+                              }
+                            }}
+                          />
+                          <datalist id="project-stock-options">
+                            {resources.map(res => (
+                              <option key={res.id} value={res.name}>
+                                {res.category} ({res.quantity} {res.unit} in stock — {res.supplier || 'General'})
+                              </option>
+                            ))}
+                          </datalist>
+                        </div>
+
+                        <div className="pm-mat-field">
+                          <label className="pm-mat-label">Category <span className="pm-required">*</span></label>
+                          <select
+                            className="pm-input pm-select pm-mat-input"
+                            value={matItemInput.category}
+                            onChange={e => setMatItemInput(prev => ({ ...prev, category: e.target.value as 'Material' | 'Equipment' }))}
+                          >
+                            <option value="Material">Material</option>
+                            <option value="Equipment">Equipment</option>
+                          </select>
+                        </div>
+
+                        <div className="pm-mat-field">
+                          <label className="pm-mat-label">Supplier / Vendor</label>
+                          <input
+                            type="text"
+                            className="pm-input pm-mat-input"
+                            placeholder="e.g., Eagle Cement Corp"
+                            value={matItemInput.supplier}
+                            onChange={e => setMatItemInput(prev => ({ ...prev, supplier: e.target.value }))}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddMaterialItem();
+                              }
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Row 2: Quantity, Unit, Min Threshold, Unit Price, Add Button */}
+                      <div className="pm-mat-row-2">
+                        <div className="pm-mat-field">
+                          <label className="pm-mat-label">Quantity <span className="pm-required">*</span></label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            className="pm-input pm-mat-input"
+                            placeholder="e.g., 500"
+                            value={matItemInput.quantity}
+                            onChange={e => setMatItemInput(prev => ({ ...prev, quantity: e.target.value }))}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddMaterialItem();
+                              }
+                            }}
+                          />
+                        </div>
+
+                        <div className="pm-mat-field">
+                          <label className="pm-mat-label">Unit</label>
+                          <input
+                            type="text"
+                            className="pm-input pm-mat-input"
+                            list="common-units-list"
+                            placeholder="bags, tons..."
+                            value={matItemInput.unit}
+                            onChange={e => setMatItemInput(prev => ({ ...prev, unit: e.target.value }))}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddMaterialItem();
+                              }
+                            }}
+                          />
+                          <datalist id="common-units-list">
+                            <option value="bags" />
+                            <option value="tons" />
+                            <option value="pcs" />
+                            <option value="units" />
+                            <option value="kg" />
+                            <option value="meters" />
+                            <option value="liters" />
+                            <option value="sets" />
+                            <option value="rolls" />
+                            <option value="cu.m" />
+                          </datalist>
+                        </div>
+
+                        <div className="pm-mat-field">
+                          <label className="pm-mat-label">Min Threshold</label>
+                          <input
+                            type="number"
+                            min="0"
+                            className="pm-input pm-mat-input"
+                            placeholder="e.g., 10"
+                            value={matItemInput.minThreshold}
+                            onChange={e => setMatItemInput(prev => ({ ...prev, minThreshold: e.target.value }))}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddMaterialItem();
+                              }
+                            }}
+                          />
+                        </div>
+
+                        <div className="pm-mat-field">
+                          <label className="pm-mat-label">Unit Price (PHP)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            className="pm-input pm-mat-input"
+                            placeholder="e.g., 280.00"
+                            value={matItemInput.unitPrice}
+                            onChange={e => setMatItemInput(prev => ({ ...prev, unitPrice: e.target.value }))}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddMaterialItem();
+                              }
+                            }}
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          className="pd-btn-primary pm-mat-add-btn"
+                          onClick={handleAddMaterialItem}
+                          disabled={!matItemInput.name.trim()}
+                        >
+                          + Add Resource
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Allocated Resources List */}
+                    {allocatedMaterials.length > 0 ? (
+                      <div className="pm-allocated-mat-list">
+                        {allocatedMaterials.map(mat => (
+                          <div key={mat.id} className="pm-allocated-mat-chip">
+                            <span className="pm-allocated-mat-icon" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                              {mat.category === 'Equipment' ? <Truck size={15} /> : <Package size={15} />}
+                            </span>
+                            <div className="pm-allocated-mat-info">
+                              <span className="pm-allocated-mat-name">{mat.name}</span>
+                              {mat.quantity && (
+                                <span className="pm-allocated-mat-badge">
+                                  {mat.quantity} {mat.unit || ''}
+                                </span>
+                              )}
+                              <span className={`pm-allocated-cat-badge pm-allocated-cat--${mat.category.toLowerCase()}`}>
+                                {mat.category}
+                              </span>
+                              {mat.supplier && mat.supplier !== 'General Supplier' && (
+                                <span className="pm-allocated-mat-detail" title="Supplier" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                  <Building2 size={12} /> {mat.supplier}
+                                </span>
+                              )}
+                              {mat.unitPrice && Number(mat.unitPrice) > 0 && (
+                                <span className="pm-allocated-mat-detail" title="Unit Price">
+                                  ₱{Number(mat.unitPrice).toLocaleString()}
+                                </span>
+                              )}
+                              {mat.minThreshold && Number(mat.minThreshold) > 0 && (
+                                <span className="pm-allocated-mat-detail" title="Threshold">
+                                  Min {mat.minThreshold}
+                                </span>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              className="pm-allocated-mat-remove"
+                              onClick={() => handleRemoveMaterialItem(mat.id)}
+                              title="Remove resource"
+                              aria-label="Remove resource"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="pm-mat-empty-state">
+                        <Info size={16} />
+                        <span>No materials or equipment added yet. Fill in the fields above and click "+ Add Resource" to allocate.</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1405,11 +2075,110 @@ const ProjectDetails: React.FC = () => {
                 </div>
               </div>
 
+              {/* Subtasks / Execution Steps Builder */}
+              <div className="pm-form-row pm-form-row--1">
+                <div className="pm-form-group">
+                  <label>Initial Execution Steps / Subtasks (Optional)</label>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                    <input
+                      type="text"
+                      className="pm-input"
+                      value={modalSubtaskInput}
+                      onChange={e => setModalSubtaskInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (modalSubtaskInput.trim()) {
+                            setNewTaskForm(prev => ({
+                              ...prev,
+                              subtasks: [
+                                ...(prev.subtasks || []),
+                                {
+                                  id: `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                                  title: modalSubtaskInput.trim(),
+                                  completed: false,
+                                },
+                              ],
+                            }));
+                            setModalSubtaskInput('');
+                          }
+                        }
+                      }}
+                      placeholder="e.g., Pour concrete foundation, Inspect steel rebar..."
+                    />
+                    <button
+                      type="button"
+                      className="pd-btn-primary"
+                      style={{ padding: '0 16px', fontSize: '13px', whiteSpace: 'nowrap' }}
+                      onClick={() => {
+                        if (modalSubtaskInput.trim()) {
+                          setNewTaskForm(prev => ({
+                            ...prev,
+                            subtasks: [
+                              ...(prev.subtasks || []),
+                              {
+                                id: `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                                title: modalSubtaskInput.trim(),
+                                completed: false,
+                              },
+                            ],
+                          }));
+                          setModalSubtaskInput('');
+                        }
+                      }}
+                    >
+                      + Add Subtask
+                    </button>
+                  </div>
+                  {newTaskForm.subtasks && newTaskForm.subtasks.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
+                      {newTaskForm.subtasks.map((st, idx) => (
+                        <div
+                          key={st.id}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            background: '#f8fafc',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '8px',
+                            padding: '6px 12px',
+                            fontSize: '13px',
+                          }}
+                        >
+                          <span>{idx + 1}. {st.title}</span>
+                          <button
+                            type="button"
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#ef4444',
+                              cursor: 'pointer',
+                              fontWeight: 700,
+                              fontSize: '14px',
+                            }}
+                            onClick={() => {
+                              setNewTaskForm(prev => ({
+                                ...prev,
+                                subtasks: (prev.subtasks || []).filter(s => s.id !== st.id),
+                              }));
+                            }}
+                            aria-label="Remove subtask"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="pm-modal-actions">
                 <button
                   type="button"
                   className="pm-btn-cancel"
-                  onClick={() => setShowAddTaskModal(false)}
+                  onClick={handleCloseAddTaskModal}
                 >
                   Cancel
                 </button>

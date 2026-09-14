@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
 import Projects from './pages/Projects'; 
@@ -17,6 +17,7 @@ import ProjectProgress from './pages/ProjectProgress';
 import IssueReport from './pages/IssueReport';
 import ProjectReports from './pages/ProjectReports';
 import Settings from './pages/Settings';
+import Notification from './pages/Notification';
 import ProtectedRoute from './components/ProtectedRoute';
 import { ToastContainer } from './components/Toast';
 
@@ -42,22 +43,163 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<RegisterPage />} />
 
-        {/* Protected routes */}
-        <Route path="/dashboard" element={<AuthLayout><Dashboard /></AuthLayout>} />
-        <Route path="/projects" element={<AuthLayout><Projects /></AuthLayout>} />
-        <Route path="/projects/:projectId" element={<AuthLayout><ProjectDetails /></AuthLayout>} />
-        <Route path="/task/:taskId" element={<AuthLayout><Task /></AuthLayout>} />
-        <Route path="/tasks" element={<AuthLayout><Task /></AuthLayout>} />
-        <Route path="/tasks/new" element={<AuthLayout><CreateTask /></AuthLayout>} />
-        <Route path="/timelog" element={<AuthLayout><TimeLog /></AuthLayout>} />
-        <Route path="/resources" element={<AuthLayout><ResourceManagement /></AuthLayout>} />
-        <Route path="/users" element={<AuthLayout><UserManagement /></AuthLayout>} />
-        <Route path="/settings" element={<AuthLayout><Settings /></AuthLayout>} />
-        <Route path="/projects/:projectCode/team" element={<AuthLayout><ManageTeam /></AuthLayout>} />
-        <Route path="/projects/:projectCode/documents" element={<AuthLayout><Documents /></AuthLayout>} />
-        <Route path="/projects/:projectCode/progress" element={<AuthLayout><ProjectProgress /></AuthLayout>} />
-        <Route path="/projects/:projectCode/issues/report" element={<AuthLayout><IssueReport /></AuthLayout>} />
-        <Route path="/projects/:projectCode/reports" element={<AuthLayout><ProjectReports /></AuthLayout>} />
+
+        {/* ============================================================
+            PROTECTED ROUTES
+        ============================================================ */}
+
+        <Route
+          path="/dashboard"
+          element={
+            <AuthLayout>
+              <Dashboard />
+            </AuthLayout>
+          }
+        />
+
+        <Route
+          path="/projects"
+          element={
+            <AuthLayout>
+              <Projects />
+            </AuthLayout>
+          }
+        />
+
+        <Route
+          path="/projects/:projectId"
+          element={
+            <AuthLayout>
+              <ProjectDetails />
+            </AuthLayout>
+          }
+        />
+
+        <Route
+          path="/task/:taskId"
+          element={<Navigate to="/projects" replace />}
+        />
+
+        <Route
+          path="/tasks"
+          element={
+            <AuthLayout>
+              <Task />
+            </AuthLayout>
+          }
+        />
+
+        <Route
+          path="/tasks/new"
+          element={
+            <AuthLayout>
+              <CreateTask />
+            </AuthLayout>
+          }
+        />
+
+        <Route
+          path="/timelog"
+          element={
+            <AuthLayout>
+              <TimeLog />
+            </AuthLayout>
+          }
+        />
+
+        <Route
+          path="/resources"
+          element={
+            <AuthLayout>
+              <ResourceManagement />
+            </AuthLayout>
+          }
+        />
+
+        <Route
+          path="/users"
+          element={
+            <AuthLayout>
+              <UserManagement />
+            </AuthLayout>
+          }
+        />
+
+        {/* ============================================================
+            NOTIFICATIONS
+        ============================================================ */}
+
+        <Route
+          path="/notifications"
+          element={
+            <AuthLayout>
+              <Notification />
+            </AuthLayout>
+          }
+        />
+
+        <Route
+          path="/settings"
+          element={
+            <AuthLayout>
+              <Settings />
+            </AuthLayout>
+          }
+        />
+
+        {/* ============================================================
+            PROJECT ROUTES
+        ============================================================ */}
+
+        <Route
+          path="/projects/:projectCode/team"
+          element={
+            <AuthLayout>
+              <ManageTeam />
+            </AuthLayout>
+          }
+        />
+
+        <Route
+          path="/projects/:projectCode/documents"
+          element={
+            <AuthLayout>
+              <Documents />
+            </AuthLayout>
+          }
+        />
+
+        <Route
+          path="/projects/:projectCode/progress"
+          element={
+            <AuthLayout>
+              <ProjectProgress />
+            </AuthLayout>
+          }
+        />
+
+        <Route
+          path="/projects/:projectCode/issues/report"
+          element={
+            <AuthLayout>
+              <IssueReport />
+            </AuthLayout>
+          }
+        />
+
+        <Route
+          path="/projects/:projectCode/reports"
+          element={
+            <AuthLayout>
+              <ProjectReports />
+            </AuthLayout>
+          }
+        />
+
+        {/* ============================================================
+            404
+        ============================================================ */}
+
 
         {/* 404 catch-all */}
         <Route path="*" element={<NotFound />} />

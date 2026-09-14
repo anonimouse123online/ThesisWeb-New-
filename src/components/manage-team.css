@@ -394,3 +394,271 @@
 
 .mt-btn-add:hover { opacity: 0.85; }
 .mt-btn-add:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ── Actions group in title row ── */
+.mt-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mt-invite-btn {
+  background: #fff;
+  color: #111827;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 18px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mt-invite-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+}
+
+/* ── Toolbar (Tabs + Search) ── */
+.mt-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+
+.mt-tabs-bar {
+  display: flex;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 12px;
+  gap: 4px;
+}
+
+.mt-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.mt-tab-btn--active {
+  background: #fff;
+  color: #0f172a;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.mt-tab-badge {
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 20px;
+}
+
+.mt-tab-btn--active .mt-tab-badge {
+  background: #0f172a;
+  color: #fff;
+}
+
+.mt-tab-badge--avail {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.mt-tab-btn--active .mt-tab-badge--avail {
+  background: #2563eb;
+  color: #fff;
+}
+
+/* ── Search Wrap ── */
+.mt-search-wrap {
+  position: relative;
+  min-width: 280px;
+}
+
+.mt-search-input {
+  width: 100%;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 9px 32px 9px 14px;
+  font-size: 13.5px;
+  background: #fff;
+  color: #1e293b;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.mt-search-input:focus {
+  border-color: #f05a28;
+}
+
+.mt-search-clear {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px;
+}
+
+/* ── Empty actions ── */
+.mt-empty-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ── Section Intro in Available Tab ── */
+.mt-section-intro {
+  padding: 16px 20px;
+  background: #fafbfd;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.mt-section-h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 4px;
+}
+
+.mt-section-sub {
+  font-size: 12.5px;
+  color: #64748b;
+  margin: 0;
+}
+
+/* ── Status tags ── */
+.mt-status-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.mt-status-tag--active {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+
+.mt-status-tag--avail {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+
+/* ── Add Direct button ── */
+.mt-add-direct-btn {
+  background: #f05a28;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+
+.mt-add-direct-btn:hover {
+  background: #d84818;
+  transform: translateY(-1px);
+}
+
+.mt-add-direct-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ── Invite Modal Details ── */
+.mt-modal--invite {
+  max-width: 480px;
+}
+
+.mt-invite-info {
+  font-size: 13.5px;
+  color: #475569;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.mt-invite-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f8fafc;
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin: 12px 0 6px;
+}
+
+.mt-invite-code-text {
+  font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #0f172a;
+}
+
+.mt-copy-btn {
+  background: #0f172a;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+
+.mt-copy-btn:hover {
+  background: #1e293b;
+}
+
+.mt-invite-note {
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.mt-invite-loading {
+  padding: 20px;
+  text-align: center;
+  color: #64748b;
+  font-size: 13.5px;
+}

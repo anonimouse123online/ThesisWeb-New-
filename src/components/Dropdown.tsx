@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import './Dropdown.css';
+import { Check, ChevronDown } from 'lucide-react';
 
 export interface DropdownOption {
   value: string;
@@ -37,7 +38,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
   const selectedOption = normalizedOptions.find((opt) => opt.value === value);
   const displayLabel = selectedOption
     ? `${prefix ? prefix + ': ' : ''}${selectedOption.label}`
-    : label || (prefix ? `${prefix} ▾` : 'Select');
+    : label || (prefix ? `${prefix}` : 'Select');
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -73,7 +74,9 @@ export const Dropdown: React.FC<DropdownProps> = ({
         aria-expanded={isOpen}
       >
         <span>{displayLabel}</span>
-        <span className={`sp-dropdown-chevron ${isOpen ? 'sp-dropdown-chevron--open' : ''}`}>▾</span>
+        <span className={`sp-dropdown-chevron ${isOpen ? 'sp-dropdown-chevron--open' : ''}`} style={{ display: 'inline-flex', alignItems: 'center' }}>
+          <ChevronDown size={14} />
+        </span>
       </button>
 
       {isOpen && (
@@ -92,7 +95,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
                   <span>{opt.label}</span>
                 </div>
                 {opt.badge && <span className="sp-dropdown-badge">{opt.badge}</span>}
-                {isSelected && <span className="sp-dropdown-check">✓</span>}
+                {isSelected && <span className="sp-dropdown-check"><Check size={14} /></span>}
               </button>
             );
           })}

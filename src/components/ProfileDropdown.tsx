@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import './Dropdown.css';
+import { LayoutDashboard, FolderClosed, CheckSquare, Users, Settings, LogOut, ChevronDown } from 'lucide-react';
 
 const BACKEND_URL = API_BASE_URL;
 
@@ -107,8 +108,8 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
             {userRole}
           </p>
         </div>
-        <span className={`chevron ${isOpen ? 'sp-dropdown-chevron--open' : ''}`} style={{ fontSize: '12px', color: '#bbb' }}>
-          ▾
+        <span className={`chevron ${isOpen ? 'sp-dropdown-chevron--open' : ''}`} style={{ display: 'inline-flex', alignItems: 'center', color: '#bbb' }}>
+          <ChevronDown size={14} />
         </span>
       </button>
 
@@ -129,7 +130,7 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
             className="sp-profile-action"
             onClick={() => { setIsOpen(false); navigate('/dashboard'); }}
           >
-            <span>📊</span>
+            <LayoutDashboard size={16} />
             <span>Dashboard</span>
           </button>
 
@@ -138,7 +139,7 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
             className="sp-profile-action"
             onClick={() => { setIsOpen(false); navigate('/projects'); }}
           >
-            <span>📁</span>
+            <FolderClosed size={16} />
             <span>Projects Hub</span>
           </button>
 
@@ -147,7 +148,7 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
             className="sp-profile-action"
             onClick={() => { setIsOpen(false); navigate('/tasks'); }}
           >
-            <span>✅</span>
+            <CheckSquare size={16} />
             <span>Task Management</span>
           </button>
 
@@ -156,7 +157,7 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
             className="sp-profile-action"
             onClick={() => { setIsOpen(false); navigate('/users'); }}
           >
-            <span>👥</span>
+            <Users size={16} />
             <span>User Management</span>
           </button>
 
@@ -165,7 +166,7 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
             className="sp-profile-action"
             onClick={() => { setIsOpen(false); navigate('/settings'); }}
           >
-            <span>⚙️</span>
+            <Settings size={16} />
             <span>Menu Settings</span>
           </button>
 
@@ -176,7 +177,7 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
             className="sp-profile-action sp-profile-action--danger"
             onClick={handleLogout}
           >
-            <span>🚪</span>
+            <LogOut size={16} />
             <span>Sign Out</span>
           </button>
         </div>

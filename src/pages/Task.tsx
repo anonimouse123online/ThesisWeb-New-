@@ -3,6 +3,7 @@ import AssignTaskModal from "../pages/Assigntaskmodal";
 import { API_BASE_URL, fetchWithAuth } from "../utils/api";
 import Dropdown from "../components/Dropdown";
 import { showToast } from "../components/Toast";
+import { X, Rocket } from "lucide-react";
 import "../components/Task.css";
 
 const BACKEND_URL = API_BASE_URL;
@@ -50,11 +51,11 @@ interface Project {
 }
 
 const PHASES = [
-  "Phase 1 - Foundation",
-  "Phase 2 - Structural",
-  "Phase 3 - Electrical & Utilities",
-  "Phase 4 - Plumbing & MEP",
-  "Phase 5 - Finishing",
+  "Foundation",
+  "Structural",
+  "Electrical & Utilities",
+  "Plumbing & MEP",
+  "Finishing",
 ];
 
 function normalizePhase(raw?: string): string {
@@ -65,7 +66,7 @@ function normalizePhase(raw?: string): string {
   if (s.includes("phase 3") || s.includes("utilit") || s.includes("electr")) return PHASES[2];
   if (s.includes("phase 4") || s.includes("plumb") || s.includes("mep")) return PHASES[3];
   if (s.includes("phase 5") || s.includes("finish")) return PHASES[4];
-  return raw;
+  return raw.replace(/^Phase\s*\d+\s*[-–:]\s*/i, '').trim() || raw;
 }
 
 function groupByPhase(tasks: Task[]): Record<string, Task[]> {
@@ -192,8 +193,9 @@ function TaskDetailPanel({
                       className="tdp-subtask-delete-btn"
                       onClick={() => onDeleteSubtask(task.id, st.id)}
                       title="Delete step"
+                      aria-label="Delete step"
                     >
-                      ✕
+                      <X size={13} />
                     </button>
                   </div>
                 ))}
@@ -214,7 +216,7 @@ function TaskDetailPanel({
                 onChange={(e) => setNewSubtaskTitle(e.target.value)}
               />
               <button type="submit" className="tdp-add-subtask-btn">
-                + Add Step
+                + Add Subtask
               </button>
             </form>
           </div>
@@ -265,8 +267,10 @@ function TaskDetailPanel({
               </span>
             </div>
             <div className="tdp-info-item">
-              <span className="tdp-info-label">Manpower Needed</span>
-              <span className="tdp-info-value">{task.manpower_needed || "—"}</span>
+              <span className="tdp-info-label">Percent Progress</span>
+              <span className="tdp-info-value" style={{ color: '#16a34a', fontWeight: 700 }}>
+                {task.progress_pct ?? 0}%
+              </span>
             </div>
             <div className="tdp-info-item">
               <span className="tdp-info-label">Materials Required</span>
@@ -305,7 +309,7 @@ const EMPTY_FORM = {
 function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: CreateTaskFormProps) {
   const [form, setForm] = useState({
     ...EMPTY_FORM,
-    phase: initialPhase || "Phase 1 - Foundation",
+    phase: initialPhase || "Foundation",
     projectId: initialProjectId || "",
   });
   const [loading, setLoading]                 = useState(false);
@@ -507,7 +511,7 @@ export default function Tasks() {
   const [fetchError, setFetchError]           = useState<string | null>(null);
   const [expandedIds, setExpandedIds]         = useState<Set<number | string>>(new Set());
   const [showCreate, setShowCreate]           = useState(false);
-  const [createTaskPhase, setCreateTaskPhase] = useState<string>("Phase 1 - Foundation");
+  const [createTaskPhase, setCreateTaskPhase] = useState<string>("Foundation");
   const [assignTask, setAssignTask]           = useState<import("../pages/Assigntaskmodal").TaskInfo | null>(null);
   const [projects, setProjects]               = useState<Project[]>([]);
   const [filterProjectId, setFilterProjectId] = useState<string>("");
@@ -753,7 +757,7 @@ export default function Tasks() {
         <button
           className="tasks-create-btn"
           onClick={() => {
-            setCreateTaskPhase("Phase 1 - Foundation");
+            setCreateTaskPhase("Foundation");
             setShowCreate(true);
           }}
         >
@@ -815,8 +819,8 @@ export default function Tasks() {
 
             {displayedTasks.length === 0 ? (
               <div style={{ padding: '2rem 1.5rem', textAlign: 'center', background: '#f8fafc', borderRadius: '10px', margin: '8px 0', border: '1px dashed #cbd5e1' }}>
-                <p style={{ margin: '0 0 6px', fontSize: '13.5px', fontWeight: 600, color: '#334155' }}>
-                  🚀 {phase} is ready for execution.
+                <p style={{ margin: '0 0 6px', fontSize: '13.5px', fontWeight: 600, color: '#334155', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                  <Rocket size={16} style={{ color: '#ea580c' }} /> {phase} is ready for execution.
                 </p>
                 <p style={{ margin: '0 0 12px', fontSize: '12px', color: '#64748b' }}>
                   No tasks scheduled in this phase yet. Click below to add the first task.

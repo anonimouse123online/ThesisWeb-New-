@@ -77,8 +77,8 @@ export default function AssignTaskModal({
   const [selectedDocs, setSelectedDocs]         = useState<Set<string>>(new Set());
   const [notes, setNotes]                       = useState("");
   const [errors, setErrors]                     = useState<Record<string, string>>({});
-  const [submitting, setSubmitting]             = useState(false); // ← loading state
-  const [submitError, setSubmitError]           = useState<string | null>(null); // ← error banner
+  const [submitting, setSubmitting]             = useState(false); // loading state
+  const [submitError, setSubmitError]           = useState<string | null>(null); // error banner
 
   // ── Fetch real users from DB ──
   useEffect(() => {

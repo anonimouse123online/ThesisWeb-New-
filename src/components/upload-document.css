@@ -119,13 +119,17 @@
 }
 
 .ud-select-wrap::after {
-  content: '▾';
+  content: '';
   position: absolute;
   right: 14px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 12px;
-  color: #aaa;
+  width: 10px;
+  height: 6px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
   pointer-events: none;
 }
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import './Toast.css';
+import { CheckCircle2, AlertCircle, AlertTriangle, Info, X } from 'lucide-react';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -10,11 +11,18 @@ interface ToastProps {
   onClose: () => void;
 }
 
-const ICONS: Record<ToastType, string> = {
-  success: '✅',
-  error: '❌',
-  warning: '⚠️',
-  info: 'ℹ️',
+const getToastIcon = (type: ToastType) => {
+  switch (type) {
+    case 'success':
+      return <CheckCircle2 size={18} />;
+    case 'error':
+      return <AlertCircle size={18} />;
+    case 'warning':
+      return <AlertTriangle size={18} />;
+    case 'info':
+    default:
+      return <Info size={18} />;
+  }
 };
 
 const Toast: React.FC<ToastProps> = ({ message, type = 'info', duration = 3500, onClose }) => {
@@ -31,9 +39,11 @@ const Toast: React.FC<ToastProps> = ({ message, type = 'info', duration = 3500, 
 
   return (
     <div className={`toast toast--${type} ${visible ? 'toast--visible' : 'toast--hidden'}`}>
-      <span className="toast-icon">{ICONS[type]}</span>
+      <span className="toast-icon" style={{ display: 'flex', alignItems: 'center' }}>{getToastIcon(type)}</span>
       <span className="toast-msg">{message}</span>
-      <button className="toast-close" onClick={() => { setVisible(false); setTimeout(onClose, 300); }}>×</button>
+      <button className="toast-close" onClick={() => { setVisible(false); setTimeout(onClose, 300); }} aria-label="Close">
+        <X size={14} />
+      </button>
     </div>
   );
 };
