@@ -18,6 +18,7 @@ import IssueReport from './pages/IssueReport';
 import ProjectReports from './pages/ProjectReports';
 import Settings from './pages/Settings';
 import Notification from './pages/Notification';
+import Messages from './pages/Messages';
 import ProtectedRoute from './components/ProtectedRoute';
 import { ToastContainer } from './components/Toast';
 
@@ -133,8 +134,17 @@ export default function App() {
         />
 
         {/* ============================================================
-            NOTIFICATIONS
+            NOTIFICATIONS & MESSAGES
         ============================================================ */}
+
+        <Route
+          path="/messages"
+          element={
+            <ProtectedRoute>
+              <Messages />
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/notifications"
