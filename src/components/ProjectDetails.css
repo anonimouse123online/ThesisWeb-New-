@@ -107,13 +107,105 @@
 .pd-status--planning  { background: #fef9c3; color: #a16207; }
 .pd-status--completed { background: #dcfce7; color: #15803d; }
 
-/* ── Hero Meta ── */
+/* ── Hero Bottom (Meta + Overall Progress) ── */
+.pd-hero-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  padding-top: 20px;
+}
+
+.pd-hero-card--ongoing .pd-hero-bottom {
+  border-top-color: rgba(16, 185, 129, 0.2);
+}
+
 .pd-hero-meta {
+  flex: 1;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
-  border-top: 1px solid rgba(0,0,0,0.08);
-  padding-top: 20px;
+  gap: 16px 24px;
+}
+
+/* ── Pure Overall Progress Graph ── */
+.pd-progress-graph-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  padding: 6px 14px;
+  border-radius: 20px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+
+.pd-progress-graph-container:hover {
+  transform: translateY(-2px) scale(1.03);
+}
+
+.pd-progress-graph-container:hover .pd-progress-graph-pct {
+  color: #047857;
+}
+
+.pd-progress-graph-ring {
+  position: relative;
+  width: 116px;
+  height: 116px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pd-progress-graph-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.pd-progress-graph-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  pointer-events: none;
+}
+
+.pd-progress-graph-pct {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1;
+  color: #065f46;
+  letter-spacing: -0.5px;
+  transition: color 0.2s ease;
+}
+
+.pd-progress-graph-sub {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #059669;
+  margin-top: 3px;
+}
+
+.pd-progress-graph-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #065f46;
+  margin-top: 6px;
+  letter-spacing: 0.3px;
+  text-align: center;
+}
+
+@media (max-width: 960px) {
+  .pd-hero-bottom {
+    flex-direction: column;
+    align-items: center;
+  }
 }
 
 .pd-meta-label {
@@ -1336,6 +1428,36 @@
   display: inline-block;
 }
 
+/* Task Percent Progress in Table */
+.pd-task-progress-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 110px;
+}
+
+.pd-task-progress-bar-bg {
+  flex: 1;
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.pd-task-progress-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.pd-task-progress-pct {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+  min-width: 34px;
+  text-align: right;
+}
+
 .pd-priority--high { background: #fee2e2; color: #b91c1c; }
 .pd-priority--medium { background: #fef3c7; color: #b45309; }
 .pd-priority--low { background: #e0f2fe; color: #0369a1; }
@@ -1393,10 +1515,45 @@
   margin: 0 0 10px;
 }
 
+.pd-subtasks-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.pd-subtasks-header h4 {
+  margin: 0;
+}
+
+.pd-subtasks-progress-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #ea580c;
+  background: #fff7ed;
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: 1px solid #fed7aa;
+}
+
 .pd-subtasks-list {
   display: flex;
   flex-direction: column;
+  gap: 6px;
+}
+
+.pd-subtask-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.pd-subtask-row:hover {
+  background: #f1f5f9;
 }
 
 .pd-subtask-item {
@@ -1406,11 +1563,88 @@
   font-size: 13px;
   color: #334155;
   cursor: pointer;
+  flex: 1;
+}
+
+.pd-subtask-delete-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.15s;
+}
+
+.pd-subtask-row:hover .pd-subtask-delete-btn {
+  opacity: 1;
+}
+
+.pd-subtask-delete-btn:hover {
+  color: #ef4444;
+  background: #fee2e2;
 }
 
 .pd-subtask-done {
   text-decoration: line-through;
   color: #94a3b8;
+}
+
+.pd-add-subtask-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  align-items: center;
+}
+
+.pd-add-subtask-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #1e293b;
+  background: #ffffff;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.pd-add-subtask-input:focus {
+  border-color: #ea580c;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.12);
+}
+
+.pd-add-subtask-btn {
+  background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.pd-add-subtask-btn:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.pd-add-subtask-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pd-subtasks-completed-notice {
+  font-size: 12px;
+  color: #16a34a;
+  font-weight: 600;
+  margin-top: 10px;
 }
 
 .pd-notes-box p {
@@ -1526,7 +1760,7 @@
 /* Documents & Reports Shortcuts */
 .pd-docs-shortcuts-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
 }
 
@@ -1577,4 +1811,210 @@
   .pd-phases-stepper {
     grid-template-columns: 1fr;
   }
+}
+
+/* Materials & Resources Builder in Create Task Modal */
+.pm-mat-section-header {
+  margin-bottom: 4px;
+}
+
+.pm-mat-main-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+  display: block;
+}
+
+.pm-mat-hint {
+  font-size: 11.5px;
+  color: #64748b;
+  margin: 2px 0 0;
+}
+
+.pm-mat-builder-panel {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pm-mat-inputs-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pm-mat-row-1 {
+  display: grid;
+  grid-template-columns: 2fr 1.2fr 1.8fr;
+  gap: 10px;
+}
+
+.pm-mat-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1.2fr auto;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+@media (max-width: 768px) {
+  .pm-mat-row-1,
+  .pm-mat-row-2 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .pm-mat-row-1,
+  .pm-mat-row-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.pm-mat-inputs-grid {
+  display: grid;
+  grid-template-columns: 2fr 1.2fr 1fr 1.2fr auto;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.pm-mat-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pm-mat-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.pm-mat-input {
+  background: #ffffff !important;
+  font-size: 12.5px !important;
+  padding: 8px 12px !important;
+}
+
+.pm-mat-add-btn {
+  height: 38px;
+  padding: 0 16px;
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pm-allocated-mat-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed #cbd5e1;
+}
+
+.pm-allocated-mat-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 6px 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.15s ease;
+}
+
+.pm-allocated-mat-chip:hover {
+  border-color: #ea580c;
+  transform: translateY(-1px);
+}
+
+.pm-allocated-mat-icon {
+  font-size: 15px;
+}
+
+.pm-allocated-mat-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pm-allocated-mat-name {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.pm-allocated-mat-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #ea580c;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  padding: 2px 7px;
+  border-radius: 6px;
+}
+
+.pm-allocated-cat-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.pm-allocated-cat--material {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.pm-allocated-cat--equipment {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.pm-allocated-mat-detail {
+  font-size: 11px;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 2px 6px;
+  border-radius: 5px;
+  white-space: nowrap;
+}
+
+.pm-allocated-mat-remove {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.pm-allocated-mat-remove:hover {
+  color: #ef4444;
+  background: #fee2e2;
+}
+
+.pm-mat-empty-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #64748b;
+  padding: 8px 10px;
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px dashed #e2e8f0;
 }

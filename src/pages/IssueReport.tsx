@@ -5,6 +5,20 @@ import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import { showToast } from '../components/Toast';
 import ProfileDropdown from '../components/ProfileDropdown';
 import Dropdown from '../components/Dropdown';
+import {
+  AlertCircle,
+  Clock,
+  CheckCircle2,
+  AlertTriangle,
+  Search,
+  X,
+  PartyPopper,
+  MapPin,
+  User,
+  Wrench,
+  Calendar,
+  ArrowLeft
+} from 'lucide-react';
 
 const API_URL = API_BASE_URL;
 
@@ -159,10 +173,7 @@ const IssueReport: React.FC = () => {
   const openCount     = issues.filter(i => i.status === 'Open').length;
   const inProgCount   = issues.filter(i => i.status === 'In Progress').length;
   const resolvedCount = issues.filter(i => i.status === 'Resolved').length;
-
-  // TODO: Replace these hardcoded values with backend/API data later
-  const delayedCount = 5;
-  const ongoingCount = 12;
+  const criticalCount = issues.filter(i => i.priority === 'Critical' || i.priority === 'High').length;
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -179,19 +190,24 @@ const IssueReport: React.FC = () => {
 
   return (
     <main className="ir-page">
-      {/* ── Nav & Breadcrumb ── */}
+      {/* ── Nav & Profile ── */}
       <div className="ir-nav-row">
-        <div className="ir-breadcrumb">
-          <button className="pp-breadcrumb-link" onClick={() => navigate('/projects')}>
-            Projects
-          </button>
-          <span className="ir-breadcrumb-sep">/</span>
-          <button className="pp-breadcrumb-link" onClick={() => navigate(`/projects/${projectCode}`)}>
-            {projectCode}
-          </button>
-          <span className="ir-breadcrumb-sep">/</span>
-          <span className="ir-breadcrumb-current">Reported Issues</span>
-        </div>
+        <button
+          type="button"
+          className="pd-back-btn"
+          onClick={() => {
+            if (window.history.state && window.history.state.idx > 0) {
+              navigate(-1);
+            } else {
+              navigate(projectCode ? `/projects/${projectCode}` : '/projects');
+            }
+          }}
+          title="Back to previous page"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '15px', fontWeight: 700, color: '#0f172a', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+        >
+          <ArrowLeft size={16} strokeWidth={2.5} />
+          Back
+        </button>
         <ProfileDropdown />
       </div>
 
@@ -206,39 +222,51 @@ const IssueReport: React.FC = () => {
             {projectCode} • Log and resolve hazards, defect tickets, quality clashes, and blockers
           </p>
         </div>
+
+        <button className="ir-report-btn" onClick={() => setShowModal(true)}>
+          <span>+ Report New Issue</span>
+        </button>
       </div>
 
       {/* ── Metric Cards ── */}
       <div className="ir-stats-grid">
         <div className="ir-stat-card">
-          <div className="ir-stat-icon" style={{ background: '#dbeafe', color: '#2563eb' }}>
-            📋
-          </div>
-          <div className="ir-stat-info">
-            <span className="ir-stat-value">{totalCount}</span>
-            <span className="ir-stat-label">Issues Reported</span>
-          </div>
-        </div>
-
-        {/* TODO: Connect delayed issue count to backend later */}
-        <div className="ir-stat-card ir-stat-card--delayed">
           <div className="ir-stat-icon" style={{ background: '#fee2e2', color: '#dc2626' }}>
-            ⏰
+            <AlertCircle size={22} />
           </div>
           <div className="ir-stat-info">
-            <span className="ir-stat-value">{delayedCount}</span>
-            <span className="ir-stat-label">Delayed</span>
+            <span className="ir-stat-value">{openCount}</span>
+            <span className="ir-stat-label">Open Issues</span>
           </div>
         </div>
 
-        {/* TODO: Connect ongoing issue count to backend later */}
-        <div className="ir-stat-card ir-stat-card--ongoing">
+        <div className="ir-stat-card">
           <div className="ir-stat-icon" style={{ background: '#fef3c7', color: '#d97706' }}>
-            🔄
+            <Clock size={22} />
           </div>
           <div className="ir-stat-info">
-            <span className="ir-stat-value">{ongoingCount}</span>
-            <span className="ir-stat-label">Ongoing</span>
+            <span className="ir-stat-value">{inProgCount}</span>
+            <span className="ir-stat-label">In Progress</span>
+          </div>
+        </div>
+
+        <div className="ir-stat-card">
+          <div className="ir-stat-icon" style={{ background: '#dcfce7', color: '#16a34a' }}>
+            <CheckCircle2 size={22} />
+          </div>
+          <div className="ir-stat-info">
+            <span className="ir-stat-value">{resolvedCount}</span>
+            <span className="ir-stat-label">Resolved</span>
+          </div>
+        </div>
+
+        <div className="ir-stat-card">
+          <div className="ir-stat-icon" style={{ background: '#fee2e2', color: '#991b1b' }}>
+            <AlertTriangle size={22} />
+          </div>
+          <div className="ir-stat-info">
+            <span className="ir-stat-value">{criticalCount}</span>
+            <span className="ir-stat-label">Critical / High Priority</span>
           </div>
         </div>
       </div>
@@ -248,7 +276,7 @@ const IssueReport: React.FC = () => {
         <div className="ir-toolbar-top">
           {/* Search bar */}
           <div className="ir-search-wrap">
-            <span className="ir-search-icon">🔍</span>
+            <span className="ir-search-icon"><Search size={16} /></span>
             <input
               className="ir-search-input"
               placeholder="Search by issue title, location, or notes..."
@@ -257,8 +285,8 @@ const IssueReport: React.FC = () => {
               onKeyDown={(e) => { if (e.key === 'Enter') fetchIssues(); }}
             />
             {search && (
-              <button className="ir-search-clear" onClick={() => { setSearch(''); fetchIssues(); }}>
-                ✕
+              <button className="ir-search-clear" onClick={() => { setSearch(''); fetchIssues(); }} aria-label="Clear search">
+                <X size={14} />
               </button>
             )}
           </div>
@@ -304,7 +332,7 @@ const IssueReport: React.FC = () => {
           background: '#fff', borderRadius: '16px', border: '1.5px dashed #cbd5e1',
           padding: '48px 24px', textAlign: 'center', margin: '20px 0',
         }}>
-          <span style={{ fontSize: '42px', display: 'block', marginBottom: '8px' }}>🎉</span>
+          <PartyPopper size={44} style={{ color: '#16a34a', display: 'block', margin: '0 auto 10px' }} />
           <h3 style={{ fontSize: '16px', fontWeight: 700, margin: '0 0 6px' }}>No issues found</h3>
           <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>
             {statusFilter !== 'All' || categoryFilter !== 'All' ? 'No tickets match the active filters.' : 'All clear! No site issues reported for this project.'}
@@ -333,10 +361,22 @@ const IssueReport: React.FC = () => {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <div className="ir-card-meta">
-                    {issue.location && <span>📍 {issue.location}</span>}
-                    <span>👤 Reported by: {issue.reporter_name || 'Site Engineer'}</span>
-                    {issue.assignee_name && <span>🛠 Assigned to: {issue.assignee_name}</span>}
-                    <span>📅 Date: {formatDate(issue.created_at)}</span>
+                    {issue.location && (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <MapPin size={13} /> {issue.location}
+                      </span>
+                    )}
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <User size={13} /> Reported by: {issue.reporter_name || 'Site Engineer'}
+                    </span>
+                    {issue.assignee_name && (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <Wrench size={13} /> Assigned to: {issue.assignee_name}
+                      </span>
+                    )}
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <Calendar size={13} /> Date: {formatDate(issue.created_at)}
+                    </span>
                   </div>
 
                   <div className="ir-card-footer">

@@ -5,6 +5,7 @@ import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import Dropdown from '../components/Dropdown';
 import ProfileDropdown from '../components/ProfileDropdown';
 import { showToast } from '../components/Toast';
+import { ArrowRight, AlertTriangle, Building2, Package, Plus } from 'lucide-react';
 
 const BACKEND_URL = API_BASE_URL;
 
@@ -73,15 +74,15 @@ const emptyForm: NewProjectForm = {
   budget: '',
   start_date: '',
   end_date: '',
-  phase: 'Phase 1 - Foundation',
+  phase: 'Foundation',
 };
 
 const PHASES = [
-  'Phase 1 - Foundation',
-  'Phase 2 - Structural',
-  'Phase 3 - Electrical & Utilities',
-  'Phase 4 - Plumbing & MEP',
-  'Phase 5 - Finishing',
+  'Foundation',
+  'Structural',
+  'Electrical & Utilities',
+  'Plumbing & MEP',
+  'Finishing',
 ];
 
 const Projects: React.FC = () => {
@@ -292,13 +293,14 @@ const Projects: React.FC = () => {
             className={`pm-hub-tab ${activeView === 'projects' ? 'pm-hub-tab--active' : ''}`}
             onClick={() => setView('projects')}
           >
-          Projects Overview ({projects.length})
+            <Building2 size={16} />
+            <span>Projects Overview ({projects.length})</span>
           </button>
-
         </div>
 
         <button className="pm-new-btn" onClick={() => setShowModal(true)}>
-          + New Project
+          <Plus size={15} />
+          <span>New Project</span>
         </button>
       </div>
 
@@ -382,8 +384,9 @@ const Projects: React.FC = () => {
                         </div>
                       </td>
                       <td>
-                        <span style={{ fontSize: '12px', background: '#f1f5f9', padding: '3px 8px', borderRadius: '12px', fontWeight: 600 }}>
-                          {resCount} items
+                        <span style={{ fontSize: '12px', background: '#f1f5f9', padding: '4px 8px', borderRadius: '12px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                          <Package size={13} style={{ color: '#64748b' }} />
+                          <span>{resCount} items</span>
                         </span>
                       </td>
                       <td><span className={getStatusClass(prj.status)}>{prj.status}</span></td>
@@ -392,8 +395,9 @@ const Projects: React.FC = () => {
                           className="pm-view-btn"
                           onClick={() => navigate(`/projects/${prj.code}`)}
                           title="Open Project Workspace"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                         >
-                          Workspace →
+                          Workspace <ArrowRight size={13} />
                         </button>
                       </td>
                     </tr>
@@ -421,7 +425,6 @@ const Projects: React.FC = () => {
                   <th>Due Date</th>
                   <th>Priority</th>
                   <th>Status</th>
-                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -429,10 +432,17 @@ const Projects: React.FC = () => {
                   <tr key={t.id}>
                     <td className="pm-td-bold">{t.task_name}</td>
                     <td>
-                      <span className="pd-code-badge">{t.project_code || t.code || 'PRJ'}</span>{' '}
+                      <span
+                        className="pd-code-badge"
+                        style={{ cursor: 'pointer' }}
+                        title="Open Project Hub"
+                        onClick={() => navigate(`/projects/${t.project_code || t.code}`)}
+                      >
+                        {t.project_code || t.code || 'PRJ'}
+                      </span>{' '}
                       <span style={{ fontSize: '12px', color: '#475569' }}>{t.project_name}</span>
                     </td>
-                    <td className="pm-td-muted">{t.phase}</td>
+                    <td className="pm-td-muted">{t.phase ? t.phase.replace(/^Phase\s*\d+\s*[-–:]\s*/i, '') : '—'}</td>
                     <td>{t.assignee || 'Unassigned'}</td>
                     <td className="pm-td-muted">
                       {t.due_date ? new Date(t.due_date).toLocaleDateString() : '—'}
@@ -446,14 +456,6 @@ const Projects: React.FC = () => {
                       <span className={`pd-status-pill pd-status--${(t.status || 'pending').toLowerCase().replace(/\s+/g, '')}`}>
                         {t.status}
                       </span>
-                    </td>
-                    <td>
-                      <button
-                        className="pm-view-btn"
-                        onClick={() => navigate(`/task/${t.id}`)}
-                      >
-                        Inspect
-                      </button>
                     </td>
                   </tr>
                 ))}
@@ -519,7 +521,9 @@ const Projects: React.FC = () => {
             <h2 className="pm-modal-title">Create New Project</h2>
 
             {formError && (
-              <p className="pm-form-error">⚠ {formError}</p>
+              <p className="pm-form-error" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <AlertTriangle size={15} /> {formError}
+              </p>
             )}
 
             <div className="pm-form-row pm-form-row--2">

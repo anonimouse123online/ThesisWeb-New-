@@ -6,6 +6,21 @@ import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import { showToast } from '../components/Toast';
 import Dropdown from '../components/Dropdown';
 import ProfileDropdown from '../components/ProfileDropdown';
+import {
+  FolderClosed,
+  FolderOpen,
+  Compass,
+  ClipboardList,
+  Pin,
+  Search,
+  X,
+  LayoutGrid,
+  List,
+  Trash2,
+  Calendar,
+  Download,
+  ArrowLeft
+} from 'lucide-react';
 
 const API_URL = API_BASE_URL;
 
@@ -153,19 +168,24 @@ const Documents: React.FC = () => {
         />
       )}
 
-      {/* ── Breadcrumb & Navigation ── */}
+      {/* ── Navigation & Profile ── */}
       <div className="docs-nav-row">
-        <div className="docs-breadcrumb">
-          <button className="docs-breadcrumb-link" onClick={() => navigate('/projects')}>
-            Projects
-          </button>
-          <span className="docs-breadcrumb-sep">/</span>
-          <button className="docs-breadcrumb-link" onClick={() => navigate(`/projects/${projectCode}`)}>
-            {projectCode}
-          </button>
-          <span className="docs-breadcrumb-sep">/</span>
-          <span className="docs-breadcrumb-current">Documents</span>
-        </div>
+        <button
+          type="button"
+          className="pd-back-btn"
+          onClick={() => {
+            if (window.history.state && window.history.state.idx > 0) {
+              navigate(-1);
+            } else {
+              navigate(projectCode ? `/projects/${projectCode}` : '/projects');
+            }
+          }}
+          title="Back to previous page"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '15px', fontWeight: 700, color: '#0f172a', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+        >
+          <ArrowLeft size={16} strokeWidth={2.5} />
+          Back
+        </button>
 
         <ProfileDropdown />
       </div>
@@ -193,7 +213,7 @@ const Documents: React.FC = () => {
       <div className="docs-stats-grid">
         <div className="docs-stat-card">
           <div className="docs-stat-icon-wrap" style={{ background: '#fff0e8', color: '#f05a28' }}>
-            📁
+            <FolderClosed size={22} />
           </div>
           <div className="docs-stat-info">
             <span className="docs-stat-value">{totalCount}</span>
@@ -203,7 +223,7 @@ const Documents: React.FC = () => {
 
         <div className="docs-stat-card">
           <div className="docs-stat-icon-wrap" style={{ background: '#fee2e2', color: '#dc2626' }}>
-            📐
+            <Compass size={22} />
           </div>
           <div className="docs-stat-info">
             <span className="docs-stat-value">{countDesign}</span>
@@ -213,7 +233,7 @@ const Documents: React.FC = () => {
 
         <div className="docs-stat-card">
           <div className="docs-stat-icon-wrap" style={{ background: '#fff7ed', color: '#ea580c' }}>
-            📋
+            <ClipboardList size={22} />
           </div>
           <div className="docs-stat-info">
             <span className="docs-stat-value">{countPM}</span>
@@ -223,7 +243,7 @@ const Documents: React.FC = () => {
 
         <div className="docs-stat-card">
           <div className="docs-stat-icon-wrap" style={{ background: '#dcfce7', color: '#16a34a' }}>
-            📌
+            <Pin size={22} />
           </div>
           <div className="docs-stat-info">
             <span className="docs-stat-value">{countSite}</span>
@@ -237,7 +257,7 @@ const Documents: React.FC = () => {
         <div className="docs-toolbar-top">
           {/* Search bar */}
           <div className="docs-search-wrap">
-            <span className="docs-search-icon">🔍</span>
+            <span className="docs-search-icon"><Search size={16} /></span>
             <input
               className="docs-search-input"
               placeholder="Search by document title..."
@@ -245,8 +265,8 @@ const Documents: React.FC = () => {
               onChange={(e) => setSearch(e.target.value)}
             />
             {search && (
-              <button className="docs-search-clear" onClick={() => setSearch('')}>
-                ✕
+              <button className="docs-search-clear" onClick={() => setSearch('')} aria-label="Clear search">
+                <X size={14} />
               </button>
             )}
           </div>
@@ -271,16 +291,18 @@ const Documents: React.FC = () => {
                 className={`docs-view-btn ${viewMode === 'grid' ? 'docs-view-btn--active' : ''}`}
                 title="Grid View"
                 onClick={() => setViewMode('grid')}
+                aria-label="Grid View"
               >
-                ⊞
+                <LayoutGrid size={15} />
               </button>
               <button
                 type="button"
                 className={`docs-view-btn ${viewMode === 'table' ? 'docs-view-btn--active' : ''}`}
                 title="List View"
                 onClick={() => setViewMode('table')}
+                aria-label="List View"
               >
-                ☰
+                <List size={15} />
               </button>
             </div>
           </div>
@@ -326,7 +348,9 @@ const Documents: React.FC = () => {
 
       {!loading && !error && filtered.length === 0 && (
         <div className="docs-empty-card">
-          <span className="docs-empty-icon">📁</span>
+          <span className="docs-empty-icon" style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+            <FolderOpen size={44} style={{ color: '#94a3b8' }} />
+          </span>
           <h3 className="docs-empty-title">No documents found</h3>
           <p className="docs-empty-sub">
             {search || selectedType !== 'All' || activeCategory !== 'All'
@@ -347,8 +371,8 @@ const Documents: React.FC = () => {
           return (
             <section key={cat} className="docs-section">
               <div className="docs-section-header">
-                <h2 className="docs-section-title">
-                  <span>{cat === 'Design & Engineering' ? '📐' : cat === 'Project Management' ? '📋' : '📌'}</span>
+                <h2 className="docs-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>{cat === 'Design & Engineering' ? <Compass size={18} /> : cat === 'Project Management' ? <ClipboardList size={18} /> : <Pin size={18} />}</span>
                   <span>{cat}</span>
                 </h2>
                 <span className="docs-section-count">{catDocs.length} item(s)</span>
@@ -366,9 +390,10 @@ const Documents: React.FC = () => {
                           <button
                             className="doc-delete-btn"
                             title="Delete Document"
+                            aria-label="Delete Document"
                             onClick={() => handleDelete(doc.id, doc.name)}
                           >
-                            🗑
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       </div>
@@ -376,7 +401,9 @@ const Documents: React.FC = () => {
                       <div className="doc-card-main">
                         <h4 className="doc-name" title={doc.name}>{doc.name}</h4>
                         <div className="doc-meta">
-                          <span>📅 {formatDate(doc.uploaded_at)}</span>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <Calendar size={13} /> {formatDate(doc.uploaded_at)}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -386,7 +413,9 @@ const Documents: React.FC = () => {
                         className="doc-download-btn"
                         onClick={() => handleDownload(doc)}
                       >
-                        <span>⬇ Download</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                          <Download size={13} /> Download
+                        </span>
                       </button>
                     </div>
                   </div>
@@ -411,9 +440,10 @@ const Documents: React.FC = () => {
                     <button
                       className="doc-delete-btn"
                       title="Delete Document"
+                      aria-label="Delete Document"
                       onClick={() => handleDelete(doc.id, doc.name)}
                     >
-                      🗑
+                      <Trash2 size={14} />
                     </button>
                   </div>
                 </div>
@@ -421,7 +451,9 @@ const Documents: React.FC = () => {
                 <div className="doc-card-main">
                   <h4 className="doc-name" title={doc.name}>{doc.name}</h4>
                   <div className="doc-meta">
-                    <span>📅 {formatDate(doc.uploaded_at)}</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <Calendar size={13} /> {formatDate(doc.uploaded_at)}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -431,7 +463,9 @@ const Documents: React.FC = () => {
                   className="doc-download-btn"
                   onClick={() => handleDownload(doc)}
                 >
-                  <span>⬇ Download</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                    <Download size={13} /> Download
+                  </span>
                 </button>
               </div>
             </div>
@@ -486,9 +520,10 @@ const Documents: React.FC = () => {
                       <button
                         className="doc-delete-btn"
                         title="Delete Document"
+                        aria-label="Delete Document"
                         onClick={() => handleDelete(doc.id, doc.name)}
                       >
-                        🗑
+                        <Trash2 size={14} />
                       </button>
                     </div>
                   </td>

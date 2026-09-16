@@ -4,6 +4,7 @@ import '../components/Settings.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import { showToast } from '../components/Toast';
 import ProfileDropdown from '../components/ProfileDropdown';
+import { User, Lock, Bell, Settings2, Check, KeyRound, Download } from 'lucide-react';
 
 const API_URL = API_BASE_URL;
 
@@ -254,25 +255,25 @@ const Settings: React.FC = () => {
           className={`st-tab-btn ${activeTab === 'profile' ? 'st-tab-btn--active' : ''}`}
           onClick={() => setActiveTab('profile')}
         >
-          👤 Profile & Identity
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><User size={15} /> Profile &amp; Identity</span>
         </button>
         <button
           className={`st-tab-btn ${activeTab === 'security' ? 'st-tab-btn--active' : ''}`}
           onClick={() => setActiveTab('security')}
         >
-          🔒 Security & Password
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Lock size={15} /> Security &amp; Password</span>
         </button>
         <button
           className={`st-tab-btn ${activeTab === 'notifications' ? 'st-tab-btn--active' : ''}`}
           onClick={() => setActiveTab('notifications')}
         >
-          🔔 Notification Alerts
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Bell size={15} /> Notification Alerts</span>
         </button>
         <button
           className={`st-tab-btn ${activeTab === 'system' ? 'st-tab-btn--active' : ''}`}
           onClick={() => setActiveTab('system')}
         >
-          ⚙️ Workspace & Health
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Settings2 size={15} /> Workspace &amp; Health</span>
         </button>
       </div>
 
@@ -344,8 +345,8 @@ const Settings: React.FC = () => {
                 </div>
 
                 <div style={{ marginTop: '20px' }}>
-                  <button type="submit" className="st-btn-save" disabled={savingProfile}>
-                    {savingProfile ? 'Saving Profile…' : '✓ Save Profile Changes'}
+                  <button type="submit" className="st-btn-save" disabled={savingProfile} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                    {savingProfile ? 'Saving Profile…' : <><Check size={15} /> Save Profile Changes</>}
                   </button>
                 </div>
               </form>
@@ -398,8 +399,8 @@ const Settings: React.FC = () => {
                 </div>
 
                 <div style={{ marginTop: '20px' }}>
-                  <button type="submit" className="st-btn-save" disabled={savingPassword}>
-                    {savingPassword ? 'Updating Password…' : '🔐 Update Password'}
+                  <button type="submit" className="st-btn-save" disabled={savingPassword} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                    {savingPassword ? 'Updating Password…' : <><KeyRound size={15} /> Update Password</>}
                   </button>
                 </div>
               </form>
@@ -414,7 +415,10 @@ const Settings: React.FC = () => {
                     <strong>This Web Browser (Current Session)</strong>
                     <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>macOS • Chrome Engine • Verified Token</div>
                   </div>
-                  <span style={{ color: '#16a34a', fontWeight: 700 }}>● Active Now</span>
+                  <span style={{ color: '#16a34a', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#16a34a', display: 'inline-block' }} />
+                    Active Now
+                  </span>
                 </div>
               </div>
             </div>
@@ -470,8 +474,8 @@ const Settings: React.FC = () => {
               </div>
 
               <div style={{ marginTop: '24px' }}>
-                <button type="button" className="st-btn-save" onClick={handleSaveProfile} disabled={savingProfile}>
-                  {savingProfile ? 'Saving…' : '✓ Save Notification Preferences'}
+                <button type="button" className="st-btn-save" onClick={handleSaveProfile} disabled={savingProfile} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                  {savingProfile ? 'Saving…' : <><Check size={15} /> Save Notification Preferences</>}
                 </button>
               </div>
             </div>
@@ -484,7 +488,10 @@ const Settings: React.FC = () => {
               <div className="st-health-banner">
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span className="st-health-badge">● Operational</span>
+                    <span className="st-health-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#16a34a', display: 'inline-block' }} />
+                      Operational
+                    </span>
                     <strong style={{ fontSize: '13.5px', color: '#166534' }}>SitePulse Cloud Backend Connected</strong>
                   </div>
                   <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#15803d' }}>
@@ -531,8 +538,8 @@ const Settings: React.FC = () => {
                   <button type="button" className="st-btn-save" onClick={handleSaveProfile}>
                     Save Formats
                   </button>
-                  <button type="button" className="st-btn-outline" onClick={handleExportBackup}>
-                    ⬇ Export Settings Backup (JSON)
+                  <button type="button" className="st-btn-outline" onClick={handleExportBackup} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                    <Download size={14} /> Export Settings Backup (JSON)
                   </button>
                 </div>
               </div>

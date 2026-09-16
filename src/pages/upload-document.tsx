@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import '../components/upload-document.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
+import { UploadCloud } from 'lucide-react';
 
 const API_URL = API_BASE_URL;
 
@@ -269,7 +270,9 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
               onDrop={onDrop}
               onClick={() => inputRef.current?.click()}
             >
-              <span className="ud-drop-icon">⬆</span>
+              <span className="ud-drop-icon" style={{ display: 'flex', justifyContent: 'center', marginBottom: '6px' }}>
+                <UploadCloud size={28} />
+              </span>
               <p className="ud-drop-text">
                 {files.length > 0 ? 'Drag & drop more files here' : 'Drag & drop your files here'}
               </p>

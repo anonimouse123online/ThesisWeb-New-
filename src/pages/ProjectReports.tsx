@@ -4,6 +4,20 @@ import '../components/ProjectReports.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import { showToast } from '../components/Toast';
 import ProfileDropdown from '../components/ProfileDropdown';
+import {
+  ClipboardList,
+  Calendar,
+  ShieldCheck,
+  BarChart3,
+  Search,
+  X,
+  FileText,
+  HardHat,
+  CloudSun,
+  Truck,
+  Download,
+  ArrowLeft
+} from 'lucide-react';
 
 const API_URL = API_BASE_URL;
 
@@ -50,9 +64,9 @@ const ProjectReports: React.FC = () => {
   const [summary, setSummary]                   = useState('');
   const [keyActivities, setKeyActivities]       = useState('');
   const [issuesHighlighted, setIssuesHighlighted] = useState('');
-  const [manpowerCount, setManpowerCount]       = useState<number>(35);
-  const [equipmentOnSite, setEquipmentOnSite]   = useState('1x Tower Crane, 2x Concrete Pumps');
-  const [weather, setWeather]                   = useState('Sunny, 30°C');
+  const [manpowerCount, setManpowerCount]       = useState<number>(0);
+  const [equipmentOnSite, setEquipmentOnSite]   = useState('');
+  const [weather, setWeather]                   = useState('');
   const [submitting, setSubmitting]             = useState(false);
 
   const fetchReports = async () => {
@@ -74,13 +88,13 @@ const ProjectReports: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchReports();
+    if (projectCode) fetchReports();
   }, [projectCode, selectedType]);
 
   const handleCreateReport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !summary.trim()) {
-      showToast('Title and Summary are required.', 'warning');
+      showToast('Please provide a title and high-level summary.', 'warning');
       return;
     }
 
@@ -111,6 +125,9 @@ const ProjectReports: React.FC = () => {
       setSummary('');
       setKeyActivities('');
       setIssuesHighlighted('');
+      setEquipmentOnSite('');
+      setWeather('');
+      setManpowerCount(0);
       fetchReports();
     } catch (err: any) {
       showToast(err.message, 'error');
@@ -141,19 +158,24 @@ const ProjectReports: React.FC = () => {
 
   return (
     <main className="pr-page">
-      {/* ── Breadcrumbs & Nav ── */}
+      {/* ── Nav & Profile ── */}
       <div className="pr-nav-row">
-        <div className="pr-breadcrumb">
-          <button className="pp-breadcrumb-link" onClick={() => navigate('/projects')}>
-            Projects
-          </button>
-          <span className="pr-breadcrumb-sep">/</span>
-          <button className="pp-breadcrumb-link" onClick={() => navigate(`/projects/${projectCode}`)}>
-            {projectCode}
-          </button>
-          <span className="pr-breadcrumb-sep">/</span>
-          <span className="pr-breadcrumb-current">Project Reports</span>
-        </div>
+        <button
+          type="button"
+          className="pd-back-btn"
+          onClick={() => {
+            if (window.history.state && window.history.state.idx > 0) {
+              navigate(-1);
+            } else {
+              navigate(projectCode ? `/projects/${projectCode}` : '/projects');
+            }
+          }}
+          title="Back to previous page"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '15px', fontWeight: 700, color: '#0f172a', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+        >
+          <ArrowLeft size={16} strokeWidth={2.5} />
+          Back
+        </button>
         <ProfileDropdown />
       </div>
 
@@ -174,7 +196,7 @@ const ProjectReports: React.FC = () => {
       <div className="pr-stats-grid">
         <div className="pr-stat-card">
           <div className="pr-stat-icon" style={{ background: '#fff7ed', color: '#ea580c' }}>
-            📋
+            <ClipboardList size={22} />
           </div>
           <div className="pr-stat-info">
             <span className="pr-stat-value">{totalCount}</span>
@@ -184,7 +206,7 @@ const ProjectReports: React.FC = () => {
 
         <div className="pr-stat-card">
           <div className="pr-stat-icon" style={{ background: '#fee2e2', color: '#dc2626' }}>
-            📅
+            <Calendar size={22} />
           </div>
           <div className="pr-stat-info">
             <span className="pr-stat-value">{dailyCount}</span>
@@ -194,7 +216,7 @@ const ProjectReports: React.FC = () => {
 
         <div className="pr-stat-card">
           <div className="pr-stat-icon" style={{ background: '#dcfce7', color: '#15803d' }}>
-            🛡️
+            <ShieldCheck size={22} />
           </div>
           <div className="pr-stat-info">
             <span className="pr-stat-value">{safetyCount}</span>
@@ -204,7 +226,7 @@ const ProjectReports: React.FC = () => {
 
         <div className="pr-stat-card">
           <div className="pr-stat-icon" style={{ background: '#f3e8ff', color: '#7e22ce' }}>
-            📊
+            <BarChart3 size={22} />
           </div>
           <div className="pr-stat-info">
             <span className="pr-stat-value">{milestoneCount}</span>
@@ -217,7 +239,7 @@ const ProjectReports: React.FC = () => {
       <div className="pr-toolbar">
         {/* Search */}
         <div className="pr-search-wrap">
-          <span className="pr-search-icon">🔍</span>
+          <span className="pr-search-icon"><Search size={16} /></span>
           <input
             className="pr-search-input"
             placeholder="Search report titles or activity notes..."
@@ -226,8 +248,8 @@ const ProjectReports: React.FC = () => {
             onKeyDown={(e) => { if (e.key === 'Enter') fetchReports(); }}
           />
           {search && (
-            <button className="pr-search-clear" onClick={() => { setSearch(''); fetchReports(); }}>
-              ✕
+            <button className="pr-search-clear" onClick={() => { setSearch(''); fetchReports(); }} aria-label="Clear search">
+              <X size={14} />
             </button>
           )}
         </div>
@@ -254,7 +276,7 @@ const ProjectReports: React.FC = () => {
           background: '#fff', borderRadius: '16px', border: '1.5px dashed #cbd5e1',
           padding: '48px 24px', textAlign: 'center', margin: '20px 0',
         }}>
-          <span style={{ fontSize: '42px', display: 'block', marginBottom: '8px' }}>📋</span>
+          <FileText size={44} style={{ color: '#94a3b8', display: 'block', margin: '0 auto 10px' }} />
           <h3 style={{ fontSize: '16px', fontWeight: 700, margin: '0 0 6px' }}>No reports found</h3>
           <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>
             {selectedType !== 'All' ? 'No reports under the selected category.' : 'No site inspection or daily reports created yet.'}
@@ -271,8 +293,8 @@ const ProjectReports: React.FC = () => {
                   </span>
                   <h3 className="pr-card-title">{report.title}</h3>
                 </div>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b' }}>
-                  📅 {formatDate(report.report_date)}
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <Calendar size={13} /> {formatDate(report.report_date)}
                 </span>
               </div>
 
@@ -286,13 +308,23 @@ const ProjectReports: React.FC = () => {
 
                 <div className="pr-detail-item">
                   <span className="pr-detail-label">Manpower & Weather</span>
-                  <span>👷 {report.manpower_count} workers • ⛅ {report.weather || 'Clear'}</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <HardHat size={13} /> {report.manpower_count} workers
+                    </span>
+                    •
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <CloudSun size={13} /> {report.weather || 'Clear'}
+                    </span>
+                  </span>
                 </div>
 
                 {report.equipment_on_site && (
                   <div className="pr-detail-item">
                     <span className="pr-detail-label">Equipment on Site</span>
-                    <span>🚜 {report.equipment_on_site}</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <Truck size={13} /> {report.equipment_on_site}
+                    </span>
                   </div>
                 )}
               </div>
@@ -313,8 +345,9 @@ const ProjectReports: React.FC = () => {
                 <button
                   className="pr-btn-export"
                   onClick={() => handleExportPDF(report)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                 >
-                  ⬇ Export PDF
+                  <Download size={13} /> Export PDF
                 </button>
               </div>
             </div>
@@ -334,10 +367,11 @@ const ProjectReports: React.FC = () => {
                 <h2 className="ir-modal-title" style={{ marginTop: '6px' }}>{viewReport.title}</h2>
               </div>
               <button
-                style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#888' }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 onClick={() => setViewReport(null)}
+                aria-label="Close"
               >
-                ✕
+                <X size={18} />
               </button>
             </div>
 

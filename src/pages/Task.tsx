@@ -3,6 +3,7 @@ import AssignTaskModal from "../pages/Assigntaskmodal";
 import { API_BASE_URL, fetchWithAuth } from "../utils/api";
 import Dropdown from "../components/Dropdown";
 import { showToast } from "../components/Toast";
+import { X, Rocket } from "lucide-react";
 import "../components/Task.css";
 
 const BACKEND_URL = API_BASE_URL;
@@ -21,6 +22,7 @@ interface Task {
   task_name: string;
   phase: string;
   assignee: string;
+  start_date?: string;
   due_date: string;
   priority: Priority;
   status: Status;
@@ -50,11 +52,11 @@ interface Project {
 }
 
 const PHASES = [
-  "Phase 1 - Foundation",
-  "Phase 2 - Structural",
-  "Phase 3 - Electrical & Utilities",
-  "Phase 4 - Plumbing & MEP",
-  "Phase 5 - Finishing",
+  "Foundation",
+  "Structural",
+  "Electrical & Utilities",
+  "Plumbing & MEP",
+  "Finishing",
 ];
 
 function normalizePhase(raw?: string): string {
@@ -65,7 +67,7 @@ function normalizePhase(raw?: string): string {
   if (s.includes("phase 3") || s.includes("utilit") || s.includes("electr")) return PHASES[2];
   if (s.includes("phase 4") || s.includes("plumb") || s.includes("mep")) return PHASES[3];
   if (s.includes("phase 5") || s.includes("finish")) return PHASES[4];
-  return raw;
+  return raw.replace(/^Phase\s*\d+\s*[-–:]\s*/i, '').trim() || raw;
 }
 
 function groupByPhase(tasks: Task[]): Record<string, Task[]> {
@@ -123,8 +125,28 @@ function TaskDetailPanel({
   const assignees = task.assignee
     ? task.assignee.split(",").map((s) => s.trim()).filter(Boolean)
     : [];
+
+  const cleanMaterialItem = (raw: string) => {
+    if (!raw) return '';
+    const withoutParens = raw.replace(/\s*\([^)]*\)/g, '').trim();
+    const lower = withoutParens.toLowerCase();
+    if (
+      !withoutParens ||
+      lower === 'standard site materials' ||
+      lower.includes('standard site material') ||
+      lower === 'none specified' ||
+      lower === 'none'
+    ) {
+      return '';
+    }
+    return withoutParens;
+  };
+
   const materials = task.materials_required
-    ? task.materials_required.split(",").map((s) => s.trim()).filter(Boolean)
+    ? task.materials_required
+        .split(",")
+        .map((s) => cleanMaterialItem(s.trim()))
+        .filter(Boolean)
     : [];
   const subtasks: SubTask[] = Array.isArray(task.subtasks) ? task.subtasks : [];
   const completedCount = subtasks.filter((s) => s.completed).length;
@@ -192,8 +214,9 @@ function TaskDetailPanel({
                       className="tdp-subtask-delete-btn"
                       onClick={() => onDeleteSubtask(task.id, st.id)}
                       title="Delete step"
+                      aria-label="Delete step"
                     >
-                      ✕
+                      <X size={13} />
                     </button>
                   </div>
                 ))}
@@ -214,7 +237,7 @@ function TaskDetailPanel({
                 onChange={(e) => setNewSubtaskTitle(e.target.value)}
               />
               <button type="submit" className="tdp-add-subtask-btn">
-                + Add Step
+                + Add Subtask
               </button>
             </form>
           </div>
@@ -256,6 +279,14 @@ function TaskDetailPanel({
                 <span className="tdp-info-value">{task.project_code} — {task.project_name}</span>
               </div>
             )}
+            {task.start_date && (
+              <div className="tdp-info-item">
+                <span className="tdp-info-label">Start Date</span>
+                <span className="tdp-info-value">
+                  {new Date(task.start_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                </span>
+              </div>
+            )}
             <div className="tdp-info-item">
               <span className="tdp-info-label">Phase Milestone Target</span>
               <span className="tdp-info-value" style={{ color: '#ea580c', fontWeight: 700 }}>
@@ -265,8 +296,10 @@ function TaskDetailPanel({
               </span>
             </div>
             <div className="tdp-info-item">
-              <span className="tdp-info-label">Manpower Needed</span>
-              <span className="tdp-info-value">{task.manpower_needed || "—"}</span>
+              <span className="tdp-info-label">Percent Progress</span>
+              <span className="tdp-info-value" style={{ color: '#16a34a', fontWeight: 700 }}>
+                {task.progress_pct ?? 0}%
+              </span>
             </div>
             <div className="tdp-info-item">
               <span className="tdp-info-label">Materials Required</span>
@@ -275,7 +308,7 @@ function TaskDetailPanel({
                   {materials.map((m) => <span className="tdp-tag" key={m}>{m}</span>)}
                 </div>
               ) : (
-                <span className="tdp-info-value">—</span>
+                <span className="tdp-info-value" style={{ color: '#94a3b8' }}>None specified</span>
               )}
             </div>
             <div className="tdp-info-item tdp-info-item--full">
@@ -297,15 +330,17 @@ interface CreateTaskFormProps {
 }
 
 const EMPTY_FORM = {
-  taskName: "", phase: "", assigneeId: "", projectId: "", dueDate: "",
+  taskName: "", phase: "", assigneeId: "", projectId: "",
+  startDate: new Date().toISOString().split('T')[0],
+  dueDate: "",
   priority: "Medium" as Priority, manpowerNeeded: "",
-  materialsRequired: "", siteInstructions: "",
+  siteInstructions: "",
 };
 
 function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: CreateTaskFormProps) {
   const [form, setForm] = useState({
     ...EMPTY_FORM,
-    phase: initialPhase || "Phase 1 - Foundation",
+    phase: initialPhase || "Foundation",
     projectId: initialProjectId || "",
   });
   const [loading, setLoading]                 = useState(false);
@@ -353,6 +388,8 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
+  const todayStr = new Date().toISOString().split('T')[0];
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.taskName.trim())          { setError("Task name is required."); return; }
@@ -360,9 +397,11 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
     if (!form.projectId)                { setError("Please select a project."); return; }
     if (!form.assigneeId)               { setError("Please select an assignee engineer."); return; }
     if (!form.priority)                 { setError("Priority is required."); return; }
+    if (!form.startDate)                { setError("Start date is required."); return; }
     if (!form.dueDate)                  { setError("Due date is required."); return; }
+    if (form.dueDate < form.startDate)  { setError("Due date cannot be earlier than start date."); return; }
+    if (form.dueDate < todayStr)        { setError("Due date cannot be a past date."); return; }
     if (!form.manpowerNeeded.trim())    { setError("Manpower needed is required (e.g. 5 workers)."); return; }
-    if (!form.materialsRequired.trim()) { setError("Materials required is required (e.g. Cement, Rebar)."); return; }
     if (!form.siteInstructions.trim())  { setError("Site instructions are required."); return; }
 
     setLoading(true);
@@ -377,10 +416,10 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
           phase:             form.phase,
           assigneeId:        form.assigneeId,
           projectId:         form.projectId,
+          startDate:         form.startDate,
           dueDate:           form.dueDate,
           priority:          form.priority,
           manpowerNeeded:    form.manpowerNeeded.trim(),
-          materialsRequired: form.materialsRequired.trim(),
           siteInstructions:  form.siteInstructions.trim(),
         }),
       });
@@ -474,19 +513,19 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
 
           <div className="ct-row">
             <div className="ct-field">
-              <label className="ct-label">Due Date <span className="ct-required">*</span></label>
-              <input name="dueDate" type="date" className="ct-input" value={form.dueDate} onChange={handleChange} required />
+              <label className="ct-label">Start Date <span className="ct-required">*</span></label>
+              <input name="startDate" type="date" className="ct-input" value={form.startDate} onChange={handleChange} required />
             </div>
 
             <div className="ct-field">
-              <label className="ct-label">Manpower Needed <span className="ct-required">*</span></label>
-              <input name="manpowerNeeded" className="ct-input" placeholder="e.g. 5 workers" value={form.manpowerNeeded} onChange={handleChange} required />
+              <label className="ct-label">Due Date <span className="ct-required">*</span></label>
+              <input name="dueDate" type="date" min={form.startDate || todayStr} className="ct-input" value={form.dueDate} onChange={handleChange} required />
             </div>
           </div>
 
           <div className="ct-field">
-            <label className="ct-label">Materials Required <span className="ct-required">*</span></label>
-            <input name="materialsRequired" className="ct-input" placeholder="e.g. Cement, Rebar, Gravel (comma-separated)" value={form.materialsRequired} onChange={handleChange} required />
+            <label className="ct-label">Manpower Needed <span className="ct-required">*</span></label>
+            <input name="manpowerNeeded" className="ct-input" placeholder="e.g. 5 workers" value={form.manpowerNeeded} onChange={handleChange} required />
           </div>
 
           <div className="ct-field">
@@ -511,7 +550,7 @@ export default function Tasks() {
   const [fetchError, setFetchError]           = useState<string | null>(null);
   const [expandedIds, setExpandedIds]         = useState<Set<number | string>>(new Set());
   const [showCreate, setShowCreate]           = useState(false);
-  const [createTaskPhase, setCreateTaskPhase] = useState<string>("Phase 1 - Foundation");
+  const [createTaskPhase, setCreateTaskPhase] = useState<string>("Foundation");
   const [assignTask, setAssignTask]           = useState<import("../pages/Assigntaskmodal").TaskInfo | null>(null);
   const [projects, setProjects]               = useState<Project[]>([]);
   const [filterProjectId, setFilterProjectId] = useState<string>("");
@@ -757,7 +796,7 @@ export default function Tasks() {
         <button
           className="tasks-create-btn"
           onClick={() => {
-            setCreateTaskPhase("Phase 1 - Foundation");
+            setCreateTaskPhase("Foundation");
             setShowCreate(true);
           }}
         >
@@ -819,8 +858,8 @@ export default function Tasks() {
 
             {displayedTasks.length === 0 ? (
               <div style={{ padding: '2rem 1.5rem', textAlign: 'center', background: '#f8fafc', borderRadius: '10px', margin: '8px 0', border: '1px dashed #cbd5e1' }}>
-                <p style={{ margin: '0 0 6px', fontSize: '13.5px', fontWeight: 600, color: '#334155' }}>
-                  🚀 {phase} is ready for execution.
+                <p style={{ margin: '0 0 6px', fontSize: '13.5px', fontWeight: 600, color: '#334155', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                  <Rocket size={16} style={{ color: '#ea580c' }} /> {phase} is ready for execution.
                 </p>
                 <p style={{ margin: '0 0 12px', fontSize: '12px', color: '#64748b' }}>
                   No tasks scheduled in this phase yet. Click below to add the first task.

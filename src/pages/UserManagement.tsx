@@ -44,10 +44,12 @@ const UserManagement: React.FC = () => {
   // Check if current user is admin
   const storedUser = localStorage.getItem('user');
   let isAdmin = false;
+  let currentUserId: string | null = null;
   try {
     if (storedUser) {
       const parsed = JSON.parse(storedUser);
-      isAdmin = parsed.role === 'Admin';
+      isAdmin = parsed.role?.trim().toLowerCase() === 'admin';
+      currentUserId = parsed.id || null;
     }
   } catch { /* ignore */ }
 
@@ -96,18 +98,22 @@ const UserManagement: React.FC = () => {
     }
   };
 
-  const handleRemoveUser = async (userId: string) => {
-    if (!window.confirm("Are you sure you want to remove this user?")) return;
+  const handleRemoveUser = async (userId: string, userName?: string) => {
+    if (userId === currentUserId) {
+      showToast("You cannot remove your own account from your projects.", "warning");
+      return;
+    }
+    if (!window.confirm(`Remove ${userName || 'this user'} from your project team?`)) return;
     try {
       const res = await fetchWithAuth(`${BACKEND_URL}/users/${userId}`, {
         method: "DELETE",
       });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Failed to remove user");
+        throw new Error(data.error || "Failed to remove user from projects");
       }
       setUsers(prev => prev.filter(u => u.id !== userId));
-      showToast("User removed successfully!", "success");
+      showToast(`${userName || 'User'} removed from your project team.`, "success");
     } catch (err: any) {
       showToast(err.message, "error");
     }
@@ -146,23 +152,27 @@ const UserManagement: React.FC = () => {
               <div key={user.id} className="um-card">
                 <div className="um-card__name" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span>{user.full_name}</span>
-                  <button
-                    onClick={() => handleRemoveUser(user.id)}
-                    disabled={!isAdmin}
-                    title={isAdmin ? "Remove User" : "Only Admins can remove users"}
-                    style={{
-                      background: 'transparent',
-                      border: isAdmin ? '1px solid #ff4d4f' : '1px solid #ccc',
-                      color: isAdmin ? '#ff4d4f' : '#ccc',
-                      borderRadius: '6px',
-                      padding: '4px 10px',
-                      fontSize: '12px',
-                      cursor: isAdmin ? 'pointer' : 'not-allowed',
-                      fontWeight: 600
-                    }}
-                  >
-                    Remove
-                  </button>
+                  {user.id === currentUserId ? (
+                    <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>You (Owner)</span>
+                  ) : (
+                    <button
+                      onClick={() => handleRemoveUser(user.id, user.full_name)}
+                      disabled={!isAdmin}
+                      title={isAdmin ? "Remove from your project team" : "Only Admins can remove members"}
+                      style={{
+                        background: 'transparent',
+                        border: isAdmin ? '1px solid #ff4d4f' : '1px solid #ccc',
+                        color: isAdmin ? '#ff4d4f' : '#ccc',
+                        borderRadius: '6px',
+                        padding: '4px 10px',
+                        fontSize: '12px',
+                        cursor: isAdmin ? 'pointer' : 'not-allowed',
+                        fontWeight: 600
+                      }}
+                    >
+                      Remove
+                    </button>
+                  )}
                 </div>
 
                 <div className="um-card__grid">

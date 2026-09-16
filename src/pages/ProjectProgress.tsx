@@ -4,15 +4,16 @@ import '../components/ProjectProgress.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import { showToast } from '../components/Toast';
 import ProfileDropdown from '../components/ProfileDropdown';
+import { TrendingUp, Building2, HardHat, FileEdit, Check, Pin, CloudSun, ArrowLeft } from 'lucide-react';
 
 const API_URL = API_BASE_URL;
 
 const PHASES = [
-  'Phase 1 - Foundation',
-  'Phase 2 - Structural',
-  'Phase 3 - Electrical & Utilities',
-  'Phase 4 - Plumbing & MEP',
-  'Phase 5 - Finishing',
+  'Foundation',
+  'Structural',
+  'Electrical & Utilities',
+  'Plumbing & MEP',
+  'Finishing',
 ] as const;
 
 interface ProgressLog {
@@ -42,18 +43,18 @@ const ProjectProgress: React.FC = () => {
   const [loading, setLoading]       = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [projectName, setProjectName] = useState('');
-  const [currentPhase, setCurrentPhase] = useState<string>('Phase 1 - Foundation');
+  const [currentPhase, setCurrentPhase] = useState<string>('Foundation');
   const [overallProgress, setOverallProgress] = useState<number>(0);
   const [, setTaskBreakdown] = useState<TaskPhaseBreakdown[]>([]);
   const [logs, setLogs] = useState<ProgressLog[]>([]);
 
   // Form State for new progress update
-  const [formPhase, setFormPhase] = useState<string>('Phase 1 - Foundation');
-  const [formPct, setFormPct] = useState<number>(50);
+  const [formPhase, setFormPhase] = useState<string>('Foundation');
+  const [formPct, setFormPct] = useState<number>(0);
   const [formSummary, setFormSummary] = useState('');
   const [formWork, setFormWork] = useState('');
-  const [formManpower, setFormManpower] = useState<number>(30);
-  const [formWeather, setFormWeather] = useState('Sunny, 30°C');
+  const [formManpower, setFormManpower] = useState<number>(0);
+  const [formWeather, setFormWeather] = useState('');
 
   const fetchProgressData = async () => {
     setLoading(true);
@@ -64,9 +65,10 @@ const ProjectProgress: React.FC = () => {
 
       const data = json.data;
       setProjectName(data.project?.name || '');
-      setCurrentPhase(data.project?.phase || 'Phase 1 - Foundation');
+      const pPhase = data.project?.phase ? data.project.phase.replace(/^Phase\s*\d+\s*[-–:]\s*/i, '') : 'Foundation';
+      setCurrentPhase(pPhase);
       setOverallProgress(data.project?.progress_pct ?? 0);
-      setFormPhase(data.project?.phase || 'Phase 1 - Foundation');
+      setFormPhase(pPhase);
       setFormPct(data.project?.progress_pct ?? 50);
       setTaskBreakdown(data.taskBreakdown || []);
       setLogs(data.logs || []);
@@ -128,19 +130,24 @@ const ProjectProgress: React.FC = () => {
 
   return (
     <main className="pp-page">
-      {/* ── Breadcrumb & Profile ── */}
+      {/* ── Nav & Profile ── */}
       <div className="pp-nav-row">
-        <div className="pp-breadcrumb">
-          <button className="pp-breadcrumb-link" onClick={() => navigate('/projects')}>
-            Projects
-          </button>
-          <span className="pp-breadcrumb-sep">/</span>
-          <button className="pp-breadcrumb-link" onClick={() => navigate(`/projects/${projectCode}`)}>
-            {projectCode}
-          </button>
-          <span className="pp-breadcrumb-sep">/</span>
-          <span className="pp-breadcrumb-current">Update Progress</span>
-        </div>
+        <button
+          type="button"
+          className="pd-back-btn"
+          onClick={() => {
+            if (window.history.state && window.history.state.idx > 0) {
+              navigate(-1);
+            } else {
+              navigate(projectCode ? `/projects/${projectCode}` : '/projects');
+            }
+          }}
+          title="Back to previous page"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '15px', fontWeight: 700, color: '#0f172a', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+        >
+          <ArrowLeft size={16} strokeWidth={2.5} />
+          Back to Previous
+        </button>
         <ProfileDropdown />
       </div>
 
@@ -161,7 +168,7 @@ const ProjectProgress: React.FC = () => {
       <div className="pp-metrics-grid">
         <div className="pp-metric-card">
           <div className="pp-metric-icon" style={{ background: '#fff0e8', color: '#f05a28' }}>
-            📊
+            <TrendingUp size={22} />
           </div>
           <div className="pp-metric-info">
             <span className="pp-metric-value">{overallProgress}%</span>
@@ -171,17 +178,17 @@ const ProjectProgress: React.FC = () => {
 
         <div className="pp-metric-card">
           <div className="pp-metric-icon" style={{ background: '#fff7ed', color: '#ea580c' }}>
-            🏗️
+            <Building2 size={22} />
           </div>
           <div className="pp-metric-info">
-            <span className="pp-metric-value" style={{ fontSize: '16px' }}>{currentPhase.split(' - ')[1] || currentPhase}</span>
-            <span className="pp-metric-label">Active Phase</span>
+            <span className="pp-metric-value" style={{ fontSize: '16px' }}>{currentPhase ? currentPhase.replace(/^Phase\s*\d+\s*[-–:]\s*/i, '') : '—'}</span>
+            <span className="pp-metric-label">Milestone Phase</span>
           </div>
         </div>
 
         <div className="pp-metric-card">
           <div className="pp-metric-icon" style={{ background: '#dcfce7', color: '#16a34a' }}>
-            👷
+            <HardHat size={22} />
           </div>
           <div className="pp-metric-info">
             <span className="pp-metric-value">{logs[0]?.manpower || 35}</span>
@@ -191,7 +198,7 @@ const ProjectProgress: React.FC = () => {
 
         <div className="pp-metric-card">
           <div className="pp-metric-icon" style={{ background: '#f3e8ff', color: '#7e22ce' }}>
-            📝
+            <FileEdit size={22} />
           </div>
           <div className="pp-metric-info">
             <span className="pp-metric-value">{logs.length}</span>
@@ -294,8 +301,9 @@ const ProjectProgress: React.FC = () => {
               type="submit"
               className="pp-submit-btn"
               disabled={submitting}
+              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
             >
-              {submitting ? 'Saving Update…' : '✓ Save Progress Update'}
+              {submitting ? 'Saving Update…' : <><Check size={16} /> Save Progress Update</>}
             </button>
           </form>
         </div>
@@ -313,7 +321,8 @@ const ProjectProgress: React.FC = () => {
             <div className="pp-phases-list">
               {PHASES.map((p, idx) => {
                 // Calculate percentage based on active phase
-                const currentIdx = PHASES.indexOf(currentPhase as any);
+                const cleanCurrent = (currentPhase || '').replace(/^Phase\s*\d+\s*[-–:]\s*/i, '');
+                const currentIdx = PHASES.indexOf(cleanCurrent as any);
                 let phasePct = 0;
                 if (idx < currentIdx) phasePct = 100;
                 else if (idx === currentIdx) phasePct = overallProgress;
@@ -323,8 +332,8 @@ const ProjectProgress: React.FC = () => {
                   <div key={p} className="pp-phase-item">
                     <div className="pp-phase-header">
                       <span>{p}</span>
-                      <span style={{ color: phasePct === 100 ? '#16a34a' : '#f05a28' }}>
-                        {phasePct}% {phasePct === 100 ? '✓' : ''}
+                      <span style={{ color: phasePct === 100 ? '#16a34a' : '#f05a28', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                        {phasePct}% {phasePct === 100 && <Check size={13} />}
                       </span>
                     </div>
                     <div className="pp-phase-bar-bg">
@@ -365,10 +374,20 @@ const ProjectProgress: React.FC = () => {
                     </div>
                     <p className="pp-log-summary">{item.summary}</p>
                     {item.work_completed && (
-                      <p className="pp-log-work">📌 {item.work_completed}</p>
+                      <p className="pp-log-work" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <Pin size={13} style={{ color: '#ea580c' }} /> {item.work_completed}
+                      </p>
                     )}
                     <div className="pp-log-footer">
-                      <span>👷 {item.manpower} workers • ⛅ {item.weather}</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <HardHat size={13} /> {item.manpower} workers
+                        </span>
+                        •
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <CloudSun size={13} /> {item.weather}
+                        </span>
+                      </span>
                       <span>{formatDate(item.created_at)}</span>
                     </div>
                   </div>

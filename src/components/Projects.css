@@ -48,6 +48,9 @@
 }
 
 .pm-new-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   background: #ea580c;
   color: #ffffff;
   border: none;
@@ -336,6 +339,9 @@
 }
 
 .pm-hub-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   background: transparent;
   border: none;
   padding: 9px 18px;

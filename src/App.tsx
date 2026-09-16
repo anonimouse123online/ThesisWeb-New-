@@ -1,7 +1,7 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
-import Projects from './pages/Projects';
+import Projects from './pages/Projects'; 
 import Sidebar from './components/Sidebar';
 import ProjectDetails from './pages/ProjectDetails';
 import Task from './pages/Task';
@@ -18,11 +18,10 @@ import IssueReport from './pages/IssueReport';
 import ProjectReports from './pages/ProjectReports';
 import Settings from './pages/Settings';
 import Notification from './pages/Notification';
-import Messages from './pages/Messages';
 import ProtectedRoute from './components/ProtectedRoute';
 import { ToastContainer } from './components/Toast';
 
-// ─── Layout wrapper for authenticated pages ────────────────────────────────
+// ─── Layout wrapper for authenticated pages ─────────────────────────────────
 function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <ProtectedRoute>
@@ -38,15 +37,12 @@ export default function App() {
   return (
     <Router>
       <ToastContainer />
-
       <Routes>
-        {/* ============================================================
-            PUBLIC ROUTES
-        ============================================================ */}
-
+        {/* Public routes */}
         <Route path="/" element={<LoginPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<RegisterPage />} />
+
 
         {/* ============================================================
             PROTECTED ROUTES
@@ -81,11 +77,7 @@ export default function App() {
 
         <Route
           path="/task/:taskId"
-          element={
-            <AuthLayout>
-              <Task />
-            </AuthLayout>
-          }
+          element={<Navigate to="/projects" replace />}
         />
 
         <Route
@@ -134,17 +126,8 @@ export default function App() {
         />
 
         {/* ============================================================
-            NOTIFICATIONS & MESSAGES
+            NOTIFICATIONS
         ============================================================ */}
-
-        <Route
-          path="/messages"
-          element={
-            <ProtectedRoute>
-              <Messages />
-            </ProtectedRoute>
-          }
-        />
 
         <Route
           path="/notifications"
@@ -217,6 +200,8 @@ export default function App() {
             404
         ============================================================ */}
 
+
+        {/* 404 catch-all */}
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Router>
