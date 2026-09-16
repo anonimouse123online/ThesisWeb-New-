@@ -66,39 +66,6 @@ const pillClass = (status: string): string => {
 };
 
 // --- SUB-COMPONENTS ---
-const StatCard: React.FC<StatItem> = ({ label, value, trend, up, bg, clr, icon }) => {
-  const isIssuesReported = label.toLowerCase() === 'issues reported';
-
-  return (
-    <div className="stat-card">
-      <div className="stat-icon-box" style={{ background: bg, color: clr }}>{icon}</div>
-      <p className="stat-label text-muted">{label}</p>
-      <p className="stat-value">{value}</p>
-
-      {isIssuesReported ? (
-        <div className="issue-breakdown">
-          {/* TODO: Connect delayed issue count to backend later */}
-          <div className="issue-breakdown-item issue-breakdown-delayed">
-            <span className="issue-breakdown-value">{DELAYED_ISSUES}</span>
-            <span className="issue-breakdown-label">Delayed</span>
-          </div>
-
-          <div className="issue-breakdown-divider" />
-
-          {/* TODO: Connect ongoing issue count to backend later */}
-          <div className="issue-breakdown-item issue-breakdown-ongoing">
-            <span className="issue-breakdown-value">{ONGOING_ISSUES}</span>
-            <span className="issue-breakdown-label">Ongoing</span>
-          </div>
-        </div>
-      ) : (
-        <p className={`stat-trend ${up ? 'text-green' : 'text-red'}`}>
-          <span>{up ? '↗' : '↘'}</span> {trend} from last month
-        </p>
-      )}
-    </div>
-  );
-};
 const StatCard: React.FC<StatItem> = ({ label, value, trend, up, bg, clr, icon }) => (
   <div className="stat-card">
     <p className="stat-label text-muted">{label}</p>
