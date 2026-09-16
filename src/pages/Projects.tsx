@@ -5,7 +5,7 @@ import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import Dropdown from '../components/Dropdown';
 import ProfileDropdown from '../components/ProfileDropdown';
 import { showToast } from '../components/Toast';
-import { ArrowRight, AlertTriangle } from 'lucide-react';
+import { ArrowRight, AlertTriangle, Building2, Package, Plus } from 'lucide-react';
 
 const BACKEND_URL = API_BASE_URL;
 
@@ -293,13 +293,14 @@ const Projects: React.FC = () => {
             className={`pm-hub-tab ${activeView === 'projects' ? 'pm-hub-tab--active' : ''}`}
             onClick={() => setView('projects')}
           >
-            🏢 Projects Overview ({projects.length})
+            <Building2 size={16} />
+            <span>Projects Overview ({projects.length})</span>
           </button>
-
         </div>
 
         <button className="pm-new-btn" onClick={() => setShowModal(true)}>
-          + New Project
+          <Plus size={15} />
+          <span>New Project</span>
         </button>
       </div>
 
@@ -383,8 +384,9 @@ const Projects: React.FC = () => {
                         </div>
                       </td>
                       <td>
-                        <span style={{ fontSize: '12px', background: '#f1f5f9', padding: '3px 8px', borderRadius: '12px', fontWeight: 600 }}>
-                          📦 {resCount} items
+                        <span style={{ fontSize: '12px', background: '#f1f5f9', padding: '4px 8px', borderRadius: '12px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                          <Package size={13} style={{ color: '#64748b' }} />
+                          <span>{resCount} items</span>
                         </span>
                       </td>
                       <td><span className={getStatusClass(prj.status)}>{prj.status}</span></td>

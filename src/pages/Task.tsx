@@ -22,6 +22,7 @@ interface Task {
   task_name: string;
   phase: string;
   assignee: string;
+  start_date?: string;
   due_date: string;
   priority: Priority;
   status: Status;
@@ -124,8 +125,28 @@ function TaskDetailPanel({
   const assignees = task.assignee
     ? task.assignee.split(",").map((s) => s.trim()).filter(Boolean)
     : [];
+
+  const cleanMaterialItem = (raw: string) => {
+    if (!raw) return '';
+    const withoutParens = raw.replace(/\s*\([^)]*\)/g, '').trim();
+    const lower = withoutParens.toLowerCase();
+    if (
+      !withoutParens ||
+      lower === 'standard site materials' ||
+      lower.includes('standard site material') ||
+      lower === 'none specified' ||
+      lower === 'none'
+    ) {
+      return '';
+    }
+    return withoutParens;
+  };
+
   const materials = task.materials_required
-    ? task.materials_required.split(",").map((s) => s.trim()).filter(Boolean)
+    ? task.materials_required
+        .split(",")
+        .map((s) => cleanMaterialItem(s.trim()))
+        .filter(Boolean)
     : [];
   const subtasks: SubTask[] = Array.isArray(task.subtasks) ? task.subtasks : [];
   const completedCount = subtasks.filter((s) => s.completed).length;
@@ -258,6 +279,14 @@ function TaskDetailPanel({
                 <span className="tdp-info-value">{task.project_code} — {task.project_name}</span>
               </div>
             )}
+            {task.start_date && (
+              <div className="tdp-info-item">
+                <span className="tdp-info-label">Start Date</span>
+                <span className="tdp-info-value">
+                  {new Date(task.start_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                </span>
+              </div>
+            )}
             <div className="tdp-info-item">
               <span className="tdp-info-label">Phase Milestone Target</span>
               <span className="tdp-info-value" style={{ color: '#ea580c', fontWeight: 700 }}>
@@ -279,7 +308,7 @@ function TaskDetailPanel({
                   {materials.map((m) => <span className="tdp-tag" key={m}>{m}</span>)}
                 </div>
               ) : (
-                <span className="tdp-info-value">—</span>
+                <span className="tdp-info-value" style={{ color: '#94a3b8' }}>None specified</span>
               )}
             </div>
             <div className="tdp-info-item tdp-info-item--full">
@@ -301,7 +330,9 @@ interface CreateTaskFormProps {
 }
 
 const EMPTY_FORM = {
-  taskName: "", phase: "", assigneeId: "", projectId: "", dueDate: "",
+  taskName: "", phase: "", assigneeId: "", projectId: "",
+  startDate: new Date().toISOString().split('T')[0],
+  dueDate: "",
   priority: "Medium" as Priority, manpowerNeeded: "",
   siteInstructions: "",
 };
@@ -366,7 +397,9 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
     if (!form.projectId)                { setError("Please select a project."); return; }
     if (!form.assigneeId)               { setError("Please select an assignee engineer."); return; }
     if (!form.priority)                 { setError("Priority is required."); return; }
+    if (!form.startDate)                { setError("Start date is required."); return; }
     if (!form.dueDate)                  { setError("Due date is required."); return; }
+    if (form.dueDate < form.startDate)  { setError("Due date cannot be earlier than start date."); return; }
     if (form.dueDate < todayStr)        { setError("Due date cannot be a past date."); return; }
     if (!form.manpowerNeeded.trim())    { setError("Manpower needed is required (e.g. 5 workers)."); return; }
     if (!form.siteInstructions.trim())  { setError("Site instructions are required."); return; }
@@ -383,6 +416,7 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
           phase:             form.phase,
           assigneeId:        form.assigneeId,
           projectId:         form.projectId,
+          startDate:         form.startDate,
           dueDate:           form.dueDate,
           priority:          form.priority,
           manpowerNeeded:    form.manpowerNeeded.trim(),
@@ -479,14 +513,19 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
 
           <div className="ct-row">
             <div className="ct-field">
-              <label className="ct-label">Due Date <span className="ct-required">*</span></label>
-              <input name="dueDate" type="date" min={todayStr} className="ct-input" value={form.dueDate} onChange={handleChange} required />
+              <label className="ct-label">Start Date <span className="ct-required">*</span></label>
+              <input name="startDate" type="date" className="ct-input" value={form.startDate} onChange={handleChange} required />
             </div>
 
             <div className="ct-field">
-              <label className="ct-label">Manpower Needed <span className="ct-required">*</span></label>
-              <input name="manpowerNeeded" className="ct-input" placeholder="e.g. 5 workers" value={form.manpowerNeeded} onChange={handleChange} required />
+              <label className="ct-label">Due Date <span className="ct-required">*</span></label>
+              <input name="dueDate" type="date" min={form.startDate || todayStr} className="ct-input" value={form.dueDate} onChange={handleChange} required />
             </div>
+          </div>
+
+          <div className="ct-field">
+            <label className="ct-label">Manpower Needed <span className="ct-required">*</span></label>
+            <input name="manpowerNeeded" className="ct-input" placeholder="e.g. 5 workers" value={form.manpowerNeeded} onChange={handleChange} required />
           </div>
 
           <div className="ct-field">

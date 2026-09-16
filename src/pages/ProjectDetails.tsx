@@ -78,6 +78,7 @@ interface TaskItem {
   task_name: string;
   phase: string;
   assignee: string;
+  start_date?: string;
   due_date: string;
   priority: 'High' | 'Medium' | 'Low';
   status: string;
@@ -105,12 +106,6 @@ interface ResourceItem {
   updatedAt: string;
 }
 
-interface UserOption {
-  id: string;
-  full_name: string;
-  email: string;
-  role: string;
-}
 
 const PHASES = [
   'Foundation',
@@ -327,7 +322,6 @@ const ProjectDetails: React.FC = () => {
   const [resourceSearch, setResourceSearch] = useState('');
 
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-  const [usersList, setUsersList] = useState<UserOption[]>([]);
 
   // Modals for In-Workspace Actions
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
@@ -335,6 +329,7 @@ const ProjectDetails: React.FC = () => {
     taskName: '',
     phase: PHASES[0],
     assigneeId: '',
+    startDate: new Date().toISOString().split('T')[0],
     dueDate: '',
     priority: 'Medium' as 'High' | 'Medium' | 'Low',
     manpowerNeeded: '',
@@ -461,14 +456,7 @@ const ProjectDetails: React.FC = () => {
       }
     } catch { /* ignore */ }
 
-    // Fetch Users list for task assignment
-    try {
-      const uRes = await fetchWithAuth(`${API_URL}/users`);
-      if (uRes.ok) {
-        const uJson = await uRes.json();
-        setUsersList(uJson.data || uJson || []);
-      }
-    } catch { /* ignore */ }
+
   };
 
   useEffect(() => {
@@ -629,15 +617,31 @@ const ProjectDetails: React.FC = () => {
     }
   };
 
+  const cleanMaterialItem = (raw: string) => {
+    if (!raw) return '';
+    const withoutParens = raw.replace(/\s*\([^)]*\)/g, '').trim();
+    const lower = withoutParens.toLowerCase();
+    if (
+      !withoutParens ||
+      lower === 'standard site materials' ||
+      lower.includes('standard site material') ||
+      lower === 'none specified' ||
+      lower === 'none'
+    ) {
+      return '';
+    }
+    return withoutParens;
+  };
+
   const formatMaterialsString = (items: AllocatedMaterial[]) => {
     return items
       .map(item => {
-        let details = [];
-        if (item.supplier && item.supplier !== 'General Supplier') details.push(item.supplier);
-        if (item.unitPrice && Number(item.unitPrice) > 0) details.push(`₱${item.unitPrice}`);
-        const extra = details.length ? ` - ${details.join(', ')}` : '';
-        return `${item.quantity ? item.quantity + ' ' : ''}${item.unit ? item.unit + ' ' : ''}${item.name} (${item.category}${extra})`.trim();
+        const qty = item.quantity ? `${item.quantity} ` : '';
+        const unit = item.unit ? `${item.unit} ` : '';
+        const name = (item.name || '').trim();
+        return `${qty}${unit}${name}`.trim();
       })
+      .filter(Boolean)
       .join(', ');
   };
 
@@ -703,6 +707,10 @@ const ProjectDetails: React.FC = () => {
     }
 
     const todayStr = new Date().toISOString().split('T')[0];
+    if (newTaskForm.startDate && newTaskForm.dueDate && newTaskForm.dueDate < newTaskForm.startDate) {
+      showToast('Due date cannot be earlier than start date', 'warning');
+      return;
+    }
     if (newTaskForm.dueDate && newTaskForm.dueDate < todayStr) {
       showToast('Due date cannot be a past date', 'warning');
       return;
@@ -714,10 +722,12 @@ const ProjectDetails: React.FC = () => {
         taskName: newTaskForm.taskName.trim(),
         projectId: project.id || project.code,
         phase: newTaskForm.phase,
-        assigneeId: newTaskForm.assigneeId || (usersList[0]?.id ?? null),
+        assigneeId: newTaskForm.assigneeId || (teamMembers[0]?.id ?? null),
+        startDate: newTaskForm.startDate || new Date().toISOString().split('T')[0],
         dueDate: newTaskForm.dueDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
         priority: newTaskForm.priority,
         manpowerNeeded: newTaskForm.manpowerNeeded,
+        materialsRequired: newTaskForm.materialsRequired || formatMaterialsString(allocatedMaterials),
         siteInstructions: newTaskForm.siteInstructions,
         subtasks: newTaskForm.subtasks || [],
         allocatedMaterials: allocatedMaterials,
@@ -748,6 +758,7 @@ const ProjectDetails: React.FC = () => {
         taskName: '',
         phase: PHASES[0],
         assigneeId: '',
+        startDate: new Date().toISOString().split('T')[0],
         dueDate: '',
         priority: 'Medium',
         manpowerNeeded: '',
@@ -1477,37 +1488,47 @@ const ProjectDetails: React.FC = () => {
                                                 <div style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                                                   Materials &amp; Resources:
                                                 </div>
-                                                {task.materials_required ? (
-                                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                                                    {task.materials_required.split(',').map((mat, i) => {
-                                                      const trimmed = mat.trim();
-                                                      if (!trimmed) return null;
-                                                      const isEquip = trimmed.toLowerCase().includes('equipment');
-                                                      return (
+                                                {(() => {
+                                                  const validItems = (task.materials_required || '')
+                                                    .split(',')
+                                                    .map(mat => {
+                                                      const raw = mat.trim();
+                                                      const cleanName = cleanMaterialItem(raw);
+                                                      if (!cleanName) return null;
+                                                      const isEquip = raw.toLowerCase().includes('equipment');
+                                                      return { raw, cleanName, isEquip };
+                                                    })
+                                                    .filter(Boolean) as { raw: string; cleanName: string; isEquip: boolean }[];
+
+                                                  if (validItems.length === 0) {
+                                                    return <span style={{ fontSize: '12px', color: '#94a3b8' }}>None specified</span>;
+                                                  }
+
+                                                  return (
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                                      {validItems.map((item, i) => (
                                                         <span
                                                           key={i}
                                                           style={{
                                                             display: 'inline-flex',
                                                             alignItems: 'center',
                                                             gap: '5px',
-                                                            background: isEquip ? '#eff6ff' : '#f8fafc',
-                                                            border: `1px solid ${isEquip ? '#bfdbfe' : '#e2e8f0'}`,
-                                                            color: isEquip ? '#1d4ed8' : '#334155',
+                                                            background: item.isEquip ? '#eff6ff' : '#f8fafc',
+                                                            border: `1px solid ${item.isEquip ? '#bfdbfe' : '#e2e8f0'}`,
+                                                            color: item.isEquip ? '#1d4ed8' : '#334155',
                                                             borderRadius: '6px',
                                                             padding: '3px 8px',
                                                             fontSize: '11.5px',
                                                             fontWeight: 600,
                                                           }}
                                                         >
-                                                          <span>{isEquip ? <Truck size={13} style={{ color: '#2563eb' }} /> : <Package size={13} style={{ color: '#64748b' }} />}</span>
-                                                          <span>{trimmed}</span>
+                                                          <span>{item.isEquip ? <Truck size={13} style={{ color: '#2563eb' }} /> : <Package size={13} style={{ color: '#64748b' }} />}</span>
+                                                          <span>{item.cleanName}</span>
                                                         </span>
-                                                      );
-                                                    })}
-                                                  </div>
-                                                ) : (
-                                                  <span style={{ fontSize: '12px', color: '#94a3b8' }}>None specified</span>
-                                                )}
+                                                      ))}
+                                                    </div>
+                                                  );
+                                                })()}
                                               </div>
                                               <p><strong>Instructions:</strong> {task.site_instructions || 'Standard engineering protocol'}</p>
 
@@ -1786,23 +1807,37 @@ const ProjectDetails: React.FC = () => {
                     className="pm-input pm-select"
                     value={newTaskForm.assigneeId}
                     onChange={e => setNewTaskForm({ ...newTaskForm, assigneeId: e.target.value })}
+                    required
                   >
                     <option value="">Select an engineer</option>
-                    {usersList.map(u => (
-                      <option key={u.id} value={u.id}>
-                        {u.full_name || u.email} ({u.role})
-                      </option>
-                    ))}
+                    {teamMembers.length === 0 ? (
+                      <option value="" disabled>No invited members in this project</option>
+                    ) : (
+                      teamMembers.map(u => (
+                        <option key={u.id} value={u.id}>
+                          {u.name || u.email} ({u.role})
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
               </div>
 
-              <div className="pm-form-row pm-form-row--2">
+              <div className="pm-form-row pm-form-row--3">
+                <div className="pm-form-group">
+                  <label>Start Date</label>
+                  <input
+                    type="date"
+                    className="pm-input"
+                    value={newTaskForm.startDate}
+                    onChange={e => setNewTaskForm({ ...newTaskForm, startDate: e.target.value })}
+                  />
+                </div>
                 <div className="pm-form-group">
                   <label>Due Date</label>
                   <input
                     type="date"
-                    min={new Date().toISOString().split('T')[0]}
+                    min={newTaskForm.startDate || new Date().toISOString().split('T')[0]}
                     className="pm-input"
                     value={newTaskForm.dueDate}
                     onChange={e => setNewTaskForm({ ...newTaskForm, dueDate: e.target.value })}

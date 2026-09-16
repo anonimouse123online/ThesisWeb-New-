@@ -51,6 +51,7 @@ const CreateTask: React.FC = () => {
     projectId: '',
     phase: 'Foundation',
     assigneeId: '',
+    startDate: new Date().toISOString().split('T')[0],
     dueDate: '',
     priority: 'Medium',
     manpowerNeeded: 1,
@@ -83,26 +84,13 @@ const CreateTask: React.FC = () => {
   useEffect(() => {
     const fetchOptions = async () => {
       try {
-        const [pRes, uRes] = await Promise.all([
-          fetchWithAuth(`${API_URL}/projects`),
-          fetchWithAuth(`${API_URL}/users`),
-        ]);
-
+        const pRes = await fetchWithAuth(`${API_URL}/projects`);
         if (pRes.ok) {
           const pJson = await pRes.json();
           const pList = pJson.data || pJson || [];
           setProjects(pList);
           if (pList.length > 0 && !formData.projectId) {
             setFormData(prev => ({ ...prev, projectId: pList[0].id }));
-          }
-        }
-
-        if (uRes.ok) {
-          const uJson = await uRes.json();
-          const uList = uJson.data || uJson || [];
-          setUsers(uList);
-          if (uList.length > 0 && !formData.assigneeId) {
-            setFormData(prev => ({ ...prev, assigneeId: uList[0].id }));
           }
         }
       } catch (err: any) {
@@ -119,6 +107,8 @@ const CreateTask: React.FC = () => {
 
   useEffect(() => {
     if (!formData.projectId) return;
+
+    // Fetch resources for this project
     fetchWithAuth(`${API_URL}/resources?project_id=${formData.projectId}`)
       .then(res => (res.ok ? res.json() : null))
       .then(data => {
@@ -128,17 +118,44 @@ const CreateTask: React.FC = () => {
         }
       })
       .catch(() => {});
-  }, [formData.projectId]);
+
+    // Fetch members invited to this project
+    const selectedProj = projects.find(p => String(p.id) === String(formData.projectId) || p.code === formData.projectId);
+    const projCode = selectedProj?.code || formData.projectId;
+
+    fetchWithAuth(`${API_URL}/projects/${projCode}/members`)
+      .then(res => (res.ok ? res.json() : null))
+      .then(mJson => {
+        if (mJson && Array.isArray(mJson.data)) {
+          const members: UserOption[] = mJson.data.map((m: any) => ({
+            id: m.id,
+            full_name: m.name || m.full_name || m.email,
+            email: m.email || '',
+            role: m.role || 'Member',
+          }));
+          setUsers(members);
+          if (members.length > 0) {
+            setFormData(prev => ({
+              ...prev,
+              assigneeId: members.some(u => u.id === prev.assigneeId) ? prev.assigneeId : members[0].id,
+            }));
+          } else {
+            setFormData(prev => ({ ...prev, assigneeId: '' }));
+          }
+        }
+      })
+      .catch(() => {});
+  }, [formData.projectId, projects]);
 
   const formatMaterialsString = (items: AllocatedMaterial[]) => {
     return items
       .map(item => {
-        let details = [];
-        if (item.supplier && item.supplier !== 'General Supplier') details.push(item.supplier);
-        if (item.unitPrice && Number(item.unitPrice) > 0) details.push(`₱${item.unitPrice}`);
-        const extra = details.length ? ` - ${details.join(', ')}` : '';
-        return `${item.quantity ? item.quantity + ' ' : ''}${item.unit ? item.unit + ' ' : ''}${item.name} (${item.category}${extra})`.trim();
+        const qty = item.quantity ? `${item.quantity} ` : '';
+        const unit = item.unit ? `${item.unit} ` : '';
+        const name = (item.name || '').trim();
+        return `${qty}${unit}${name}`.trim();
       })
+      .filter(Boolean)
       .join(', ');
   };
 
@@ -198,12 +215,16 @@ const CreateTask: React.FC = () => {
       setError('Please select an assignee engineer.');
       return;
     }
+    if (!formData.startDate) {
+      setError('Start date is required.');
+      return;
+    }
     if (!formData.dueDate) {
       setError('Due date is required.');
       return;
     }
-    if (formData.dueDate < todayStr) {
-      setError('Due date cannot be a past date.');
+    if (formData.dueDate < formData.startDate) {
+      setError('Due date cannot be earlier than start date.');
       return;
     }
     if (!formData.manpowerNeeded || formData.manpowerNeeded <= 0) {
@@ -302,18 +323,29 @@ const CreateTask: React.FC = () => {
 
             {/* Assignee */}
             <div className="form-group">
-              <label>Assignee (Engineer / Team Member) *</label>
+              <label>Assign Lead Engineer *</label>
               <select
                 value={formData.assigneeId}
                 required
                 disabled={loadingOptions}
                 onChange={(e) => setFormData({ ...formData, assigneeId: e.target.value })}
               >
-                <option value="" disabled>{loadingOptions ? 'Loading engineers…' : 'Select an engineer'}</option>
+                <option value="" disabled>{loadingOptions ? 'Loading engineers…' : users.length === 0 ? 'No invited members in this project' : 'Select an engineer'}</option>
                 {users.map((u) => (
                   <option key={u.id} value={u.id}>{u.full_name} ({u.role})</option>
                 ))}
               </select>
+            </div>
+
+            {/* Start Date */}
+            <div className="form-group">
+              <label>Start Date *</label>
+              <input
+                type="date"
+                required
+                value={formData.startDate}
+                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+              />
             </div>
 
             {/* Due Date */}
@@ -321,7 +353,7 @@ const CreateTask: React.FC = () => {
               <label>Due Date *</label>
               <input
                 type="date"
-                min={todayStr}
+                min={formData.startDate || todayStr}
                 required
                 value={formData.dueDate}
                 onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
