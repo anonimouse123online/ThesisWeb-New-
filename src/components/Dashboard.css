@@ -469,3 +469,50 @@ body {
   border: 1px solid #e5e5e5;
   font-size: 13px;
 }
+/* ── Issues Reported Breakdown ── */
+
+.issue-breakdown {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.issue-breakdown-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.issue-breakdown-value {
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.issue-breakdown-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.issue-breakdown-delayed .issue-breakdown-value {
+  color: #dc2626;
+}
+
+.issue-breakdown-ongoing .issue-breakdown-value {
+  color: #f59e0b;
+}
+
+.issue-breakdown-divider {
+  width: 1px;
+  height: 28px;
+  background: #e2e8f0;
+  margin: 0 12px;
+}

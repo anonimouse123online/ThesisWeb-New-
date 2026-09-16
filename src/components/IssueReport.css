@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────
-   IssueReport.css  –  SitePulse Design System
+   IssueReport.css – SitePulse Design System
 ───────────────────────────────────────── */
 
 .ir-page {
@@ -16,7 +16,9 @@
   overflow-y: auto;
 }
 
+
 /* ── Nav & Breadcrumbs ── */
+
 .ir-nav-row {
   display: flex;
   align-items: center;
@@ -47,11 +49,23 @@
   transition: color 0.15s ease;
 }
 
-.ir-breadcrumb-link:hover { color: #f05a28; }
-.ir-breadcrumb-sep { color: #cbd5e1; font-size: 12px; }
-.ir-breadcrumb-current { color: #1e293b; font-weight: 600; }
+.ir-breadcrumb-link:hover {
+  color: #f05a28;
+}
+
+.ir-breadcrumb-sep {
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+.ir-breadcrumb-current {
+  color: #1e293b;
+  font-weight: 600;
+}
+
 
 /* ── Header ── */
+
 .ir-header {
   display: flex;
   align-items: center;
@@ -116,10 +130,16 @@
   transform: translateY(-1px);
 }
 
+
 /* ── Stat Metrics ── */
+
+/*
+  Three columns:
+  Issues Reported | Delayed | Ongoing
+*/
 .ir-stats-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 24px;
 }
@@ -134,11 +154,13 @@
   gap: 16px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
   transition: all 0.15s ease;
+  min-width: 0;
 }
 
 .ir-stat-card:hover {
   border-color: #dbc9b5;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+  transform: translateY(-1px);
 }
 
 .ir-stat-icon {
@@ -152,11 +174,29 @@
   flex-shrink: 0;
 }
 
-.ir-stat-info { display: flex; flex-direction: column; }
-.ir-stat-value { font-size: 22px; font-weight: 800; color: #111827; line-height: 1.1; }
-.ir-stat-label { font-size: 12px; font-weight: 600; color: #64748b; margin-top: 2px; }
+.ir-stat-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ir-stat-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: #111827;
+  line-height: 1.1;
+}
+
+.ir-stat-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  margin-top: 2px;
+}
+
 
 /* ── Toolbar ── */
+
 .ir-toolbar {
   background: #ffffff;
   border: 1px solid #ede5dc;
@@ -273,7 +313,9 @@
   border-radius: 10px;
 }
 
+
 /* ── Issues Grid ── */
+
 .ir-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -320,9 +362,23 @@
   letter-spacing: 0.02em;
 }
 
-.status-open { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }
-.status-in-progress { background: #fef3c7; color: #d97706; border: 1px solid #fde68a; }
-.status-resolved { background: #dcfce7; color: #16a34a; border: 1px solid #bbf7d0; }
+.status-open {
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.status-in-progress {
+  background: #fef3c7;
+  color: #d97706;
+  border: 1px solid #fde68a;
+}
+
+.status-resolved {
+  background: #dcfce7;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
 
 .ir-badge-priority {
   padding: 3px 8px;
@@ -331,10 +387,25 @@
   font-weight: 700;
 }
 
-.prio-critical { background: #7f1d1d; color: #fff; }
-.prio-high { background: #ffedd5; color: #c2410c; }
-.prio-medium { background: #e0f2fe; color: #0369a1; }
-.prio-low { background: #f1f5f9; color: #64748b; }
+.prio-critical {
+  background: #7f1d1d;
+  color: #ffffff;
+}
+
+.prio-high {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.prio-medium {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.prio-low {
+  background: #f1f5f9;
+  color: #64748b;
+}
 
 .ir-card-category {
   font-size: 11.5px;
@@ -384,13 +455,15 @@
   padding: 6px 10px;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  background: #fff;
+  background: #ffffff;
   color: #334155;
   outline: none;
   cursor: pointer;
 }
 
+
 /* ── Modal ── */
+
 .ir-modal-overlay {
   position: fixed;
   inset: 0;
@@ -404,7 +477,7 @@
 }
 
 .ir-modal {
-  background: #fff;
+  background: #ffffff;
   border-radius: 18px;
   width: 100%;
   max-width: 520px;
@@ -423,7 +496,7 @@
 .ir-modal-title {
   font-size: 1.25rem;
   font-weight: 800;
-  color: #111;
+  color: #111111;
   margin: 0 0 4px;
 }
 
@@ -447,7 +520,7 @@
 .ir-btn-cancel {
   flex: 1;
   background: #f0ece6;
-  color: #444;
+  color: #444444;
   border: none;
   border-radius: 10px;
   padding: 12px 0;
@@ -460,7 +533,7 @@
 .ir-btn-submit {
   flex: 1.5;
   background: #f05a28;
-  color: #fff;
+  color: #ffffff;
   border: none;
   border-radius: 10px;
   padding: 12px 0;
@@ -470,15 +543,53 @@
   font-family: inherit;
 }
 
-.ir-btn-submit:hover:not(:disabled) { background: #d84818; }
-.ir-btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+.ir-btn-submit:hover:not(:disabled) {
+  background: #d84818;
+}
+
+.ir-btn-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 
 /* ── Responsive ── */
+
 @media (max-width: 1024px) {
-  .ir-stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .ir-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 640px) {
-  .ir-page { margin-left: 0; width: 100%; padding: 16px; }
-  .ir-stats-grid { grid-template-columns: 1fr; }
+  .ir-page {
+    margin-left: 0;
+    width: 100%;
+    padding: 16px;
+  }
+
+  .ir-header {
+    align-items: flex-start;
+    gap: 16px;
+    flex-direction: column;
+  }
+
+  .ir-report-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .ir-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ir-toolbar-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ir-search-wrap {
+    min-width: 100%;
+    max-width: 100%;
+  }
 }

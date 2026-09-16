@@ -159,7 +159,10 @@ const IssueReport: React.FC = () => {
   const openCount     = issues.filter(i => i.status === 'Open').length;
   const inProgCount   = issues.filter(i => i.status === 'In Progress').length;
   const resolvedCount = issues.filter(i => i.status === 'Resolved').length;
-  const criticalCount = issues.filter(i => i.priority === 'Critical' || i.priority === 'High').length;
+
+  // TODO: Replace these hardcoded values with backend/API data later
+  const delayedCount = 5;
+  const ongoingCount = 12;
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -212,42 +215,34 @@ const IssueReport: React.FC = () => {
       {/* ── Metric Cards ── */}
       <div className="ir-stats-grid">
         <div className="ir-stat-card">
+          <div className="ir-stat-icon" style={{ background: '#dbeafe', color: '#2563eb' }}>
+            📋
+          </div>
+          <div className="ir-stat-info">
+            <span className="ir-stat-value">{totalCount}</span>
+            <span className="ir-stat-label">Issues Reported</span>
+          </div>
+        </div>
+
+        {/* TODO: Connect delayed issue count to backend later */}
+        <div className="ir-stat-card ir-stat-card--delayed">
           <div className="ir-stat-icon" style={{ background: '#fee2e2', color: '#dc2626' }}>
-            🚨
+            ⏰
           </div>
           <div className="ir-stat-info">
-            <span className="ir-stat-value">{openCount}</span>
-            <span className="ir-stat-label">Open Issues</span>
+            <span className="ir-stat-value">{delayedCount}</span>
+            <span className="ir-stat-label">Delayed</span>
           </div>
         </div>
 
-        <div className="ir-stat-card">
+        {/* TODO: Connect ongoing issue count to backend later */}
+        <div className="ir-stat-card ir-stat-card--ongoing">
           <div className="ir-stat-icon" style={{ background: '#fef3c7', color: '#d97706' }}>
-            ⏳
+            🔄
           </div>
           <div className="ir-stat-info">
-            <span className="ir-stat-value">{inProgCount}</span>
-            <span className="ir-stat-label">In Progress</span>
-          </div>
-        </div>
-
-        <div className="ir-stat-card">
-          <div className="ir-stat-icon" style={{ background: '#dcfce7', color: '#16a34a' }}>
-            ✅
-          </div>
-          <div className="ir-stat-info">
-            <span className="ir-stat-value">{resolvedCount}</span>
-            <span className="ir-stat-label">Resolved</span>
-          </div>
-        </div>
-
-        <div className="ir-stat-card">
-          <div className="ir-stat-icon" style={{ background: '#fee2e2', color: '#991b1b' }}>
-            ⚠️
-          </div>
-          <div className="ir-stat-info">
-            <span className="ir-stat-value">{criticalCount}</span>
-            <span className="ir-stat-label">Critical / High Priority</span>
+            <span className="ir-stat-value">{ongoingCount}</span>
+            <span className="ir-stat-label">Ongoing</span>
           </div>
         </div>
       </div>

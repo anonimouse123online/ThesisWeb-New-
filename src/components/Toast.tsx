@@ -17,12 +17,18 @@ const ICONS: Record<ToastType, string> = {
   info: 'ℹ️',
 };
 
-const Toast: React.FC<ToastProps> = ({ message, type = 'info', duration = 3500, onClose }) => {
+const Toast: React.FC<ToastProps> = ({
+  message,
+  type = 'info',
+  duration = 3500,
+  onClose,
+}) => {
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setVisible(false);
+
       setTimeout(onClose, 300); // wait for fade-out animation
     }, duration);
 
@@ -30,10 +36,24 @@ const Toast: React.FC<ToastProps> = ({ message, type = 'info', duration = 3500, 
   }, [duration, onClose]);
 
   return (
-    <div className={`toast toast--${type} ${visible ? 'toast--visible' : 'toast--hidden'}`}>
+    <div
+      className={`toast toast--${type} ${
+        visible ? 'toast--visible' : 'toast--hidden'
+      }`}
+    >
       <span className="toast-icon">{ICONS[type]}</span>
+
       <span className="toast-msg">{message}</span>
-      <button className="toast-close" onClick={() => { setVisible(false); setTimeout(onClose, 300); }}>×</button>
+
+      <button
+        className="toast-close"
+        onClick={() => {
+          setVisible(false);
+          setTimeout(onClose, 300);
+        }}
+      >
+        ×
+      </button>
     </div>
   );
 };
@@ -47,36 +67,60 @@ interface ToastItem {
 }
 
 let toastId = 0;
-let addToastFn: ((message: string, type?: ToastType) => void) | null = null;
+
+let addToastFn:
+  | ((message: string, type?: ToastType) => void)
+  | null = null;
 
 /** Call this from anywhere to show a toast */
-export function showToast(message: string, type: ToastType = 'info') {
-  if (addToastFn) addToastFn(message, type);
+export function showToast(
+  message: string,
+  type: ToastType = 'info'
+) {
+  if (addToastFn) {
+    addToastFn(message, type);
+  }
 }
 
 export const ToastContainer: React.FC = () => {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   useEffect(() => {
-    addToastFn = (message: string, type: ToastType = 'info') => {
+    addToastFn = (
+      message: string,
+      type: ToastType = 'info'
+    ) => {
       const id = ++toastId;
-      setToasts(prev => [...prev, { id, message, type }]);
+
+      setToasts((prev) => [
+        ...prev,
+        {
+          id,
+          message,
+          type,
+        },
+      ]);
     };
-    return () => { addToastFn = null; };
+
+    return () => {
+      addToastFn = null;
+    };
   }, []);
 
   const removeToast = (id: number) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
+    setToasts((prev) =>
+      prev.filter((toast) => toast.id !== id)
+    );
   };
 
   return (
     <div className="toast-container">
-      {toasts.map(t => (
+      {toasts.map((toast) => (
         <Toast
-          key={t.id}
-          message={t.message}
-          type={t.type}
-          onClose={() => removeToast(t.id)}
+          key={toast.id}
+          message={toast.message}
+          type={toast.type}
+          onClose={() => removeToast(toast.id)}
         />
       ))}
     </div>

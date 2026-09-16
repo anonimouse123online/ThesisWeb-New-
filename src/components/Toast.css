@@ -90,3 +90,73 @@
 .toast-close:hover {
   opacity: 1;
 }
+.issue-summary-section {
+  display: flex;
+  gap: 16px;
+  width: 100%;
+  margin-top: 16px;
+}
+
+.issue-stat-card {
+  flex: 1;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 18px 20px;
+  min-width: 0;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.issue-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.issue-stat-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.issue-stat-icon {
+  font-size: 18px;
+}
+
+.issue-stat-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.issue-stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #111827;
+}
+
+/* Tablet */
+@media (max-width: 900px) {
+  .issue-summary-section {
+    gap: 12px;
+  }
+
+  .issue-stat-card {
+    padding: 16px;
+  }
+
+  .issue-stat-value {
+    font-size: 24px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+  .issue-summary-section {
+    flex-direction: column;
+  }
+
+  .issue-stat-card {
+    width: 100%;
+  }
+}
