@@ -114,6 +114,23 @@ const Icons: Record<string, React.FC> = {
     </svg>
   ),
 
+  Messages: () => (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+      <line x1="8" y1="9" x2="16" y2="9" />
+      <line x1="8" y1="13" x2="13" y2="13" />
+    </svg>
+  ),
+
   Notification: () => (
     <svg
       width="20"
@@ -186,6 +203,11 @@ const NAV_ITEMS = [
     path: '/users',
   },
   {
+    icon: 'Messages',
+    label: 'Messages',
+    path: '/messages',
+  },
+  {
     icon: 'Notification',
     label: 'Notifications',
     path: '/notifications',
@@ -207,10 +229,6 @@ const Sidebar: React.FC = () => {
     React.useState<string>('Member');
 
   React.useEffect(() => {
-    // ============================================================
-    // READ USER FROM LOCAL STORAGE
-    // ============================================================
-
     const storedUser = localStorage.getItem('user');
 
     if (storedUser) {
@@ -229,10 +247,6 @@ const Sidebar: React.FC = () => {
         // Ignore invalid localStorage user data
       }
     }
-
-    // ============================================================
-    // SYNC USER FROM BACKEND
-    // ============================================================
 
     const syncUser = async () => {
       try {
@@ -279,10 +293,6 @@ const Sidebar: React.FC = () => {
     syncUser();
   }, []);
 
-  // ============================================================
-  // LOGOUT
-  // ============================================================
-
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -292,11 +302,6 @@ const Sidebar: React.FC = () => {
 
   return (
     <aside className="sidebar">
-
-      {/* ========================================================
-          LOGO
-      ======================================================== */}
-
       <div className="logo">
         <div className="logo-icon">
           <div className="logo-diamond" />
@@ -305,19 +310,13 @@ const Sidebar: React.FC = () => {
         <span>SitePulse</span>
       </div>
 
-      {/* ========================================================
-          NAVIGATION
-      ======================================================== */}
-
       <nav className="nav">
-
         {NAV_ITEMS.map(
           ({
             icon,
             label,
             path,
           }) => {
-
             const IconComponent =
               Icons[icon];
 
@@ -335,7 +334,6 @@ const Sidebar: React.FC = () => {
                   }`
                 }
               >
-
                 <span className="nav-icon">
                   <IconComponent />
                 </span>
@@ -343,22 +341,14 @@ const Sidebar: React.FC = () => {
                 <span>
                   {label}
                 </span>
-
               </NavLink>
             );
           }
         )}
-
       </nav>
 
-      {/* ========================================================
-          USER PROFILE
-      ======================================================== */}
-
       <div className="sidebar-footer">
-
         <div className="sidebar-user">
-
           <div className="sidebar-avatar">
             {userName
               .charAt(0)
@@ -366,7 +356,6 @@ const Sidebar: React.FC = () => {
           </div>
 
           <div className="sidebar-user-info">
-
             <span className="sidebar-user-name">
               {userName}
             </span>
@@ -374,9 +363,7 @@ const Sidebar: React.FC = () => {
             <span className="sidebar-user-role">
               {userRole}
             </span>
-
           </div>
-
         </div>
 
         <button
@@ -387,9 +374,7 @@ const Sidebar: React.FC = () => {
         >
           <Icons.Logout />
         </button>
-
       </div>
-
     </aside>
   );
 };

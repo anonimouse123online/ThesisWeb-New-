@@ -6,13 +6,25 @@
 .msg-page {
     display: grid;
     grid-template-columns: 320px 1fr;
+
     height: 100vh;
-    width: 100vw;
-    margin: 0;
+
+    /* Sidebar takes 260px */
+    width: calc(100vw - 260px);
+    margin-left: 260px;
+
+    min-width: 0;
+    margin-top: 0;
+    margin-right: 0;
+    margin-bottom: 0;
+
     padding: 0;
+
     font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
     color: #0F172A;
     background: #fff;
+
     overflow: hidden;
 }
 
