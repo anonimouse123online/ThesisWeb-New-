@@ -69,25 +69,92 @@ const pillClass = (status: string): string => {
 
 const renderStatIcon = (label: string, icon: string) => {
   const norm = (label || '').toLowerCase();
-  if (norm.includes('project') || icon === 'FolderClosed' || icon === '\uD83D\uDCCB') return <FolderClosed size={20} />;
-  if (norm.includes('task') || icon === 'CheckSquare' || icon === '\u2705') return <CheckSquare size={20} />;
-  if (norm.includes('team') || norm.includes('member') || icon === 'Users' || icon === '\uD83D\uDC65') return <Users size={20} />;
-  if (norm.includes('issue') || icon === 'AlertTriangle' || icon?.includes('\u26A0')) return <AlertTriangle size={20} />;
+
+  // Check explicit icon first
+  if (icon === 'AlertTriangle')
+    return <AlertTriangle size={20} />;
+
+  if (icon === 'CheckSquare')
+    return <CheckSquare size={20} />;
+
+  if (icon === 'Users')
+    return <Users size={20} />;
+
+  if (icon === 'FolderClosed')
+    return <FolderClosed size={20} />;
+
+  // Fallback based on label
+  if (norm.includes('issue') || norm.includes('delayed'))
+    return <AlertTriangle size={20} />;
+
+  if (norm.includes('task'))
+    return <CheckSquare size={20} />;
+
+  if (norm.includes('team') || norm.includes('member'))
+    return <Users size={20} />;
+
+  if (norm.includes('project'))
+    return <FolderClosed size={20} />;
+
   return <FolderClosed size={20} />;
 };
 
 // --- SUB-COMPONENTS ---
-const StatCard: React.FC<StatItem> = ({ label, value, trend, up, bg, clr, icon }) => (
+const StatCard: React.FC<StatItem> = ({
+  label,
+  value,
+  trend,
+  up,
+  bg,
+  clr,
+  icon
+}) => (
   <div className="stat-card">
-    <div className="stat-icon-box" style={{ background: bg, color: clr, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+
+    <div
+      className="stat-icon-box"
+      style={{
+        background: bg,
+        color: clr,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}
+    >
       {renderStatIcon(label, icon)}
     </div>
-    <p className="stat-label text-muted">{label}</p>
-    <p className="stat-value">{value}</p>
-    <p className={`stat-trend ${up ? 'text-green' : 'text-red'}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-      {up ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
-      <span>{trend} from last month</span>
+
+    <p className="stat-label text-muted">
+      {label}
     </p>
+
+    <p className="stat-value">
+      {value}
+    </p>
+
+    {trend && (
+      <p
+        className={`stat-trend ${
+          up ? 'text-green' : 'text-red'
+        }`}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '4px'
+        }}
+      >
+        {up ? (
+          <TrendingUp size={13} />
+        ) : (
+          <TrendingDown size={13} />
+        )}
+
+        <span>
+          {trend} from last month
+        </span>
+      </p>
+    )}
+
   </div>
 );
 
@@ -161,7 +228,9 @@ const Dashboard: React.FC = () => {
   if (!data)   return <div className="rm-empty">No data available.</div>;
 
   const { stats, projects, monitorItems, rfis, notes } = data;
-
+  const delayedProjects = projects.filter(
+  project => project.status.toLowerCase() === 'delayed'
+).length;
   // Filter options
   const projectOptions = [
     { value: 'All', label: 'All Projects' },
@@ -256,8 +325,22 @@ const Dashboard: React.FC = () => {
           />
         </div>
         <div className="overview-grid">
-          {stats.map(s => <StatCard key={s.label} {...s} />)}
-        </div>
+
+  {stats.map(s => (
+    <StatCard key={s.label} {...s} />
+  ))}
+
+  <StatCard
+    label="Delayed Projects"
+    value={String(delayedProjects)}
+    trend=""
+    up={false}
+    bg="#fff1f2"
+    clr="#ef4444"
+    icon="AlertTriangle"
+  />
+
+</div>
       </section>
 
       {/* Project Summary */}
@@ -377,63 +460,6 @@ const Dashboard: React.FC = () => {
           </table>
         )}
       </div>
-
-      {/* Active Monitoring */}
-      <div className="data-container">
-        <p className="section-title">Active Field Monitoring</p>
-        <div className="monitor-grid">
-
-          <div>
-            <p className="font-bold text-xs mb-4 border-b-2 inline-block pb-1" style={{ color: '#ea580c', borderColor: '#ea580c' }}>
-              All Sites ({filteredMonitor.length})
-            </p>
-            {filteredMonitor.length === 0 ? (
-              <p style={{ fontSize: '12px', color: '#999' }}>{searchQuery ? 'No sites matching search.' : 'No active sites logged yet.'}</p>
-            ) : (
-              filteredMonitor.map(m => (
-                <div key={m.label} className="monitor-item">
-                  <Checkbox checked={m.checked} />
-                  <span>{m.label}</span>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div>
-            <p className="text-muted font-bold text-xs mb-4 inline-block pb-1">
-              Urgent RFIs ({filteredRfis.length})
-            </p>
-            {filteredRfis.length === 0 ? (
-              <p style={{ fontSize: '12px', color: '#999' }}>{searchQuery ? 'No urgent RFIs matching search.' : 'No urgent RFIs pending.'}</p>
-            ) : (
-              filteredRfis.map(r => (
-                <div key={r} className="monitor-item">
-                  <Checkbox checked={false} />
-                  <span>{r}</span>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div>
-            <p className="text-muted font-bold text-xs mb-4 inline-block pb-1">
-              Notes ({filteredNotes.length < 10 ? `0${filteredNotes.length}` : filteredNotes.length})
-            </p>
-            {filteredNotes.length === 0 ? (
-              <p style={{ fontSize: '12px', color: '#999' }}>{searchQuery ? 'No notes matching search.' : 'No field notes recorded yet.'}</p>
-            ) : (
-              filteredNotes.map(n => (
-                <div key={n.label} className="flex justify-between items-center mb-3">
-                  <span className="text-[12px]">{n.label}</span>
-                  <span className={pillClass(n.status)}>{n.status}</span>
-                </div>
-              ))
-            )}
-          </div>
-
-        </div>
-      </div>
-
     </main>
   );
 };
