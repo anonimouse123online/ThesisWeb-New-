@@ -42,27 +42,27 @@ interface SystemHealth {
 const Settings: React.FC = () => {
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab]     = useState<TabKey>('profile');
-  const [, setLoading]                = useState(true);
+  const [activeTab, setActiveTab] = useState<TabKey>('profile');
+  const [, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
 
   // Profile Form State
-  const [profile, setProfile]         = useState<UserProfile | null>(null);
-  const [fullName, setFullName]       = useState('');
-  const [phone, setPhone]             = useState('');
-  const [company, setCompany]         = useState('');
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [company, setCompany] = useState('');
 
   // Password Form State
   const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword]         = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
   // Notification Preferences
   const [emailNotifs, setEmailNotifs] = useState(true);
-  const [smsAlerts, setSmsAlerts]     = useState(false);
+  const [smsAlerts, setSmsAlerts] = useState(false);
   const [weatherUnit, setWeatherUnit] = useState('celsius');
-  const [currency, setCurrency]       = useState('PHP');
+  const [currency, setCurrency] = useState('PHP');
 
   // System Health
   const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
@@ -409,7 +409,7 @@ const Settings: React.FC = () => {
                 <p style={{ margin: '0 0 14px', fontSize: '12px', color: '#64748b' }}>
                   Currently active devices authenticated to your SitePulse account.
                 </p>
-                <div style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px' }}>
+                <div style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: "0", display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12.5px' }}>
                   <div>
                     <strong>This Web Browser (Current Session)</strong>
                     <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>macOS • Chrome Engine • Verified Token</div>

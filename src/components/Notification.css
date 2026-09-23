@@ -59,7 +59,7 @@
 .notification-create-card {
   background: #ffffff;
   border: 1px solid #e5e7eb;
-  border-radius: 18px;
+  border-radius: 0 !important;
   padding: 24px;
   margin-bottom: 24px;
   box-shadow: 0 4px 18px rgba(15, 23, 42, 0.04);
@@ -76,7 +76,7 @@
   width: 46px;
   height: 46px;
   flex-shrink: 0;
-  border-radius: 13px;
+  border-radius: 0 !important;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -104,7 +104,7 @@
 .notification-alert {
   padding: 12px 14px;
   margin-bottom: 18px;
-  border-radius: 10px;
+  border-radius: 0 !important;
   font-size: 13px;
   font-weight: 500;
 }
@@ -149,7 +149,7 @@
   width: 100%;
   box-sizing: border-box;
   border: 1px solid #d1d5db;
-  border-radius: 11px;
+  border-radius: 0 !important;
   background: #ffffff;
   color: #111827;
   font-family: inherit;
@@ -211,7 +211,7 @@
   min-height: 44px;
   padding: 0 18px;
   border: none;
-  border-radius: 11px;
+  border-radius: 0 !important;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -249,7 +249,7 @@
 .notification-history {
   background: #ffffff;
   border: 1px solid #e5e7eb;
-  border-radius: 18px;
+  border-radius: 0 !important;
   padding: 24px;
   box-shadow: 0 4px 18px rgba(15, 23, 42, 0.04);
 }
@@ -280,7 +280,7 @@
 .notification-refresh-button {
   height: 38px;
   padding: 0 14px;
-  border-radius: 9px;
+  border-radius: 0 !important;
   border: 1px solid #e5e7eb;
   background: #ffffff;
   color: #374151;
@@ -322,7 +322,7 @@
   width: 56px;
   height: 56px;
   margin: 0 auto 14px;
-  border-radius: 16px;
+  border-radius: 0 !important;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -369,7 +369,7 @@
   width: 42px;
   height: 42px;
   flex-shrink: 0;
-  border-radius: 12px;
+  border-radius: 0 !important;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -425,7 +425,7 @@
   align-items: center;
   min-height: 24px;
   padding: 0 9px;
-  border-radius: 999px;
+  border-radius: 0 !important;
   background: #fff3eb;
   color: #ea580c;
   font-size: 10px;
@@ -454,7 +454,7 @@
   .notification-create-card,
   .notification-history {
     padding: 18px;
-    border-radius: 15px;
+    border-radius: 0 !important;
   }
 
   .notification-history-header {

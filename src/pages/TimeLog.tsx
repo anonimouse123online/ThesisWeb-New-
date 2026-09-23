@@ -1023,7 +1023,7 @@ const TimeLog: React.FC = () => {
                 padding: "3rem",
                 textAlign: "center",
                 background: "#fff",
-                borderRadius: "14px",
+                borderRadius: "0",
                 border:
                   "1px solid #e2e8f0",
               }}
@@ -1218,7 +1218,7 @@ const TimeLog: React.FC = () => {
                                   border:
                                     "1px solid #e5eaf0",
                                   borderRadius:
-                                    "12px",
+                                    "0",
                                   background:
                                     "#ffffff",
                                   marginBottom:
@@ -1363,7 +1363,7 @@ const TimeLog: React.FC = () => {
                                                 "1px solid #e8edf3",
 
                                               borderRadius:
-                                                "10px",
+                                                "0",
 
                                               marginBottom:
                                                 "8px",

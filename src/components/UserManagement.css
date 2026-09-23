@@ -54,10 +54,16 @@
 /* ── User card ──────────────────────────────────── */
 .um-card {
   background: #fff;
-  border-radius: 16px;
+  border-radius: 0 !important;
   padding: 20px 24px 20px;
   border: 1px solid #e2e8f0;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03), 0 4px 16px rgba(15, 23, 42, 0.03);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.um-card:hover {
+  background-color: #faf8f5;
+  border-color: #cbd5e1;
 }
 
 .um-card__name {
@@ -107,7 +113,7 @@
   gap: 6px;
   background: none;
   border: 1px solid #ddd;
-  border-radius: 7px;
+  border-radius: 0 !important;
   padding: 5px 10px;
   font-size: 13px;
   color: #222;
@@ -129,7 +135,7 @@
   left: 0;
   background: #fff;
   border: 1px solid #e0d9d0;
-  border-radius: 10px;
+  border-radius: 0 !important;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
   z-index: 20;
   min-width: 200px;
@@ -146,7 +152,7 @@
   color: #333;
   background: none;
   border: none;
-  border-radius: 7px;
+  border-radius: 0 !important;
   cursor: pointer;
   transition: background 0.1s;
 }
