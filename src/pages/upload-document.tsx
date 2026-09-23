@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import '../components/upload-document.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
+import { saveDocFile } from '../utils/documentStore';
 import { UploadCloud } from 'lucide-react';
 
 const API_URL = API_BASE_URL;
@@ -154,21 +155,38 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
         });
       }
 
-      const primary = documentsPayload[0];
+      const primaryDocName = name.trim() || files[0].name.replace(/\.[^/.]+$/, '');
+      const primaryDocType = docType ? normalizeType(docType) : normalizeType(files[0].type);
+
+      const formData = new FormData();
+      for (const item of files) {
+        formData.append('files', item.file);
+      }
+      formData.append('name', primaryDocName);
+      formData.append('type', primaryDocType);
+      formData.append('category', category);
+      if (version) formData.append('version', version);
+
       const res = await fetchWithAuth(`${API_URL}/projects/${projectCode}/documents`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: primary.name,
-          type: primary.type,
-          category: primary.category,
-          version: primary.version,
-          documents: documentsPayload,
-        }),
+        body: formData,
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || data.error || 'Failed to upload document(s)');
+
+      // Persist attached file blobs locally so they can be downloaded directly
+      for (const item of files) {
+        await saveDocFile(`doc_${projectCode}_${item.name}`, item.file);
+        await saveDocFile(`doc_${item.name}`, item.file);
+        const cleanName = item.file.name.replace(/\.[^/.]+$/, '');
+        await saveDocFile(`doc_${projectCode}_${cleanName}`, item.file);
+        await saveDocFile(`doc_${cleanName}`, item.file);
+        if (primaryDocName) {
+          await saveDocFile(`doc_${projectCode}_${primaryDocName}`, item.file);
+          await saveDocFile(`doc_${primaryDocName}`, item.file);
+        }
+      }
 
       onUploaded();
       onClose();

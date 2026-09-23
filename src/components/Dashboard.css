@@ -351,10 +351,13 @@ body {
 }
 
 .status-approved  { background: var(--green-bg); color: var(--green-text); }
+.status-completed { background: #dcfce7; color: #15803d; }
+.status-ongoing   { background: #e0f2fe; color: #0369a1; }
+.status-planning  { background: #fef3c7; color: #b45309; }
 .status-delayed   { background: var(--amber-bg); color: var(--amber-text); }
 .status-atrisk    { background: var(--red-bg);   color: var(--red-text);   }
 .status-inreview  { background: var(--gray-bg);  color: var(--gray-text);  }
-.status-ongoing   { background: var(--blue-bg);  color: var(--blue-text);  }
+.status-pending   { background: #f1f5f9; color: #64748b; }
 
 /* ════════════════════════════════════════
    GAUGE / OVERALL PROGRESS

@@ -59,6 +59,9 @@ const CreateTask: React.FC = () => {
     siteInstructions: '',
   });
 
+  const [subtasks, setSubtasks] = useState<{ id: string; title: string; completed: boolean }[]>([]);
+  const [subtaskInput, setSubtaskInput] = useState('');
+
   const [allocatedMaterials, setAllocatedMaterials] = useState<AllocatedMaterial[]>([]);
   const [matItemInput, setMatItemInput] = useState<{
     name: string;
@@ -227,10 +230,6 @@ const CreateTask: React.FC = () => {
       setError('Due date cannot be earlier than start date.');
       return;
     }
-    if (!formData.manpowerNeeded || formData.manpowerNeeded <= 0) {
-      setError('Estimated manpower is required (e.g. 5 workers).');
-      return;
-    }
     if (!formData.siteInstructions.trim()) {
       setError('Site specific instructions are required.');
       return;
@@ -243,7 +242,7 @@ const CreateTask: React.FC = () => {
       const res = await fetchWithAuth(`${API_URL}/tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, allocatedMaterials }),
+        body: JSON.stringify({ ...formData, allocatedMaterials, subtasks }),
       });
 
       const data = await res.json();
@@ -379,12 +378,11 @@ const CreateTask: React.FC = () => {
 
             {/* Manpower */}
             <div className="form-group">
-              <label>Estimated Manpower (Workers Needed) *</label>
+              <label>Estimated Manpower (Workers Needed)</label>
               <input
                 type="number"
-                min="1"
-                placeholder="e.g. 5"
-                required
+                min="0"
+                placeholder="e.g. 5 (optional)"
                 value={formData.manpowerNeeded || ''}
                 onChange={(e) => setFormData({ ...formData, manpowerNeeded: parseInt(e.target.value) || 0 })}
               />
@@ -627,6 +625,86 @@ const CreateTask: React.FC = () => {
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Subtasks / Execution Steps */}
+            <div className="form-group">
+              <label>Execution Steps / Subtasks (Optional)</label>
+              <p className="pm-mat-hint" style={{ marginBottom: '8px' }}>Add checklist items or step-by-step milestones for site workers to complete</p>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                <input
+                  type="text"
+                  placeholder="e.g., Pour concrete foundation, Inspect steel rebar..."
+                  value={subtaskInput}
+                  onChange={(e) => setSubtaskInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (subtaskInput.trim()) {
+                        setSubtasks((prev) => [
+                          ...prev,
+                          { id: `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`, title: subtaskInput.trim(), completed: false },
+                        ]);
+                        setSubtaskInput('');
+                      }
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="submit-btn"
+                  style={{ whiteSpace: 'nowrap', padding: '0 16px', fontSize: '13px' }}
+                  onClick={() => {
+                    if (subtaskInput.trim()) {
+                      setSubtasks((prev) => [
+                        ...prev,
+                        { id: `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`, title: subtaskInput.trim(), completed: false },
+                      ]);
+                      setSubtaskInput('');
+                    }
+                  }}
+                >
+                  + Add Step
+                </button>
+              </div>
+              {subtasks.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
+                  {subtasks.map((st, idx) => (
+                    <div
+                      key={st.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '6px',
+                        padding: '8px 12px',
+                        fontSize: '13px',
+                      }}
+                    >
+                      <span style={{ fontWeight: 500, color: '#1e293b' }}>{idx + 1}. {st.title}</span>
+                      <button
+                        type="button"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#ef4444',
+                          cursor: 'pointer',
+                          fontWeight: 700,
+                          fontSize: '16px',
+                          display: 'flex',
+                          alignItems: 'center',
+                        }}
+                        onClick={() => setSubtasks((prev) => prev.filter((s) => s.id !== st.id))}
+                        title="Remove subtask"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="form-group">

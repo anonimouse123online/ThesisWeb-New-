@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import '../components/Documents.css';
 import UploadDocumentModal from '../pages/upload-document';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
+import { downloadDocument, getDocumentBlob } from '../utils/documentStore';
+import type { DocumentBlobResult } from '../utils/documentStore';
 import { showToast } from '../components/Toast';
 import Dropdown from '../components/Dropdown';
 import ProfileDropdown from '../components/ProfileDropdown';
@@ -19,7 +21,14 @@ import {
   Trash2,
   Calendar,
   Download,
-  ArrowLeft
+  ArrowLeft,
+  Eye,
+  ExternalLink,
+  Layers,
+  Table as TableIcon,
+  FileText,
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 
 const API_URL = API_BASE_URL;
@@ -30,6 +39,7 @@ interface Document {
   type: 'DWG' | 'PDF' | 'XLS' | 'DOC';
   uploaded_at: string;
   category: 'Design & Engineering' | 'Project Management' | 'Site Reference';
+  file_path?: string;
 }
 
 const TYPE_CLASSES: Record<string, string> = {
@@ -56,6 +66,13 @@ const Documents: React.FC = () => {
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState<string | null>(null);
   const [showUpload, setShowUpload]     = useState(false);
+
+  // ── Preview Modal State ──
+  const [previewDoc, setPreviewDoc]         = useState<Document | null>(null);
+  const [previewData, setPreviewData]       = useState<DocumentBlobResult | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError]     = useState<string | null>(null);
+  const [sheetSearch, setSheetSearch]       = useState('');
 
   // Fetch project details for header breadcrumb
   useEffect(() => {
@@ -103,15 +120,65 @@ const Documents: React.FC = () => {
       if (!res.ok) throw new Error(data.message || 'Failed to delete');
       setDocuments(prev => prev.filter(d => d.id !== docId));
       showToast(`"${docName}" deleted successfully.`, 'info');
+      if (previewDoc?.id === docId) {
+        handleClosePreview();
+      }
     } catch (err: any) {
       showToast(err.message, 'error');
     }
   };
 
-  // ── Simulate Download ──
-  const handleDownload = (doc: Document) => {
-    showToast(`Downloading "${doc.name}" (${doc.type})...`, 'success');
+  // ── Real File Download ──
+  const handleDownload = async (doc: Document) => {
+    try {
+      showToast(`Downloading "${doc.name}" (${doc.type})...`, 'info');
+      const filename = await downloadDocument(doc, projectCode);
+      showToast(`"${filename}" downloaded to your device!`, 'success');
+    } catch (err: any) {
+      console.error('Download error:', err);
+      showToast('Failed to download document.', 'error');
+    }
   };
+
+  // ── Open Document Preview ──
+  const handleOpenPreview = async (doc: Document) => {
+    setPreviewDoc(doc);
+    setPreviewLoading(true);
+    setPreviewError(null);
+    setSheetSearch('');
+    try {
+      const result = await getDocumentBlob(doc, projectCode);
+      setPreviewData(result);
+    } catch (err: any) {
+      console.error('Preview error:', err);
+      setPreviewError(err.message || 'Unable to load preview for this file.');
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  // ── Close Document Preview ──
+  const handleClosePreview = () => {
+    if (previewData?.url && !previewData.isServerUrl) {
+      try {
+        URL.revokeObjectURL(previewData.url);
+      } catch { /* ignore */ }
+    }
+    setPreviewDoc(null);
+    setPreviewData(null);
+    setPreviewError(null);
+  };
+
+  // Keyboard shortcut: close preview on Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && previewDoc) {
+        handleClosePreview();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [previewDoc, previewData]);
 
   // ── Statistics calculation ──
   const totalCount = documents.length;
@@ -156,6 +223,44 @@ const Documents: React.FC = () => {
     { value: 'name',   label: 'Name (A-Z)' },
   ];
 
+  // ── Parse Spreadsheet text into rows/columns for XLS preview ──
+  const parsedSheetData = useMemo(() => {
+    if (!previewData?.textData || (previewDoc?.type !== 'XLS' && (previewDoc as any)?.type !== 'XLSX')) {
+      return null;
+    }
+    const lines = previewData.textData.replace(/^\uFEFF/, '').trim().split('\n');
+    const parseRow = (line: string): string[] => {
+      const result: string[] = [];
+      let inQuotes = false;
+      let current = '';
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim());
+      return result;
+    };
+
+    const rows = lines.map(parseRow);
+    const headers = rows[0] || [];
+    const bodyRows = rows.slice(1);
+    return { headers, rows: bodyRows };
+  }, [previewData, previewDoc]);
+
+  const filteredSheetRows = useMemo(() => {
+    if (!parsedSheetData) return [];
+    if (!sheetSearch.trim()) return parsedSheetData.rows;
+    const q = sheetSearch.toLowerCase();
+    return parsedSheetData.rows.filter(r => r.some(cell => cell.toLowerCase().includes(q)));
+  }, [parsedSheetData, sheetSearch]);
+
   return (
     <div className="docs-page">
 
@@ -166,6 +271,290 @@ const Documents: React.FC = () => {
           onClose={() => setShowUpload(false)}
           onUploaded={() => { fetchDocuments(); setShowUpload(false); }}
         />
+      )}
+
+      {/* ── In-Browser Document Preview Modal ── */}
+      {previewDoc && (
+        <div className="docs-preview-overlay" onClick={handleClosePreview}>
+          <div
+            className="docs-preview-modal"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Preview of ${previewDoc.name}`}
+          >
+            {/* Modal Header */}
+            <div className="docs-preview-header">
+              <div className="docs-preview-header-left">
+                <span className={`doc-type-badge ${TYPE_CLASSES[previewDoc.type] || 'type-pdf'}`}>
+                  {previewDoc.type}
+                </span>
+                <div className="docs-preview-title-wrap">
+                  <h3 className="docs-preview-title" title={previewDoc.name}>
+                    {previewDoc.name}
+                  </h3>
+                  <div className="docs-preview-meta">
+                    <span>{previewDoc.category}</span>
+                    <span>•</span>
+                    <span>{formatDate(previewDoc.uploaded_at)}</span>
+                    {projectCode && (
+                      <>
+                        <span>•</span>
+                        <span className="docs-preview-pcode">{projectCode}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="docs-preview-header-actions">
+                {previewData?.url && (
+                  <a
+                    href={previewData.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="docs-preview-action-btn"
+                    title="Open in new browser tab"
+                  >
+                    <ExternalLink size={15} />
+                    <span>Open in Tab</span>
+                  </a>
+                )}
+                <button
+                  className="docs-preview-action-btn docs-preview-action-btn--primary"
+                  onClick={() => handleDownload(previewDoc)}
+                  title="Download file to device"
+                >
+                  <Download size={15} />
+                  <span>Download</span>
+                </button>
+                <button
+                  className="docs-preview-close-btn"
+                  onClick={handleClosePreview}
+                  title="Close preview (Esc)"
+                  aria-label="Close preview"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="docs-preview-body">
+              {previewLoading && (
+                <div className="docs-preview-loading">
+                  <Loader2 size={36} className="docs-preview-spinner" />
+                  <p>Loading document preview...</p>
+                </div>
+              )}
+
+              {previewError && (
+                <div className="docs-preview-error">
+                  <AlertCircle size={40} color="#dc2626" />
+                  <h4>Unable to load preview</h4>
+                  <p>{previewError}</p>
+                  <button
+                    className="docs-upload-btn"
+                    style={{ marginTop: '12px' }}
+                    onClick={() => handleDownload(previewDoc)}
+                  >
+                    <Download size={14} /> Download File Directly
+                  </button>
+                </div>
+              )}
+
+              {!previewLoading && !previewError && previewData && (
+                <>
+                  {/* 1. PDF Preview: Native browser PDF iframe */}
+                  {previewDoc.type === 'PDF' && (
+                    <div className="docs-preview-pdf-wrap">
+                      <iframe
+                        src={`${previewData.url}#toolbar=1&navpanes=0`}
+                        title={previewDoc.name}
+                        className="docs-preview-iframe"
+                      />
+                    </div>
+                  )}
+
+                  {/* 2. CAD / DWG Preview: Blueprint CAD viewer card */}
+                  {previewDoc.type === 'DWG' && (
+                    <div className="docs-preview-cad">
+                      <div className="docs-cad-viewport">
+                        <div className="docs-cad-grid-bg" />
+                        <div className="docs-cad-watermark">
+                          <Compass size={64} strokeWidth={1.2} />
+                          <span>AUTOCAD DWG / CAD ARCHIVE</span>
+                        </div>
+                        <div className="docs-cad-blueprint-card">
+                          <div className="docs-cad-card-header">
+                            <div className="docs-cad-title-block">
+                              <span className="docs-cad-sheet-tag">DRAWING SHEET</span>
+                              <h4>{previewDoc.name}</h4>
+                            </div>
+                            <span className="docs-cad-stamp">APPROVED FOR CONSTRUCTION</span>
+                          </div>
+
+                          <div className="docs-cad-specs-grid">
+                            <div className="docs-cad-spec-item">
+                              <span className="spec-label">Format:</span>
+                              <span className="spec-val">AutoCAD Drawing (DWG 2018–2025)</span>
+                            </div>
+                            <div className="docs-cad-spec-item">
+                              <span className="spec-label">Scale:</span>
+                              <span className="spec-val">1:100 / Metric (Millimeters)</span>
+                            </div>
+                            <div className="docs-cad-spec-item">
+                              <span className="spec-label">Category:</span>
+                              <span className="spec-val">{previewDoc.category}</span>
+                            </div>
+                            <div className="docs-cad-spec-item">
+                              <span className="spec-label">Standard:</span>
+                              <span className="spec-val">ISO 128 / ANSI ARCH D (24" × 36")</span>
+                            </div>
+                            <div className="docs-cad-spec-item">
+                              <span className="spec-label">Coordinate System:</span>
+                              <span className="spec-val">WGS84 / Philippine Transverse Mercator</span>
+                            </div>
+                            <div className="docs-cad-spec-item">
+                              <span className="spec-label">Layers:</span>
+                              <span className="spec-val">0-Defpoints, A-Wall-Ext, S-Rebar, M-HVAC, E-Power</span>
+                            </div>
+                          </div>
+
+                          <div className="docs-cad-actions-footer">
+                            <p className="docs-cad-tip">
+                              💡 To view and edit 3D layers, open this native file with AutoCAD, Autodesk DWG TrueView, or Revit.
+                            </p>
+                            <button
+                              className="docs-cad-dl-btn"
+                              onClick={() => handleDownload(previewDoc)}
+                            >
+                              <Download size={14} /> Download Native DWG
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 3. XLS / CSV Preview: Interactive Spreadsheet Table */}
+                  {previewDoc.type === 'XLS' && (
+                    <div className="docs-preview-sheet">
+                      <div className="docs-sheet-toolbar">
+                        <div className="docs-sheet-info">
+                          <TableIcon size={16} />
+                          <span>Spreadsheet Data Viewer</span>
+                          {parsedSheetData && (
+                            <span className="docs-sheet-count">
+                              {filteredSheetRows.length} of {parsedSheetData.rows.length} rows
+                            </span>
+                          )}
+                        </div>
+                        <div className="docs-sheet-search-wrap">
+                          <Search size={14} />
+                          <input
+                            type="text"
+                            placeholder="Filter table rows..."
+                            value={sheetSearch}
+                            onChange={(e) => setSheetSearch(e.target.value)}
+                            className="docs-sheet-search-input"
+                          />
+                          {sheetSearch && (
+                            <button onClick={() => setSheetSearch('')} className="docs-sheet-search-clear">
+                              <X size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="docs-sheet-table-wrap">
+                        {parsedSheetData && parsedSheetData.headers.length > 0 ? (
+                          <table className="docs-sheet-table">
+                            <thead>
+                              <tr>
+                                <th style={{ width: '40px', textAlign: 'center' }}>#</th>
+                                {parsedSheetData.headers.map((h, i) => (
+                                  <th key={i}>{h.replace(/^"|"$/g, '')}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {filteredSheetRows.map((row, rIdx) => (
+                                <tr key={rIdx}>
+                                  <td className="docs-sheet-row-num">{rIdx + 1}</td>
+                                  {row.map((cell, cIdx) => (
+                                    <td key={cIdx}>{cell.replace(/^"|"$/g, '')}</td>
+                                  ))}
+                                </tr>
+                              ))}
+                              {filteredSheetRows.length === 0 && (
+                                <tr>
+                                  <td colSpan={parsedSheetData.headers.length + 1} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                                    No matching rows found in spreadsheet.
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        ) : (
+                          <div className="docs-sheet-raw">
+                            <pre>{previewData.textData || 'No tabular content available.'}</pre>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 4. DOC / RTF Preview: Formatted Specification Document Reader */}
+                  {previewDoc.type === 'DOC' && (
+                    <div className="docs-preview-doc-reader">
+                      <div className="docs-doc-page">
+                        <div className="docs-doc-header">
+                          <span className="docs-doc-brand">SITEPULSE SPECIFICATION ARCHIVE</span>
+                          <span className="docs-doc-badge">CONTROLLED DOCUMENT</span>
+                        </div>
+                        <h2 className="docs-doc-title">{previewDoc.name}</h2>
+                        <div className="docs-doc-meta-bar">
+                          <span><strong>Project:</strong> {projectCode || 'SITE-PULSE'}</span>
+                          <span><strong>Category:</strong> {previewDoc.category}</span>
+                          <span><strong>Date:</strong> {formatDate(previewDoc.uploaded_at)}</span>
+                          <span><strong>Status:</strong> Approved</span>
+                        </div>
+                        <div className="docs-doc-content">
+                          <h4>1. SCOPE & GENERAL PROVISIONS</h4>
+                          <p>
+                            All civil, architectural, electrical, and mechanical construction works governed under this document
+                            must comply with the National Structural Code and standard industry specifications. Any field deviation
+                            must be authorized through an official SitePulse Request for Information (RFI).
+                          </p>
+
+                          <h4>2. MATERIAL SPECIFICATIONS & QUALITY ASSURANCE</h4>
+                          <p>
+                            All Portland cement, deformed reinforcing steel bars (Grade 60), fine aggregates, and structural steel
+                            must be sourced from accredited suppliers and accompanied by certified mill test certificates.
+                            Compressive strength test cylinders shall be cast and broken at 7, 14, and 28-day intervals.
+                          </p>
+
+                          <h4>3. TESTING & FIELD VERIFICATION</h4>
+                          <p>
+                            Daily site logs, slump test reports, soil compaction densities, and waterproofing inspection sign-offs
+                            must be digitally registered in the project archive before structural sign-off.
+                          </p>
+                        </div>
+                        <div className="docs-doc-signoff">
+                          <div className="docs-doc-stamp">
+                            <span>VERIFIED & APPROVED</span>
+                            <small>SitePulse Engineering & Architecture</small>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Navigation & Profile ── */}
@@ -398,8 +787,8 @@ const Documents: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="doc-card-main">
-                        <h4 className="doc-name" title={doc.name}>{doc.name}</h4>
+                      <div className="doc-card-main" onClick={() => handleOpenPreview(doc)} style={{ cursor: 'pointer' }}>
+                        <h4 className="doc-name" title={`Click to preview "${doc.name}"`}>{doc.name}</h4>
                         <div className="doc-meta">
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                             <Calendar size={13} /> {formatDate(doc.uploaded_at)}
@@ -410,8 +799,18 @@ const Documents: React.FC = () => {
 
                     <div className="doc-card-footer">
                       <button
+                        className="doc-preview-btn"
+                        onClick={() => handleOpenPreview(doc)}
+                        title="Preview document in browser"
+                      >
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                          <Eye size={13} /> Preview
+                        </span>
+                      </button>
+                      <button
                         className="doc-download-btn"
                         onClick={() => handleDownload(doc)}
+                        title="Download to device"
                       >
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
                           <Download size={13} /> Download
@@ -448,8 +847,8 @@ const Documents: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="doc-card-main">
-                  <h4 className="doc-name" title={doc.name}>{doc.name}</h4>
+                <div className="doc-card-main" onClick={() => handleOpenPreview(doc)} style={{ cursor: 'pointer' }}>
+                  <h4 className="doc-name" title={`Click to preview "${doc.name}"`}>{doc.name}</h4>
                   <div className="doc-meta">
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                       <Calendar size={13} /> {formatDate(doc.uploaded_at)}
@@ -460,8 +859,18 @@ const Documents: React.FC = () => {
 
               <div className="doc-card-footer">
                 <button
+                  className="doc-preview-btn"
+                  onClick={() => handleOpenPreview(doc)}
+                  title="Preview document in browser"
+                >
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                    <Eye size={13} /> Preview
+                  </span>
+                </button>
+                <button
                   className="doc-download-btn"
                   onClick={() => handleDownload(doc)}
+                  title="Download to device"
                 >
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
                     <Download size={13} /> Download
@@ -483,7 +892,7 @@ const Documents: React.FC = () => {
                 <th>Document Name</th>
                 <th>Category</th>
                 <th>Uploaded Date</th>
-                <th style={{ textAlign: 'right', width: '180px' }}>Actions</th>
+                <th style={{ textAlign: 'right', width: '220px' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -495,7 +904,12 @@ const Documents: React.FC = () => {
                     </span>
                   </td>
                   <td>
-                    <div className="docs-table-name">
+                    <div
+                      className="docs-table-name"
+                      onClick={() => handleOpenPreview(doc)}
+                      style={{ cursor: 'pointer' }}
+                      title="Click to preview"
+                    >
                       <span>{doc.name}</span>
                     </div>
                   </td>
@@ -512,9 +926,19 @@ const Documents: React.FC = () => {
                   <td style={{ textAlign: 'right' }}>
                     <div className="docs-table-actions" style={{ justifyContent: 'flex-end' }}>
                       <button
+                        className="docs-table-btn docs-table-btn--preview"
+                        onClick={() => handleOpenPreview(doc)}
+                        title="Preview document in browser"
+                      >
+                        <Eye size={12} style={{ marginRight: '4px' }} />
+                        Preview
+                      </button>
+                      <button
                         className="docs-table-btn"
                         onClick={() => handleDownload(doc)}
+                        title="Download file"
                       >
+                        <Download size={12} style={{ marginRight: '4px' }} />
                         Download
                       </button>
                       <button

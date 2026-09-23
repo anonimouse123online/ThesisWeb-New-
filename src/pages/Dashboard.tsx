@@ -242,12 +242,19 @@ const Dashboard: React.FC = () => {
     ...Array.from(new Set(projects.map(p => p.pm))).map(pm => ({ value: pm, label: pm }))
   ];
 
+  const baseStatuses = ['Planning', 'Ongoing', 'Completed'];
+  const extraStatuses = Array.from(
+    new Set(
+      projects
+        .map(p => p.status)
+        .filter(s => s && !baseStatuses.map(b => b.toLowerCase()).includes(s.toLowerCase()))
+    )
+  );
+
   const statusOptions = [
     { value: 'All', label: 'All Statuses' },
-    { value: 'Approved', label: 'Approved' },
-    { value: 'Delayed', label: 'Delayed' },
-    { value: 'At risk', label: 'At risk' },
-    { value: 'In Review', label: 'In Review' },
+    ...baseStatuses.map(s => ({ value: s, label: s })),
+    ...extraStatuses.map(s => ({ value: s, label: s })),
   ];
 
   const timeRangeOptions = [
@@ -397,11 +404,17 @@ const Dashboard: React.FC = () => {
                   <td><span className={pillClass(p.status)}>{p.status}</span></td>
                   <td>
                     {(() => {
-                      const pct = typeof p.progress_pct === 'number'
-                        ? Math.min(100, Math.max(0, Math.round(p.progress_pct)))
-                        : (p.prog && !isNaN(Number(String(p.prog).replace('%', ''))))
-                          ? Math.min(100, Math.max(0, Math.round(Number(String(p.prog).replace('%', '')))))
-                          : 0;
+                      let pct = 0;
+                      if (typeof p.progress_pct === 'number' && !isNaN(p.progress_pct)) {
+                        pct = p.progress_pct;
+                      } else if (typeof (p as any).progress === 'number' && !isNaN((p as any).progress)) {
+                        pct = (p as any).progress;
+                      } else if (p.total_tasks && p.total_tasks > 0) {
+                        pct = Math.round(((p.completed_tasks || 0) / p.total_tasks) * 100);
+                      } else if (p.prog && !isNaN(Number(String(p.prog).replace('%', '')))) {
+                        pct = Number(String(p.prog).replace('%', ''));
+                      }
+                      pct = Math.min(100, Math.max(0, Math.round(pct)));
 
                       return (
                         <div

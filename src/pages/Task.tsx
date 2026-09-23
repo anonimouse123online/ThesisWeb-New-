@@ -345,6 +345,8 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
   });
   const [loading, setLoading]                 = useState(false);
   const [error, setError]                     = useState<string | null>(null);
+  const [subtasks, setSubtasks]               = useState<{ id: string; title: string; completed: boolean }[]>([]);
+  const [subtaskInput, setSubtaskInput]       = useState("");
   const [users, setUsers]                     = useState<User[]>([]);
   const [usersLoading, setUsersLoading]       = useState(true);
   const [projects, setProjects]               = useState<Project[]>([]);
@@ -401,7 +403,6 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
     if (!form.dueDate)                  { setError("Due date is required."); return; }
     if (form.dueDate < form.startDate)  { setError("Due date cannot be earlier than start date."); return; }
     if (form.dueDate < todayStr)        { setError("Due date cannot be a past date."); return; }
-    if (!form.manpowerNeeded.trim())    { setError("Manpower needed is required (e.g. 5 workers)."); return; }
     if (!form.siteInstructions.trim())  { setError("Site instructions are required."); return; }
 
     setLoading(true);
@@ -421,6 +422,7 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
           priority:          form.priority,
           manpowerNeeded:    form.manpowerNeeded.trim(),
           siteInstructions:  form.siteInstructions.trim(),
+          subtasks,
         }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? "Failed to create task."); }
@@ -433,11 +435,8 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
         assignee:     selectedUser?.full_name ?? "",
         project_name: selectedProject?.name  ?? undefined,
         project_code: selectedProject?.code  ?? undefined,
-        progress_pct: 0,
-        subtasks: [
-          { id: "1", title: "Site preparation & safety check", completed: false },
-          { id: "2", title: "Material staging & equipment setup", completed: false }
-        ]
+        progress_pct: data.progress_pct ?? 0,
+        subtasks:     Array.isArray(data.subtasks) ? data.subtasks : subtasks,
       };
 
       showToast("Task created successfully!", "success");
@@ -524,13 +523,91 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
           </div>
 
           <div className="ct-field">
-            <label className="ct-label">Manpower Needed <span className="ct-required">*</span></label>
-            <input name="manpowerNeeded" className="ct-input" placeholder="e.g. 5 workers" value={form.manpowerNeeded} onChange={handleChange} required />
+            <label className="ct-label">Manpower Needed</label>
+            <input name="manpowerNeeded" className="ct-input" placeholder="e.g. 5 workers (optional)" value={form.manpowerNeeded} onChange={handleChange} />
           </div>
 
           <div className="ct-field">
             <label className="ct-label">Site Instructions <span className="ct-required">*</span></label>
             <textarea name="siteInstructions" className="ct-textarea" placeholder="Special instructions for the site team…" value={form.siteInstructions} onChange={handleChange} rows={3} required />
+          </div>
+
+          <div className="ct-field">
+            <label className="ct-label">Subtasks &amp; Execution Steps (Optional)</label>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+              <input
+                type="text"
+                className="ct-input"
+                placeholder="e.g. Pour concrete foundation, Inspect steel rebar..."
+                value={subtaskInput}
+                onChange={(e) => setSubtaskInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (subtaskInput.trim()) {
+                      setSubtasks((prev) => [
+                        ...prev,
+                        { id: `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`, title: subtaskInput.trim(), completed: false },
+                      ]);
+                      setSubtaskInput('');
+                    }
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="ct-btn ct-btn--submit"
+                style={{ whiteSpace: 'nowrap', padding: '0 16px', fontSize: '13px' }}
+                onClick={() => {
+                  if (subtaskInput.trim()) {
+                    setSubtasks((prev) => [
+                      ...prev,
+                      { id: `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`, title: subtaskInput.trim(), completed: false },
+                    ]);
+                    setSubtaskInput('');
+                  }
+                }}
+              >
+                + Add Step
+              </button>
+            </div>
+            {subtasks.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
+                {subtasks.map((st, idx) => (
+                  <div
+                    key={st.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      background: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '6px',
+                      padding: '6px 12px',
+                      fontSize: '13px',
+                    }}
+                  >
+                    <span>{idx + 1}. {st.title}</span>
+                    <button
+                      type="button"
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#ef4444',
+                        cursor: 'pointer',
+                        fontWeight: 700,
+                        fontSize: '16px',
+                        padding: '2px 6px',
+                      }}
+                      onClick={() => setSubtasks((prev) => prev.filter((s) => s.id !== st.id))}
+                      aria-label="Remove subtask"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="ct-footer">
@@ -638,7 +715,7 @@ export default function Tasks() {
               ...t,
               subtasks: updatedSubs,
               progress_pct: newPct,
-              status: newPct === 100 ? ("Completed" as Status) : newPct > 0 ? ("In Progress" as Status) : t.status,
+              status: newPct === 100 ? ("Completed" as Status) : newPct > 0 ? ("In Progress" as Status) : ("Pending" as Status),
             }
           : t
       )
@@ -671,7 +748,14 @@ export default function Tasks() {
 
     setTasks((prev) =>
       prev.map((t) =>
-        t.id === taskId ? { ...t, subtasks: updatedSubs, progress_pct: newPct } : t
+        t.id === taskId
+          ? {
+              ...t,
+              subtasks: updatedSubs,
+              progress_pct: newPct,
+              status: newPct === 100 ? ("Completed" as Status) : newPct > 0 ? ("In Progress" as Status) : ("Pending" as Status),
+            }
+          : t
       )
     );
 
@@ -700,7 +784,14 @@ export default function Tasks() {
 
     setTasks((prev) =>
       prev.map((t) =>
-        t.id === taskId ? { ...t, subtasks: updatedSubs, progress_pct: newPct } : t
+        t.id === taskId
+          ? {
+              ...t,
+              subtasks: updatedSubs,
+              progress_pct: newPct,
+              status: newPct === 100 ? ("Completed" as Status) : newPct > 0 ? ("In Progress" as Status) : ("Pending" as Status),
+            }
+          : t
       )
     );
 

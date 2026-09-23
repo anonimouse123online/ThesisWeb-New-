@@ -500,7 +500,7 @@ const ProjectDetails: React.FC = () => {
     const newPct = updatedSubtasks.length > 0 ? Math.round((doneCount / updatedSubtasks.length) * 100) : 0;
     const allCompleted = updatedSubtasks.length > 0 && doneCount === updatedSubtasks.length;
     const anyCompleted = doneCount > 0;
-    const newStatus = allCompleted ? 'Completed' : (anyCompleted ? 'In Progress' : task.status);
+    const newStatus = allCompleted ? 'Completed' : (anyCompleted ? 'In Progress' : 'Pending');
 
     setTasks(prev => prev.map(t =>
       String(t.id) === String(taskId) ? { ...t, subtasks: updatedSubtasks, status: newStatus, progress_pct: newPct } : t
@@ -535,7 +535,7 @@ const ProjectDetails: React.FC = () => {
     const updatedSubs = [...currentSubs, newSub];
     const doneCount = updatedSubs.filter(s => s.completed).length;
     const newPct = Math.round((doneCount / updatedSubs.length) * 100);
-    const newStatus = newPct === 100 ? 'Completed' : 'In Progress';
+    const newStatus = newPct === 100 ? 'Completed' : (newPct > 0 ? 'In Progress' : 'Pending');
 
     setNewSubtaskInputs(prev => ({ ...prev, [taskId]: '' }));
 
@@ -574,7 +574,7 @@ const ProjectDetails: React.FC = () => {
     const doneCount = updatedSubs.filter(s => s.completed).length;
     const newPct = updatedSubs.length > 0 ? Math.round((doneCount / updatedSubs.length) * 100) : 0;
     const allDone = updatedSubs.length > 0 && doneCount === updatedSubs.length;
-    const newStatus = allDone ? 'Completed' : (doneCount > 0 ? 'In Progress' : (task.status === 'Completed' ? 'In Progress' : task.status));
+    const newStatus = allDone ? 'Completed' : (doneCount > 0 ? 'In Progress' : 'Pending');
 
     setTasks(prev =>
       prev.map(t =>
@@ -866,11 +866,7 @@ const ProjectDetails: React.FC = () => {
       totalSubtasksCount += subs.length;
       const done = subs.filter(s => s.completed).length;
       completedSubtasksCount += done;
-      if (isCompleted) {
-        totalTaskScore += 1;
-      } else {
-        totalTaskScore += done / subs.length;
-      }
+      totalTaskScore += done / subs.length;
     } else {
       if (isCompleted) {
         totalTaskScore += 1;
