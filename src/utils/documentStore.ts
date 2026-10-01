@@ -58,8 +58,12 @@ export async function getDocFile(key: string): Promise<Blob | null> {
  * Helper to ensure a filename has the correct extension.
  */
 export function ensureExtension(name: string, ext: string): string {
+  const lowerName = name.toLowerCase();
   const lowerExt = ext.toLowerCase();
-  if (name.toLowerCase().endsWith(`.${lowerExt}`)) return name;
+  if (lowerName.endsWith(`.${lowerExt}`)) return name;
+  if ((lowerExt === 'doc' || lowerExt === 'docx') && (lowerName.endsWith('.doc') || lowerName.endsWith('.docx'))) return name;
+  if ((lowerExt === 'xls' || lowerExt === 'xlsx') && (lowerName.endsWith('.xls') || lowerName.endsWith('.xlsx') || lowerName.endsWith('.csv'))) return name;
+  if ((lowerExt === 'dwg' || lowerExt === 'dxf') && (lowerName.endsWith('.dwg') || lowerName.endsWith('.dxf'))) return name;
   return `${name}.${lowerExt}`;
 }
 

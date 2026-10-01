@@ -7,7 +7,6 @@ import '../components/Dashboard.css';
 import {
   TrendingUp,
   TrendingDown,
-  Check,
   Search,
   X,
   FolderClosed,
@@ -158,12 +157,6 @@ const StatCard: React.FC<StatItem> = ({
   </div>
 );
 
-const Checkbox: React.FC<{ checked: boolean }> = ({ checked }) => (
-  <div className={`monitor-checkbox ${checked ? 'checked' : ''}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-    {checked && <Check size={10} color="white" strokeWidth={3} />}
-  </div>
-);
-
 // --- MAIN COMPONENT ---
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -227,7 +220,7 @@ const Dashboard: React.FC = () => {
   if (error)   return <div className="rm-empty" style={{ color: 'red' }}>{error}</div>;
   if (!data)   return <div className="rm-empty">No data available.</div>;
 
-  const { stats, projects, monitorItems, rfis, notes } = data;
+  const { stats, projects } = data;
   const delayedProjects = projects.filter(
   project => project.status.toLowerCase() === 'delayed'
 ).length;
@@ -275,17 +268,6 @@ const Dashboard: React.FC = () => {
     const matchStatus  = selectedStatusFilter === 'All' || p.status.toLowerCase() === selectedStatusFilter.toLowerCase();
     return matchSearch && matchProject && matchPm && matchStatus;
   });
-
-  // Filter monitoring items
-  const filteredMonitor = monitorItems.filter(m =>
-    !searchQuery || m.label.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-  const filteredRfis = rfis.filter(r =>
-    !searchQuery || r.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-  const filteredNotes = notes.filter(n =>
-    !searchQuery || n.label.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   return (
     <main className="main-content">

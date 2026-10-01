@@ -27,7 +27,9 @@ import {
   ChevronDown,
   ChevronRight,
   ArrowRight,
-  Info
+  Info,
+  Crown,
+  ShieldCheck
 } from 'lucide-react';
 
 const API_URL = API_BASE_URL;
@@ -93,7 +95,7 @@ interface TaskItem {
 }
 
 interface ResourceItem {
-  id: number;
+  id: number | string;
   name: string;
   supplier: string;
   category: 'Material' | 'Equipment';
@@ -104,6 +106,8 @@ interface ResourceItem {
   project: string;
   status: string;
   updatedAt: string;
+  taskId?: string | null;
+  taskName?: string | null;
 }
 
 
@@ -369,6 +373,7 @@ const ProjectDetails: React.FC = () => {
     unit: '',
     minThreshold: '',
     unitPrice: '',
+    taskId: '',
   });
   const [addingResource, setAddingResource] = useState(false);
 
@@ -786,6 +791,7 @@ const ProjectDetails: React.FC = () => {
 
     try {
       setAddingResource(true);
+      const selectedTask = tasks.find(t => String(t.id) === String(resourceForm.taskId));
       const payload = {
         name: resourceForm.name.trim(),
         supplier: resourceForm.supplier.trim() || 'General Supplier',
@@ -796,6 +802,8 @@ const ProjectDetails: React.FC = () => {
         unitPrice: parseFloat(resourceForm.unitPrice) || 0,
         assignedProject: project.name,
         project: project.name,
+        taskId: resourceForm.taskId || null,
+        taskName: selectedTask ? selectedTask.task_name : null,
       };
 
       const res = await fetchWithAuth(`${API_URL}/resources`, {
@@ -807,7 +815,12 @@ const ProjectDetails: React.FC = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || data.error || 'Failed to add resource');
 
-      showToast('Resource allocated to project!', 'success');
+      showToast(
+        selectedTask
+          ? `Resource allocated & linked to task "${selectedTask.task_name}"!`
+          : 'Resource allocated to project inventory!',
+        'success'
+      );
       setShowAddResourceModal(false);
       setResourceForm({
         name: '',
@@ -817,6 +830,7 @@ const ProjectDetails: React.FC = () => {
         unit: '',
         minThreshold: '',
         unitPrice: '',
+        taskId: '',
       });
       fetchProjectData();
     } catch (err: any) {
@@ -827,13 +841,42 @@ const ProjectDetails: React.FC = () => {
   };
 
   // 8. Delete Resource
-  const handleDeleteResource = async (id: number) => {
+  const handleDeleteResource = async (id: number | string) => {
     if (!window.confirm('Remove this resource from the project?')) return;
     try {
+      const targetRes = resources.find(r => String(r.id) === String(id));
       const res = await fetchWithAuth(`${API_URL}/resources/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete resource');
       showToast('Resource removed', 'success');
-      setResources(prev => prev.filter(r => r.id !== id));
+      setResources(prev => prev.filter(r => String(r.id) !== String(id)));
+
+      if (targetRes) {
+        const targetName = (targetRes.name || '').trim().toLowerCase();
+        const escaped = targetName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const endRegex = new RegExp('(?:^|\\s)' + escaped + '$', 'i');
+
+        setTasks(prevTasks =>
+          prevTasks.map(t => {
+            if (!t.materials_required) return t;
+            const remaining = t.materials_required
+              .split(',')
+              .map(m => m.trim())
+              .filter(m => {
+                if (!m) return false;
+                const clean = m.replace(/\s*\([^)]*\)/g, '').trim().toLowerCase();
+                const itemWithoutQty = clean.replace(/^[\d.,\s]+(?:bags?|pcs?|units?|kg|tons?|sets?|cu\.?m|meters?|boxes?|liters?|rolls?|sheets?|pairs?|items?|lengths?)?\s*/i, '').trim();
+                const isMatch = itemWithoutQty === targetName || clean === targetName || endRegex.test(clean);
+                return !isMatch;
+              });
+            return {
+              ...t,
+              materials_required: remaining.length > 0 ? remaining.join(', ') : 'None specified',
+            };
+          })
+        );
+      }
+
+      fetchProjectData();
     } catch (err: any) {
       showToast(err.message, 'error');
     }
@@ -886,7 +929,11 @@ const ProjectDetails: React.FC = () => {
   const circumference = 2 * Math.PI * 44;
   const strokeDashoffset = circumference - (overallProgressPct / 100) * circumference;
 
-  const lowStockResources = resources.filter(r => (r.status || '').toLowerCase().includes('low'));
+  const lowStockResources = resources.filter(r => {
+    const q = Number(r.quantity) || 0;
+    const t = Number(r.minThreshold) || 0;
+    return (t > 0 && q <= t) || (r.status || '').toLowerCase().includes('low');
+  });
   const totalResourceCost = resources.reduce((sum, r) => sum + (Number(r.quantity) || 0) * (Number(r.unitPrice) || 0), 0);
 
   // Group tasks by Phase
@@ -1637,12 +1684,52 @@ const ProjectDetails: React.FC = () => {
                 </thead>
                 <tbody>
                   {filteredResources.map(res => {
-                    const isLow = (res.status || '').toLowerCase().includes('low');
-                    const totalVal = (Number(res.quantity) || 0) * (Number(res.unitPrice) || 0);
+                    const qtyNum = Number(res.quantity) || 0;
+                    const threshNum = Number(res.minThreshold) || 0;
+                    const isLow = (threshNum > 0 && qtyNum <= threshNum) || (res.status || '').toLowerCase().includes('low');
+                    const isOut = qtyNum <= 0;
+                    const displayStatus = isOut
+                      ? 'Out of stock'
+                      : (isLow
+                          ? 'Low stock'
+                          : (res.status || (res.category === 'Equipment' ? 'Available' : 'In stock')));
+                    const totalVal = qtyNum * (Number(res.unitPrice) || 0);
 
                     return (
                       <tr key={res.id}>
-                        <td className="pm-td-bold">{res.name}</td>
+                        <td className="pm-td-bold">
+                          <div>{res.name}</div>
+                          {res.taskName ? (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                fontSize: '11px',
+                                color: '#2563eb',
+                                background: '#eff6ff',
+                                border: '1px solid #bfdbfe',
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                                marginTop: '3px',
+                                fontWeight: 500,
+                              }}
+                            >
+                              Task: {res.taskName}
+                            </span>
+                          ) : (
+                            <span
+                              style={{
+                                fontSize: '11px',
+                                color: '#94a3b8',
+                                display: 'block',
+                                marginTop: '2px',
+                              }}
+                            >
+                              General Stock
+                            </span>
+                          )}
+                        </td>
                         <td>
                           <span className={`pd-res-badge ${res.category === 'Material' ? 'pd-res-badge--mat' : 'pd-res-badge--equip'}`}>
                             {res.category}
@@ -1656,8 +1743,8 @@ const ProjectDetails: React.FC = () => {
                         <td>₱{Number(res.unitPrice).toLocaleString()}</td>
                         <td><strong>₱{totalVal.toLocaleString()}</strong></td>
                         <td>
-                          <span className={`pd-status-pill ${isLow ? 'pd-status--lowstock' : 'pd-status--instock'}`}>
-                            {res.status || (isLow ? 'Low stock' : 'In stock')}
+                          <span className={`pd-status-pill ${isLow || isOut ? 'pd-status--lowstock' : 'pd-status--instock'}`}>
+                            {displayStatus}
                           </span>
                         </td>
                         <td>
@@ -1705,16 +1792,21 @@ const ProjectDetails: React.FC = () => {
               <p className="pd-empty-hint">No team members assigned yet. Generate an invite code to let site engineers join!</p>
             ) : (
               teamMembers.map(m => (
-                <div key={m.id} className="pd-member-card">
-                  <div className="pd-avatar-large" style={{ background: avatarColor(m.name) }}>
+                <div key={m.id} className="pd-member-card" style={m.role === 'Owner' ? { border: '2px solid #f59e0b', background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)' } : undefined}>
+                  <div className="pd-avatar-large" style={{ background: m.role === 'Owner' ? '#f59e0b' : avatarColor(m.name), position: 'relative' }}>
                     {getInitials(m.name)}
+                    {m.role === 'Owner' && (
+                      <Crown size={14} style={{ position: 'absolute', top: '-4px', right: '-4px', color: '#f59e0b', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.3))' }} />
+                    )}
                   </div>
                   <div className="pd-member-info">
                     <h4>{m.name}</h4>
-                    <p className="pd-member-role">{m.role || 'Site Member'}</p>
+                    <p className="pd-member-role" style={m.role === 'Owner' ? { color: '#b45309', fontWeight: 700 } : undefined}>
+                      {m.role === 'Owner' ? (<><ShieldCheck size={13} style={{ marginRight: 4, verticalAlign: '-2px' }} /> Project Owner</>) : (m.role || 'Site Member')}
+                    </p>
                     <span className="pd-member-active-tag" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
                       <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', display: 'inline-block' }} />
-                      Active On Site
+                      {m.role === 'Owner' ? 'Admin' : 'Active On Site'}
                     </span>
                   </div>
                 </div>
@@ -1733,11 +1825,6 @@ const ProjectDetails: React.FC = () => {
             <div>
               <h2 className="pd-card-heading">Project Documents, Logs &amp; Reports</h2>
               <p className="pd-card-sub">Architectural plans, engineering specs, daily logs, and site reports</p>
-            </div>
-            <div className="pd-tab-header-actions">
-              <button className="pd-btn-primary" onClick={() => navigate(`/projects/${project.code}/documents`)}>
-                + Upload Document
-              </button>
             </div>
           </div>
 
@@ -2232,6 +2319,30 @@ const ProjectDetails: React.FC = () => {
           <div className="pm-modal" onClick={e => e.stopPropagation()}>
             <h2 className="pm-modal-title">Allocate Resource to {project.name}</h2>
             <form onSubmit={handleCreateResource}>
+              {/* Task Dropdown */}
+              <div className="pm-form-row">
+                <div className="pm-form-group">
+                  <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>Assign to Task (Optional)</span>
+                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 400 }}>
+                      Choose which task will use this resource
+                    </span>
+                  </label>
+                  <select
+                    className="pm-input pm-select"
+                    value={resourceForm.taskId}
+                    onChange={e => setResourceForm({ ...resourceForm, taskId: e.target.value })}
+                  >
+                    <option value="">-- General Project Inventory (No specific task) --</option>
+                    {tasks.map(t => (
+                      <option key={t.id} value={String(t.id)}>
+                        {t.task_name} ({t.phase})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               <div className="pm-form-row pm-form-row--2">
                 <div className="pm-form-group">
                   <label>Resource / Item Name <span className="pm-required">*</span></label>

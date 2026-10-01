@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import '../components/Documents.css';
 import UploadDocumentModal from '../pages/upload-document';
+import DocxViewer from '../components/DocxViewer';
+import * as XLSX from 'xlsx';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import { downloadDocument, getDocumentBlob } from '../utils/documentStore';
 import type { DocumentBlobResult } from '../utils/documentStore';
@@ -24,11 +26,10 @@ import {
   ArrowLeft,
   Eye,
   ExternalLink,
-  Layers,
   Table as TableIcon,
-  FileText,
   AlertCircle,
-  Loader2
+  Loader2,
+  Lightbulb
 } from 'lucide-react';
 
 const API_URL = API_BASE_URL;
@@ -73,6 +74,32 @@ const Documents: React.FC = () => {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError]     = useState<string | null>(null);
   const [sheetSearch, setSheetSearch]       = useState('');
+  const [excelSheets, setExcelSheets]       = useState<{ [sheetName: string]: { headers: string[]; rows: string[][] } }>({});
+  const [activeSheetName, setActiveSheetName] = useState<string>('');
+
+  // ── Document format type checkers ──
+  const isDocType = (doc: Document | null): boolean => {
+    if (!doc) return false;
+    const n = (doc.name || '').toLowerCase();
+    return doc.type === 'DOC' || (doc as any).type === 'DOCX' || n.endsWith('.docx') || n.endsWith('.doc') || n.endsWith('.rtf');
+  };
+
+  const isXlsType = (doc: Document | null): boolean => {
+    if (!doc) return false;
+    const n = (doc.name || '').toLowerCase();
+    return doc.type === 'XLS' || (doc as any).type === 'XLSX' || n.endsWith('.xlsx') || n.endsWith('.xls') || n.endsWith('.csv');
+  };
+
+  const isDwgType = (doc: Document | null): boolean => {
+    if (!doc) return false;
+    const n = (doc.name || '').toLowerCase();
+    return doc.type === 'DWG' || n.endsWith('.dwg') || n.endsWith('.dxf');
+  };
+
+  const isPdfType = (doc: Document | null): boolean => {
+    if (!doc) return false;
+    return !isDocType(doc) && !isXlsType(doc) && !isDwgType(doc);
+  };
 
   // Fetch project details for header breadcrumb
   useEffect(() => {
@@ -146,9 +173,34 @@ const Documents: React.FC = () => {
     setPreviewLoading(true);
     setPreviewError(null);
     setSheetSearch('');
+    setExcelSheets({});
+    setActiveSheetName('');
     try {
       const result = await getDocumentBlob(doc, projectCode);
       setPreviewData(result);
+
+      // Parse XLSX spreadsheet if applicable
+      if (isXlsType(doc) && result.blob) {
+        try {
+          const ab = await result.blob.arrayBuffer();
+          const wb = XLSX.read(ab, { type: 'array' });
+          const sheets: { [name: string]: { headers: string[]; rows: string[][] } } = {};
+          for (const sName of wb.SheetNames) {
+            const raw: any[][] = XLSX.utils.sheet_to_json(wb.Sheets[sName], { header: 1, defval: '' });
+            if (raw.length > 0) {
+              const headers = (raw[0] || []).map((c: any) => String(c ?? ''));
+              const rows = raw.slice(1).map((r: any[]) => r.map((c: any) => String(c ?? '')));
+              sheets[sName] = { headers, rows };
+            }
+          }
+          if (Object.keys(sheets).length > 0) {
+            setExcelSheets(sheets);
+            setActiveSheetName(wb.SheetNames[0]);
+          }
+        } catch (excelErr) {
+          console.warn('[DOCS] XLSX parse error:', excelErr);
+        }
+      }
     } catch (err: any) {
       console.error('Preview error:', err);
       setPreviewError(err.message || 'Unable to load preview for this file.');
@@ -167,6 +219,8 @@ const Documents: React.FC = () => {
     setPreviewDoc(null);
     setPreviewData(null);
     setPreviewError(null);
+    setExcelSheets({});
+    setActiveSheetName('');
   };
 
   // Keyboard shortcut: close preview on Escape
@@ -225,7 +279,10 @@ const Documents: React.FC = () => {
 
   // ── Parse Spreadsheet text into rows/columns for XLS preview ──
   const parsedSheetData = useMemo(() => {
-    if (!previewData?.textData || (previewDoc?.type !== 'XLS' && (previewDoc as any)?.type !== 'XLSX')) {
+    if (activeSheetName && excelSheets[activeSheetName]) {
+      return excelSheets[activeSheetName];
+    }
+    if (!previewData?.textData || !isXlsType(previewDoc)) {
       return null;
     }
     const lines = previewData.textData.replace(/^\uFEFF/, '').trim().split('\n');
@@ -252,7 +309,7 @@ const Documents: React.FC = () => {
     const headers = rows[0] || [];
     const bodyRows = rows.slice(1);
     return { headers, rows: bodyRows };
-  }, [previewData, previewDoc]);
+  }, [previewData, previewDoc, excelSheets, activeSheetName]);
 
   const filteredSheetRows = useMemo(() => {
     if (!parsedSheetData) return [];
@@ -287,7 +344,7 @@ const Documents: React.FC = () => {
             <div className="docs-preview-header">
               <div className="docs-preview-header-left">
                 <span className={`doc-type-badge ${TYPE_CLASSES[previewDoc.type] || 'type-pdf'}`}>
-                  {previewDoc.type}
+                  {previewDoc.name.toLowerCase().endsWith('.docx') ? 'DOCX' : previewDoc.name.toLowerCase().endsWith('.xlsx') ? 'XLSX' : previewDoc.type}
                 </span>
                 <div className="docs-preview-title-wrap">
                   <h3 className="docs-preview-title" title={previewDoc.name}>
@@ -366,7 +423,7 @@ const Documents: React.FC = () => {
               {!previewLoading && !previewError && previewData && (
                 <>
                   {/* 1. PDF Preview: Native browser PDF iframe */}
-                  {previewDoc.type === 'PDF' && (
+                  {isPdfType(previewDoc) && (
                     <div className="docs-preview-pdf-wrap">
                       <iframe
                         src={`${previewData.url}#toolbar=1&navpanes=0`}
@@ -377,7 +434,7 @@ const Documents: React.FC = () => {
                   )}
 
                   {/* 2. CAD / DWG Preview: Blueprint CAD viewer card */}
-                  {previewDoc.type === 'DWG' && (
+                  {isDwgType(previewDoc) && (
                     <div className="docs-preview-cad">
                       <div className="docs-cad-viewport">
                         <div className="docs-cad-grid-bg" />
@@ -422,8 +479,9 @@ const Documents: React.FC = () => {
                           </div>
 
                           <div className="docs-cad-actions-footer">
-                            <p className="docs-cad-tip">
-                              💡 To view and edit 3D layers, open this native file with AutoCAD, Autodesk DWG TrueView, or Revit.
+                            <p className="docs-cad-tip" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <Lightbulb size={15} style={{ color: '#F59E0B', flexShrink: 0 }} />
+                              <span>To view and edit 3D layers, open this native file with AutoCAD, Autodesk DWG TrueView, or Revit.</span>
                             </p>
                             <button
                               className="docs-cad-dl-btn"
@@ -438,7 +496,7 @@ const Documents: React.FC = () => {
                   )}
 
                   {/* 3. XLS / CSV Preview: Interactive Spreadsheet Table */}
-                  {previewDoc.type === 'XLS' && (
+                  {isXlsType(previewDoc) && (
                     <div className="docs-preview-sheet">
                       <div className="docs-sheet-toolbar">
                         <div className="docs-sheet-info">
@@ -466,6 +524,22 @@ const Documents: React.FC = () => {
                           )}
                         </div>
                       </div>
+
+                      {/* Multi-Sheet selector tabs if workbook has multiple sheets */}
+                      {Object.keys(excelSheets).length > 1 && (
+                        <div className="docs-sheet-tabs">
+                          {Object.keys(excelSheets).map((sheetName) => (
+                            <button
+                              key={sheetName}
+                              type="button"
+                              className={`docs-sheet-tab-btn ${sheetName === activeSheetName ? 'active' : ''}`}
+                              onClick={() => setActiveSheetName(sheetName)}
+                            >
+                              {sheetName}
+                            </button>
+                          ))}
+                        </div>
+                      )}
 
                       <div className="docs-sheet-table-wrap">
                         {parsedSheetData && parsedSheetData.headers.length > 0 ? (
@@ -505,50 +579,17 @@ const Documents: React.FC = () => {
                     </div>
                   )}
 
-                  {/* 4. DOC / RTF Preview: Formatted Specification Document Reader */}
-                  {previewDoc.type === 'DOC' && (
-                    <div className="docs-preview-doc-reader">
-                      <div className="docs-doc-page">
-                        <div className="docs-doc-header">
-                          <span className="docs-doc-brand">SITEPULSE SPECIFICATION ARCHIVE</span>
-                          <span className="docs-doc-badge">CONTROLLED DOCUMENT</span>
-                        </div>
-                        <h2 className="docs-doc-title">{previewDoc.name}</h2>
-                        <div className="docs-doc-meta-bar">
-                          <span><strong>Project:</strong> {projectCode || 'SITE-PULSE'}</span>
-                          <span><strong>Category:</strong> {previewDoc.category}</span>
-                          <span><strong>Date:</strong> {formatDate(previewDoc.uploaded_at)}</span>
-                          <span><strong>Status:</strong> Approved</span>
-                        </div>
-                        <div className="docs-doc-content">
-                          <h4>1. SCOPE & GENERAL PROVISIONS</h4>
-                          <p>
-                            All civil, architectural, electrical, and mechanical construction works governed under this document
-                            must comply with the National Structural Code and standard industry specifications. Any field deviation
-                            must be authorized through an official SitePulse Request for Information (RFI).
-                          </p>
-
-                          <h4>2. MATERIAL SPECIFICATIONS & QUALITY ASSURANCE</h4>
-                          <p>
-                            All Portland cement, deformed reinforcing steel bars (Grade 60), fine aggregates, and structural steel
-                            must be sourced from accredited suppliers and accompanied by certified mill test certificates.
-                            Compressive strength test cylinders shall be cast and broken at 7, 14, and 28-day intervals.
-                          </p>
-
-                          <h4>3. TESTING & FIELD VERIFICATION</h4>
-                          <p>
-                            Daily site logs, slump test reports, soil compaction densities, and waterproofing inspection sign-offs
-                            must be digitally registered in the project archive before structural sign-off.
-                          </p>
-                        </div>
-                        <div className="docs-doc-signoff">
-                          <div className="docs-doc-stamp">
-                            <span>VERIFIED & APPROVED</span>
-                            <small>SitePulse Engineering & Architecture</small>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                  {/* 4. DOC / DOCX Preview: Native Word Document Viewer */}
+                  {isDocType(previewDoc) && (
+                    <DocxViewer
+                      blob={previewData.blob}
+                      filename={previewData.filename || previewDoc.name}
+                      documentName={previewDoc.name}
+                      category={previewDoc.category}
+                      uploadedAt={previewDoc.uploaded_at}
+                      projectCode={projectCode}
+                      onDownload={() => handleDownload(previewDoc)}
+                    />
                   )}
                 </>
               )}

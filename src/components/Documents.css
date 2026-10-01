@@ -1108,6 +1108,40 @@
   gap: 16px;
 }
 
+.docs-sheet-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  background: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+  overflow-x: auto;
+}
+
+.docs-sheet-tab-btn {
+  padding: 5px 14px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.docs-sheet-tab-btn:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.docs-sheet-tab-btn.active {
+  background: #10b981;
+  color: #ffffff;
+  border-color: #059669;
+}
+
 .docs-sheet-info {
   display: flex;
   align-items: center;

@@ -99,11 +99,18 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const normalizeType = (t: string): 'DWG' | 'PDF' | 'XLS' | 'DOC' => {
-    const upper = t.toUpperCase();
-    if (upper === 'DOCX') return 'DOC';
-    if (upper === 'XLSX') return 'XLS';
-    if (['JPG', 'PNG', 'JPEG'].includes(upper)) return 'PDF';
+  const normalizeType = (t: string, fileName?: string): 'DWG' | 'PDF' | 'XLS' | 'DOC' => {
+    if (fileName) {
+      const ext = fileName.split('.').pop()?.toUpperCase() || '';
+      if (ext === 'DOC' || ext === 'DOCX') return 'DOC';
+      if (ext === 'XLS' || ext === 'XLSX' || ext === 'CSV') return 'XLS';
+      if (ext === 'DWG' || ext === 'DXF') return 'DWG';
+      if (ext === 'PDF') return 'PDF';
+    }
+    const upper = (t || '').toUpperCase();
+    if (upper.includes('WORD') || upper.includes('DOCUMENT') || upper === 'DOCX' || upper === 'DOC') return 'DOC';
+    if (upper.includes('SHEET') || upper.includes('EXCEL') || upper.includes('CSV') || upper === 'XLSX' || upper === 'XLS') return 'XLS';
+    if (['JPG', 'PNG', 'JPEG'].some(x => upper.includes(x))) return 'PDF';
     if (['DWG', 'PDF', 'XLS', 'DOC'].includes(upper)) return upper as any;
     return 'PDF';
   };
@@ -129,7 +136,7 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
       if (files.length === 1) {
         // Single file upload
         const docName = name.trim() || files[0].name.replace(/\.[^/.]+$/, '');
-        const selectedType = docType ? normalizeType(docType) : normalizeType(files[0].type);
+        const selectedType = docType ? normalizeType(docType, files[0].name) : normalizeType(files[0].type, files[0].name);
 
         documentsPayload.push({
           name: docName,
@@ -148,7 +155,7 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
 
           return {
             name: docName,
-            type: normalizeType(f.type || docType || 'PDF'),
+            type: normalizeType(f.type || docType || 'PDF', f.name),
             category,
             version: version || null,
           };
@@ -156,7 +163,7 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
       }
 
       const primaryDocName = name.trim() || files[0].name.replace(/\.[^/.]+$/, '');
-      const primaryDocType = docType ? normalizeType(docType) : normalizeType(files[0].type);
+      const primaryDocType = docType ? normalizeType(docType, files[0].name) : normalizeType(files[0].type, files[0].name);
 
       const formData = new FormData();
       for (const item of files) {

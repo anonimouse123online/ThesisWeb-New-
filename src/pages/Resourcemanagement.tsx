@@ -119,7 +119,7 @@ const ResourceManagement: React.FC = () => {
   // ── Stats ──────────────────────────────────────────────────────────────────
   const materials  = resources.filter(r => r.category === "Material");
   const equipments = resources.filter(r => r.category === "Equipment");
-  const lowStock   = resources.filter(r => r.status === "Low stock" || r.status === "Low Availability");
+  const lowStock   = resources.filter(r => (Number(r.minThreshold) > 0 && Number(r.quantity) <= Number(r.minThreshold)) || r.status === "Low stock" || r.status === "Low Availability");
   const totalValue = resources.reduce((sum, r) => sum + r.quantity * r.unitPrice, 0);
 
   // ── Client-side filtering ─────────────────────────────────────────────────
