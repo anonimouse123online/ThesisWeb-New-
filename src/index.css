@@ -101,6 +101,108 @@ a {
   text-decoration: none;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Global Dropdown & Select UI — SitePulse Design System
+───────────────────────────────────────────────────────────── */
+
+select,
+.form-select,
+.notif-select,
+.ct-select,
+.rm-select,
+.ud-select,
+.filter-select,
+.pp-form-select,
+.atm-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-color: #ffffff;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ea580c' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 15px 15px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 9px 38px 9px 14px;
+  font-size: 13.5px;
+  font-weight: 500;
+  font-family: inherit;
+  color: #0f172a;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+select:hover:not(:disabled),
+.form-select:hover:not(:disabled),
+.notif-select:hover:not(:disabled),
+.ct-select:hover:not(:disabled),
+.rm-select:hover:not(:disabled),
+.ud-select:hover:not(:disabled),
+.filter-select:hover:not(:disabled),
+.pp-form-select:hover:not(:disabled),
+.atm-select:hover:not(:disabled) {
+  border-color: #cbd5e1;
+  background-color: #f8fafc;
+  box-shadow: 0 2px 5px rgba(15, 23, 42, 0.06);
+}
+
+select:focus,
+.form-select:focus,
+.notif-select:focus,
+.ct-select:focus,
+.rm-select:focus,
+.ud-select:focus,
+.filter-select:focus,
+.pp-form-select:focus,
+.atm-select:focus {
+  border-color: #ea580c;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15);
+}
+
+select:disabled,
+.form-select:disabled,
+.notif-select:disabled,
+.ct-select:disabled,
+.rm-select:disabled,
+.ud-select:disabled,
+.filter-select:disabled,
+.pp-form-select:disabled,
+.atm-select:disabled {
+  background-color: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #94a3b8;
+  cursor: not-allowed;
+  opacity: 0.75;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+}
+
+/* Option styling inside native selects */
+select option {
+  background-color: #ffffff;
+  color: #0f172a;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+select option:checked {
+  background-color: #fff7ed;
+  color: #ea580c;
+  font-weight: 600;
+}
+
+/* Modern Progressive Enhancement for browsers supporting Customizable Select */
+@supports (appearance: base-select) {
+  select.brand-select,
+  select.brand-select::picker(select) {
+    appearance: base-select;
+  }
+}
+
 /* ── Main Layout Wrapper ── */
 .dashboard-wrapper {
   display: flex;

@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../components/CreateTask.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import { showToast } from '../components/Toast';
 import { Package, Truck, Building2, X, AlertTriangle, Info } from 'lucide-react';
+import Dropdown from '../components/Dropdown';
 
 const API_URL = API_BASE_URL;
 
@@ -25,6 +26,7 @@ interface UserOption {
   id: string;
   full_name: string;
   role: string;
+  system_role?: string;
 }
 
 interface AllocatedMaterial {
@@ -43,6 +45,26 @@ const CreateTask: React.FC = () => {
 
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [users, setUsers]       = useState<UserOption[]>([]);
+
+  const isEngineerUser = (u: { role?: string; system_role?: string }) => {
+    const r = (u.role || '').toLowerCase();
+    const sr = (u.system_role || '').toLowerCase();
+    return r.includes('engineer') || sr.includes('engineer');
+  };
+
+  const formatUserRole = (role?: string, system_role?: string) => {
+    const r = role || system_role || 'Engineer';
+    if (r.toLowerCase() === 'engineer') return 'Engineer';
+    if (r.toLowerCase() === 'site engineer') return 'Site Engineer';
+    if (r.toLowerCase() === 'lead engineer') return 'Lead Engineer';
+    if (r.toLowerCase() === 'admin') return 'Admin';
+    return r;
+  };
+
+  const engineerUsers = useMemo(
+    () => users.filter(isEngineerUser),
+    [users]
+  );
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [projectResources, setProjectResources] = useState<any[]>([]);
 
@@ -135,12 +157,14 @@ const CreateTask: React.FC = () => {
             full_name: m.name || m.full_name || m.email,
             email: m.email || '',
             role: m.role || 'Member',
+            system_role: m.system_role || '',
           }));
           setUsers(members);
-          if (members.length > 0) {
+          const engineers = members.filter(isEngineerUser);
+          if (engineers.length > 0) {
             setFormData(prev => ({
               ...prev,
-              assigneeId: members.some(u => u.id === prev.assigneeId) ? prev.assigneeId : members[0].id,
+              assigneeId: engineers.some(u => u.id === prev.assigneeId) ? prev.assigneeId : engineers[0].id,
             }));
           } else {
             setFormData(prev => ({ ...prev, assigneeId: '' }));
@@ -293,47 +317,48 @@ const CreateTask: React.FC = () => {
             {/* Target Project */}
             <div className="form-group">
               <label>Target Project *</label>
-              <select
-                value={formData.projectId}
-                required
+              <Dropdown
+                fullWidth
                 disabled={loadingOptions}
-                onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
-              >
-                <option value="" disabled>{loadingOptions ? 'Loading projects…' : 'Select a project'}</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>{p.code} — {p.name}</option>
-                ))}
-              </select>
+                searchable={projects.length > 5}
+                options={projects.map((p) => ({ value: p.id, label: `${p.code} — ${p.name}` }))}
+                value={formData.projectId}
+                onChange={(val) => setFormData((prev) => ({ ...prev, projectId: val }))}
+                placeholder={loadingOptions ? 'Loading projects…' : 'Select a project'}
+              />
             </div>
 
             {/* Project Phase */}
             <div className="form-group">
               <label>Project Phase *</label>
-              <select
+              <Dropdown
+                fullWidth
+                options={PHASES.map((ph) => ({ value: ph, label: ph }))}
                 value={formData.phase}
-                required
-                onChange={(e) => setFormData({ ...formData, phase: e.target.value })}
-              >
-                {PHASES.map((ph) => (
-                  <option key={ph} value={ph}>{ph}</option>
-                ))}
-              </select>
+                onChange={(val) => setFormData((prev) => ({ ...prev, phase: val }))}
+                placeholder="Select a phase"
+              />
             </div>
 
             {/* Assignee */}
             <div className="form-group">
               <label>Assign Lead Engineer *</label>
-              <select
-                value={formData.assigneeId}
-                required
+              <Dropdown
+                fullWidth
                 disabled={loadingOptions}
-                onChange={(e) => setFormData({ ...formData, assigneeId: e.target.value })}
-              >
-                <option value="" disabled>{loadingOptions ? 'Loading engineers…' : users.length === 0 ? 'No invited members in this project' : 'Select an engineer'}</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>{u.full_name} ({u.role})</option>
-                ))}
-              </select>
+                searchable={engineerUsers.length > 5}
+                options={
+                  engineerUsers.length === 0
+                    ? [{ value: '', label: 'No engineers assigned to this project', disabled: true }]
+                    : engineerUsers.map((u) => ({
+                        value: u.id,
+                        label: `${u.full_name} (${formatUserRole(u.role, u.system_role)})`
+                      }))
+                }
+                value={formData.assigneeId}
+                onChange={(val) => setFormData((prev) => ({ ...prev, assigneeId: val }))}
+                placeholder={loadingOptions ? 'Loading engineers…' : 'Select an engineer'}
+              />
             </div>
 
             {/* Start Date */}
@@ -446,14 +471,17 @@ const CreateTask: React.FC = () => {
 
                     <div className="pm-mat-field">
                       <label className="pm-mat-label">Category <span className="pm-required">*</span></label>
-                      <select
-                        className="pm-mat-input"
+                      <Dropdown
+                        fullWidth
+                        size="sm"
+                        options={[
+                          { value: 'Material', label: 'Material' },
+                          { value: 'Equipment', label: 'Equipment' }
+                        ]}
                         value={matItemInput.category}
-                        onChange={e => setMatItemInput(prev => ({ ...prev, category: e.target.value as 'Material' | 'Equipment' }))}
-                      >
-                        <option value="Material">Material</option>
-                        <option value="Equipment">Equipment</option>
-                      </select>
+                        onChange={(val) => setMatItemInput((prev) => ({ ...prev, category: val as 'Material' | 'Equipment' }))}
+                        placeholder="Select category"
+                      />
                     </div>
 
                     <div className="pm-mat-field">

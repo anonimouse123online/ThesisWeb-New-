@@ -221,9 +221,18 @@ const Dashboard: React.FC = () => {
   if (!data)   return <div className="rm-empty">No data available.</div>;
 
   const { stats, projects } = data;
-  const delayedProjects = projects.filter(
-  project => project.status.toLowerCase() === 'delayed'
-).length;
+  const delayedProjects = projects.filter(project => {
+    // Explicitly marked as delayed
+    if (project.status.toLowerCase() === 'delayed') return true;
+    // Auto-detect: end date has passed and project is not completed
+    if (project.date && project.status.toLowerCase() !== 'completed') {
+      const endDate = new Date(project.date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (!isNaN(endDate.getTime()) && endDate < today) return true;
+    }
+    return false;
+  }).length;
   // Filter options
   const projectOptions = [
     { value: 'All', label: 'All Projects' },

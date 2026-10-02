@@ -778,7 +778,7 @@ const CreateChatModal: React.FC<{
                 <span className="msg-member-main">
                   <span className="msg-member-name">{u.full_name}</span>
                   <span className="msg-member-role">{u.email} {u.role ? `• ${u.role}` : ''}</span>
-                  {u.shared_projects && u.shared_projects.length > 0 && (
+                  {u.shared_projects && u.shared_projects.length > 0 ? (
                     <span className="msg-member-projects">
                       {u.shared_projects.slice(0, 2).map((p, idx) => (
                         <span key={idx} className="msg-member-project-tag"><Folder size={11} /> {p}</span>
@@ -786,6 +786,10 @@ const CreateChatModal: React.FC<{
                       {u.shared_projects.length > 2 && (
                         <span className="msg-member-project-more">+{u.shared_projects.length - 2} more</span>
                       )}
+                    </span>
+                  ) : (
+                    <span className="msg-member-projects">
+                      <span className="msg-member-project-tag empty"><Folder size={11} /> No Projects</span>
                     </span>
                   )}
                 </span>
@@ -988,7 +992,7 @@ const CreateGroupModal: React.FC<{
                 <span className="msg-member-main">
                   <span className="msg-member-name">{u.full_name}</span>
                   <span className="msg-member-role">{u.email} {u.role ? `• ${u.role}` : ''}</span>
-                  {u.shared_projects && u.shared_projects.length > 0 && (
+                  {u.shared_projects && u.shared_projects.length > 0 ? (
                     <span className="msg-member-projects">
                       {u.shared_projects.slice(0, 2).map((p, idx) => (
                         <span key={idx} className="msg-member-project-tag"><Folder size={11} /> {p}</span>
@@ -996,6 +1000,10 @@ const CreateGroupModal: React.FC<{
                       {u.shared_projects.length > 2 && (
                         <span className="msg-member-project-more">+{u.shared_projects.length - 2} more</span>
                       )}
+                    </span>
+                  ) : (
+                    <span className="msg-member-projects">
+                      <span className="msg-member-project-tag empty"><Folder size={11} /> No Projects</span>
                     </span>
                   )}
                 </span>

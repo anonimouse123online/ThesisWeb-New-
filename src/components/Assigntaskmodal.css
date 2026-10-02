@@ -281,11 +281,10 @@
 }
 
 .atm-input:focus,
-.atm-select:focus,
 .atm-textarea:focus {
-  border-color: #111827;
+  border-color: #ea580c;
   background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.07);
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15);
 }
 
 .atm-input::placeholder,
@@ -295,11 +294,26 @@
 
 .atm-select {
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-color: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23ea580c' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 12px center;
-  padding-right: 36px;
+  background-position: right 14px center;
+  padding-right: 38px;
   cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.atm-select:hover:not(:disabled) {
+  border-color: #cbd5e1;
+  background-color: #f8fafc;
+}
+
+.atm-select:focus {
+  border-color: #ea580c;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15);
 }
 
 .atm-textarea {

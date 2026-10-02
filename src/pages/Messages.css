@@ -321,17 +321,17 @@
 
 .msg-options-dropdown {
     position: absolute;
-    top: 100%;
-    background: #fff;
-    border: 1px solid #E4DACB;
-    border-radius: 10px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    top: calc(100% + 4px);
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 12px 30px -4px rgba(15, 23, 42, 0.12), 0 4px 12px -2px rgba(15, 23, 42, 0.06);
     min-width: 190px;
     z-index: 50;
     display: flex;
     flex-direction: column;
     padding: 6px;
-    margin-top: 4px;
+    animation: spDropdownSlideUp 0.16s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .msg-options-dropdown.left {
@@ -343,28 +343,35 @@
 }
 
 .msg-options-dropdown button {
-    background: none;
+    background: transparent;
     border: none;
     text-align: left;
     padding: 8px 12px;
     font-size: 13px;
+    font-weight: 500;
     color: #334155;
     cursor: pointer;
-    border-radius: 6px;
+    border-radius: 8px;
     width: 100%;
-    transition: background 0.12s;
+    transition: all 0.12s ease;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .msg-options-dropdown button:hover {
-    background: #FAF5EF;
+    background: #fff7ed;
+    color: #ea580c;
 }
 
 .msg-options-dropdown button.text-red {
-    color: #DC2626;
+    color: #dc2626;
 }
 
 .msg-options-dropdown button.text-red:hover {
-    background: #FEE2E2;
+    background: #fee2e2;
+    color: #b91c1c;
 }
 
 .msg-field-error {
@@ -731,6 +738,12 @@
     align-items: center;
     gap: 3px;
     white-space: nowrap;
+}
+
+.msg-member-project-tag.empty {
+    color: #8A8270;
+    background: #F4EFE6;
+    border-color: #E2DDD3;
 }
 
 .msg-member.selected .msg-member-project-tag {

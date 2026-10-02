@@ -187,6 +187,13 @@ export const DocxViewer: React.FC<DocxViewerProps> = ({
           </div>
         )}
 
+        {renderMode === 'error' && (
+          <div className="docx-loading-state" style={{ color: '#dc2626' }}>
+            <AlertCircle size={36} />
+            <p>{errorMessage || 'Failed to render document.'}</p>
+          </div>
+        )}
+
         {/* 1. Native docx-preview container */}
         <div
           ref={containerRef}

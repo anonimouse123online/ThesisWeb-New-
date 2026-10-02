@@ -1,15 +1,72 @@
-import React, { Fragment, useState, useEffect } from "react";
+import React, { Fragment, useState, useEffect, useMemo } from "react";
 import AssignTaskModal from "../pages/Assigntaskmodal";
 import { API_BASE_URL, fetchWithAuth } from "../utils/api";
-import Dropdown from "../components/Dropdown";
 import { showToast } from "../components/Toast";
-import { X, Rocket } from "lucide-react";
+import { X, Rocket, CheckCircle2, Circle } from "lucide-react";
+import Dropdown from "../components/Dropdown";
 import "../components/Task.css";
 
 const BACKEND_URL = API_BASE_URL;
 
 type Priority = "High" | "Medium" | "Low";
 type Status = "in-progress" | "completed" | "blocked" | "Pending" | "pending" | "delayed" | "Delayed" | "Ongoing" | "ongoing" | "In Progress" | "Completed";
+
+const getTaskAutoStatus = (task: { status?: string; due_date?: string; subtasks?: SubTask[] | any; progress_pct?: number }): 'Completed' | 'Delayed' | 'Ongoing' | 'Pending' => {
+  const subtasks: SubTask[] = Array.isArray(task.subtasks) ? task.subtasks : [];
+  const doneCount = subtasks.filter(s => s.completed).length;
+  const pct = subtasks.length > 0
+    ? Math.round((doneCount / subtasks.length) * 100)
+    : (typeof task.progress_pct === 'number' ? task.progress_pct : 0);
+
+  if (pct === 100 || (task.status || '').toLowerCase().includes('complete') || (task.status || '').toLowerCase() === 'done') {
+    return 'Completed';
+  }
+
+  if (task.due_date) {
+    const due = new Date(task.due_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (due < today) {
+      return 'Delayed';
+    }
+  }
+
+  if (pct > 0 || (task.status || '').toLowerCase().includes('progress') || (task.status || '').toLowerCase().includes('ongoing')) {
+    return 'Ongoing';
+  }
+
+  return 'Pending';
+};
+
+const STATUS_STYLES: Record<string, { bg: string; color: string; dot: string }> = {
+  Completed: { bg: '#ecfdf5', color: '#059669', dot: '#059669' },
+  Delayed:   { bg: '#fef2f2', color: '#dc2626', dot: '#dc2626' },
+  Ongoing:   { bg: '#eff6ff',  color: '#2563eb', dot: '#2563eb' },
+  Pending:   { bg: '#fff7ed', color: '#ea580c', dot: '#ea580c' },
+};
+
+function AutoStatusBadge({ task }: { task: { status?: string; due_date?: string; subtasks?: SubTask[] | any; progress_pct?: number } }) {
+  const autoStatus = getTaskAutoStatus(task);
+  const style = STATUS_STYLES[autoStatus];
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '6px',
+      padding: '4px 10px',
+      borderRadius: '6px',
+      fontSize: '12px',
+      fontWeight: 600,
+      backgroundColor: style.bg,
+      color: style.color,
+      whiteSpace: 'nowrap',
+      lineHeight: 1,
+    }}>
+      <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: style.dot, display: 'inline-block', flexShrink: 0 }} />
+      {autoStatus}
+    </span>
+  );
+}
 
 export interface SubTask {
   id: string;
@@ -107,18 +164,14 @@ function PriorityBadge({ priority }: { priority: Priority }) {
 // ── Interactive Detail Panel with Subtasks Checklist ──
 interface TaskDetailPanelProps {
   task: Task;
-  onToggleSubtask: (taskId: string | number, subtaskId: string) => void;
   onAddSubtask: (taskId: string | number, title: string) => void;
   onDeleteSubtask: (taskId: string | number, subtaskId: string) => void;
-  onStatusChange: (taskId: string | number, newStatus: string) => void;
 }
 
 function TaskDetailPanel({
   task,
-  onToggleSubtask,
   onAddSubtask,
   onDeleteSubtask,
-  onStatusChange,
 }: TaskDetailPanelProps) {
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
 
@@ -170,27 +223,21 @@ function TaskDetailPanel({
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
                 </svg>
-                <p className="tdp-section-title" style={{ margin: 0, color: '#1e293b' }}>
-                  Subtasks & Execution Steps
-                </p>
+                <div>
+                  <p className="tdp-section-title" style={{ margin: 0, color: '#1e293b' }}>
+                    Subtasks &amp; Execution Steps
+                  </p>
+                  <span style={{ fontSize: '11px', color: '#94a3b8' }}>Checked by field engineers on mobile app</span>
+                </div>
                 <span className="tdp-subtasks-badge">
                   {completedCount} / {subtasks.length} Done ({task.progress_pct ?? 0}%)
                 </span>
               </div>
 
-              {/* Status Quick Select */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {/* Auto Status Badge */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Task Status:</span>
-                <select
-                  className={`tasks-status-select tasks-status-select--${(task.status || 'pending').toLowerCase().replace(' ', '-')}`}
-                  value={task.status}
-                  onChange={(e) => onStatusChange(task.id, e.target.value)}
-                >
-                  <option value="Pending">Pending (0%)</option>
-                  <option value="In Progress">In Progress (Active)</option>
-                  <option value="Completed">Completed (100%)</option>
-                  <option value="Delayed">Delayed</option>
-                </select>
+                <AutoStatusBadge task={task} />
               </div>
             </div>
 
@@ -202,13 +249,21 @@ function TaskDetailPanel({
                     key={st.id}
                     className={`tdp-subtask-row ${st.completed ? "tdp-subtask-row--done" : ""}`}
                   >
-                    <input
-                      type="checkbox"
-                      className="tdp-subtask-checkbox"
-                      checked={st.completed}
-                      onChange={() => onToggleSubtask(task.id, st.id)}
-                    />
+                    {st.completed ? (
+                      <span className="tdp-subtask-status-icon tdp-subtask-status-icon--done" title="Completed by field engineer">
+                        <CheckCircle2 size={16} color="#10b981" />
+                      </span>
+                    ) : (
+                      <span className="tdp-subtask-status-icon tdp-subtask-status-icon--pending" title="Pending field engineer completion">
+                        <Circle size={15} color="#94a3b8" />
+                      </span>
+                    )}
                     <span className="tdp-subtask-title">{st.title}</span>
+                    {st.completed ? (
+                      <span className="pd-step-done-pill">Done</span>
+                    ) : (
+                      <span className="pd-step-pending-pill">Pending</span>
+                    )}
                     <button
                       type="button"
                       className="tdp-subtask-delete-btn"
@@ -348,6 +403,18 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
   const [subtasks, setSubtasks]               = useState<{ id: string; title: string; completed: boolean }[]>([]);
   const [subtaskInput, setSubtaskInput]       = useState("");
   const [users, setUsers]                     = useState<User[]>([]);
+  const formatRole = (role?: string) => {
+    if (!role) return 'Engineer';
+    if (role.toLowerCase() === 'engineer') return 'Engineer';
+    if (role.toLowerCase() === 'site engineer') return 'Site Engineer';
+    if (role.toLowerCase() === 'lead engineer') return 'Lead Engineer';
+    return role;
+  };
+
+  const engineerUsers = useMemo(
+    () => users.filter((u) => u.role && u.role.toLowerCase().includes('engineer')),
+    [users]
+  );
   const [usersLoading, setUsersLoading]       = useState(true);
   const [projects, setProjects]               = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
@@ -474,39 +541,60 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
           <div className="ct-row">
             <div className="ct-field">
               <label className="ct-label">Phase <span className="ct-required">*</span></label>
-              <select name="phase" className="ct-select" value={form.phase} onChange={handleChange} required>
-                <option value="" disabled>Select a phase</option>
-                {PHASES.map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
+              <Dropdown
+                fullWidth
+                options={PHASES.map((p) => ({ value: p, label: p }))}
+                value={form.phase}
+                onChange={(val) => setForm((prev) => ({ ...prev, phase: val }))}
+                placeholder="Select a phase"
+              />
             </div>
 
             <div className="ct-field">
               <label className="ct-label">Project <span className="ct-required">*</span></label>
-              <select name="projectId" className="ct-select" value={form.projectId} onChange={handleChange} disabled={projectsLoading} required>
-                <option value="" disabled>{projectsLoading ? "Loading projects…" : "Select a project"}</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>{p.code} — {p.name}</option>
-                ))}
-              </select>
+              <Dropdown
+                fullWidth
+                disabled={projectsLoading}
+                searchable={projects.length > 5}
+                options={projects.map((p) => ({ value: p.id, label: `${p.code} — ${p.name}` }))}
+                value={form.projectId}
+                onChange={(val) => setForm((prev) => ({ ...prev, projectId: val }))}
+                placeholder={projectsLoading ? "Loading projects…" : "Select a project"}
+              />
             </div>
           </div>
 
           <div className="ct-row">
             <div className="ct-field">
-              <label className="ct-label">Assignee <span className="ct-required">*</span></label>
-              <select name="assigneeId" className="ct-select" value={form.assigneeId} onChange={handleChange} disabled={usersLoading} required>
-                <option value="" disabled>{usersLoading ? "Loading users…" : "Select an engineer"}</option>
-                {users.map((u) => <option key={u.id} value={u.id}>{u.full_name} ({u.role})</option>)}
-              </select>
+              <label className="ct-label">Assign Lead Engineer <span className="ct-required">*</span></label>
+              <Dropdown
+                fullWidth
+                disabled={usersLoading}
+                searchable={engineerUsers.length > 5}
+                options={
+                  engineerUsers.length === 0
+                    ? [{ value: '', label: 'No engineers available', disabled: true }]
+                    : engineerUsers.map((u) => ({ value: u.id, label: `${u.full_name} (${formatRole(u.role)})` }))
+                }
+                value={form.assigneeId}
+                onChange={(val) => setForm((prev) => ({ ...prev, assigneeId: val }))}
+                placeholder={usersLoading ? "Loading engineers…" : "Select an engineer"}
+              />
             </div>
 
             <div className="ct-field">
               <label className="ct-label">Priority <span className="ct-required">*</span></label>
-              <select name="priority" className="ct-select" value={form.priority} onChange={handleChange} required>
-                <option value="High">High</option>
-                <option value="Medium">Medium</option>
-                <option value="Low">Low</option>
-              </select>
+              <Dropdown
+                fullWidth
+                options={[
+                  { value: 'High', label: 'High' },
+                  { value: 'Medium', label: 'Medium' },
+                  { value: 'Low', label: 'Low' }
+                ]}
+                value={form.priority}
+                onChange={(val) => setForm((prev) => ({ ...prev, priority: val as Priority }))}
+                placeholder="Select priority"
+              />
             </div>
           </div>
 
@@ -668,69 +756,7 @@ export default function Tasks() {
     fetchTasks();
   }, [filterProjectId]);
 
-  // Status Change Handler
-  const handleStatusChange = async (taskId: string | number, newStatus: string) => {
-    try {
-      const res = await fetchWithAuth(`${BACKEND_URL}/tasks/${taskId}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      });
 
-      if (!res.ok) throw new Error("Failed to update status.");
-      const json = await res.json();
-      const updated = json.data;
-
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === taskId
-            ? { ...t, status: updated.status as Status, progress_pct: updated.progress_pct }
-            : t
-        )
-      );
-      showToast(`Task status updated to ${newStatus}`, "success");
-    } catch (err: any) {
-      showToast(err.message || "Failed to update status", "error");
-    }
-  };
-
-  // Subtask Toggle Handler
-  const handleToggleSubtask = async (taskId: string | number, subtaskId: string) => {
-    const task = tasks.find((t) => t.id === taskId);
-    if (!task) return;
-
-    const currentSubs: SubTask[] = Array.isArray(task.subtasks) ? [...task.subtasks] : [];
-    const updatedSubs = currentSubs.map((st) =>
-      st.id === subtaskId ? { ...st, completed: !st.completed } : st
-    );
-
-    const doneCount = updatedSubs.filter((s) => s.completed).length;
-    const newPct = Math.round((doneCount / updatedSubs.length) * 100);
-
-    // Optimistic UI update
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === taskId
-          ? {
-              ...t,
-              subtasks: updatedSubs,
-              progress_pct: newPct,
-              status: newPct === 100 ? ("Completed" as Status) : newPct > 0 ? ("In Progress" as Status) : ("Pending" as Status),
-            }
-          : t
-      )
-    );
-
-    try {
-      await fetchWithAuth(`${BACKEND_URL}/tasks/${taskId}/subtasks`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subtasks: updatedSubs }),
-      });
-    } catch (err) {
-      console.error("Failed to sync subtask update", err);
-    }
-  };
 
   // Add Subtask Handler
   const handleAddSubtask = async (taskId: string | number, title: string) => {
@@ -746,15 +772,12 @@ export default function Tasks() {
     const doneCount = updatedSubs.filter((s) => s.completed).length;
     const newPct = Math.round((doneCount / updatedSubs.length) * 100);
 
+    const autoStatus = getTaskAutoStatus({ ...task, subtasks: updatedSubs, progress_pct: newPct });
+
     setTasks((prev) =>
       prev.map((t) =>
         t.id === taskId
-          ? {
-              ...t,
-              subtasks: updatedSubs,
-              progress_pct: newPct,
-              status: newPct === 100 ? ("Completed" as Status) : newPct > 0 ? ("In Progress" as Status) : ("Pending" as Status),
-            }
+          ? { ...t, subtasks: updatedSubs, progress_pct: newPct, status: autoStatus as Status }
           : t
       )
     );
@@ -782,6 +805,8 @@ export default function Tasks() {
       ? Math.round((updatedSubs.filter((s) => s.completed).length / updatedSubs.length) * 100)
       : 0;
 
+    const autoStatus = getTaskAutoStatus({ ...task, subtasks: updatedSubs, progress_pct: newPct });
+
     setTasks((prev) =>
       prev.map((t) =>
         t.id === taskId
@@ -789,7 +814,7 @@ export default function Tasks() {
               ...t,
               subtasks: updatedSubs,
               progress_pct: newPct,
-              status: newPct === 100 ? ("Completed" as Status) : newPct > 0 ? ("In Progress" as Status) : ("Pending" as Status),
+              status: autoStatus as Status,
             }
           : t
       )
@@ -998,7 +1023,6 @@ export default function Tasks() {
                 <tbody>
                   {displayedTasks.map((task) => {
                     const pct = task.progress_pct ?? 0;
-                    const statusKey = (task.status || "pending").toLowerCase().replace(" ", "-");
 
                     return (
                       <Fragment key={task.id}>
@@ -1024,18 +1048,9 @@ export default function Tasks() {
                           </td>
                           <td className="tasks-td"><PriorityBadge priority={task.priority} /></td>
                           
-                          {/* Live Interactive Status Dropdown */}
-                          <td className="tasks-td" onClick={(e) => e.stopPropagation()}>
-                            <select
-                              className={`tasks-status-select tasks-status-select--${statusKey}`}
-                              value={task.status}
-                              onChange={(e) => handleStatusChange(task.id, e.target.value)}
-                            >
-                              <option value="Pending">Pending</option>
-                              <option value="In Progress">In Progress</option>
-                              <option value="Completed">Completed</option>
-                              <option value="Delayed">Delayed</option>
-                            </select>
+                          {/* Auto Status Badge */}
+                          <td className="tasks-td">
+                            <AutoStatusBadge task={task} />
                           </td>
 
                           {/* Dynamic Progress Bar */}
@@ -1067,10 +1082,8 @@ export default function Tasks() {
                         {expandedIds.has(task.id) && (
                           <TaskDetailPanel
                             task={task}
-                            onToggleSubtask={handleToggleSubtask}
                             onAddSubtask={handleAddSubtask}
                             onDeleteSubtask={handleDeleteSubtask}
-                            onStatusChange={handleStatusChange}
                           />
                         )}
                       </Fragment>

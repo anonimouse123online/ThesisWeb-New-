@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import '../components/ProjectDetails.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import ProfileDropdown from '../components/ProfileDropdown';
+import Dropdown from '../components/Dropdown';
 import { showToast } from '../components/Toast';
 import {
   LayoutDashboard,
@@ -21,6 +22,7 @@ import {
   X,
   Check,
   CheckCircle2,
+  Circle,
   Clock,
   UserPlus,
   Play,
@@ -56,6 +58,7 @@ interface TeamMember {
   name: string;
   role: string;
   email?: string;
+  system_role?: string;
 }
 
 interface SubTask {
@@ -292,6 +295,72 @@ const GenerateCodeModal: React.FC<{ project: Project; onClose: () => void }> = (
   );
 };
 
+const getTaskAutoStatus = (task: { status?: string; due_date?: string; subtasks?: SubTask[] | any; progress_pct?: number }): 'Completed' | 'Delayed' | 'Ongoing' | 'Pending' => {
+  const subtasks: SubTask[] = Array.isArray(task.subtasks) ? task.subtasks : [];
+  const doneCount = subtasks.filter(s => s.completed).length;
+  const pct = subtasks.length > 0
+    ? Math.round((doneCount / subtasks.length) * 100)
+    : (typeof task.progress_pct === 'number' ? task.progress_pct : 0);
+
+  if (pct === 100 || (task.status || '').toLowerCase().includes('complete') || (task.status || '').toLowerCase() === 'done') {
+    return 'Completed';
+  }
+
+  if (task.due_date) {
+    const due = new Date(task.due_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (due < today) {
+      return 'Delayed';
+    }
+  }
+
+  if (pct > 0 || (task.status || '').toLowerCase().includes('progress') || (task.status || '').toLowerCase().includes('ongoing')) {
+    return 'Ongoing';
+  }
+
+  return 'Pending';
+};
+
+const PD_STATUS_STYLES: Record<string, { bg: string; color: string; dot: string }> = {
+  Completed: { bg: '#ecfdf5', color: '#059669', dot: '#059669' },
+  Delayed:   { bg: '#fef2f2', color: '#dc2626', dot: '#dc2626' },
+  Ongoing:   { bg: '#eff6ff',  color: '#2563eb', dot: '#2563eb' },
+  Pending:   { bg: '#fff7ed', color: '#ea580c', dot: '#ea580c' },
+};
+
+function PDAutoStatusBadge({ task }: { task: { status?: string; due_date?: string; subtasks?: SubTask[] | any; progress_pct?: number } }) {
+  const autoStatus = getTaskAutoStatus(task);
+  const style = PD_STATUS_STYLES[autoStatus];
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '6px',
+      padding: '4px 10px',
+      borderRadius: '6px',
+      fontSize: '12px',
+      fontWeight: 600,
+      backgroundColor: style.bg,
+      color: style.color,
+      whiteSpace: 'nowrap',
+      lineHeight: 1,
+    }}>
+      <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: style.dot, display: 'inline-block', flexShrink: 0 }} />
+      {autoStatus}
+    </span>
+  );
+}
+
+const getNormalizedStatus = (status?: string): string => {
+  if (!status) return 'Pending';
+  const s = status.trim().toLowerCase();
+  if (s === 'ongoing' || s === 'in progress' || s === 'in-progress' || s === 'active') return 'Ongoing';
+  if (s === 'completed' || s === 'done') return 'Completed';
+  if (s === 'delayed' || s === 'late') return 'Delayed';
+  return 'Pending';
+};
+
 // ─── MAIN COMPONENT: ProjectDetails (Unified Project Workspace) ───────────────
 
 const ProjectDetails: React.FC = () => {
@@ -326,6 +395,26 @@ const ProjectDetails: React.FC = () => {
   const [resourceSearch, setResourceSearch] = useState('');
 
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+
+  const isEngineerMember = (u: TeamMember) => {
+    const r = (u.role || '').toLowerCase();
+    const sr = (u.system_role || '').toLowerCase();
+    return r.includes('engineer') || sr.includes('engineer');
+  };
+
+  const formatMemberRole = (role?: string, system_role?: string) => {
+    const r = role || system_role || 'Engineer';
+    if (r.toLowerCase() === 'engineer') return 'Engineer';
+    if (r.toLowerCase() === 'site engineer') return 'Site Engineer';
+    if (r.toLowerCase() === 'lead engineer') return 'Lead Engineer';
+    if (r.toLowerCase() === 'admin') return 'Admin';
+    return r;
+  };
+
+  const engineerMembers = useMemo(
+    () => teamMembers.filter(isEngineerMember),
+    [teamMembers]
+  );
 
   // Modals for In-Workspace Actions
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
@@ -491,37 +580,6 @@ const ProjectDetails: React.FC = () => {
     }
   };
 
-  // 4. Task Subtasks Toggle
-  const handleToggleSubtask = async (taskId: string | number, subtaskId: string) => {
-    const task = tasks.find(t => String(t.id) === String(taskId));
-    if (!task) return;
-
-    const currentSubtasks: SubTask[] = Array.isArray(task.subtasks) ? task.subtasks : [];
-    const updatedSubtasks = currentSubtasks.map(st =>
-      st.id === subtaskId ? { ...st, completed: !st.completed } : st
-    );
-
-    const doneCount = updatedSubtasks.filter(s => s.completed).length;
-    const newPct = updatedSubtasks.length > 0 ? Math.round((doneCount / updatedSubtasks.length) * 100) : 0;
-    const allCompleted = updatedSubtasks.length > 0 && doneCount === updatedSubtasks.length;
-    const anyCompleted = doneCount > 0;
-    const newStatus = allCompleted ? 'Completed' : (anyCompleted ? 'In Progress' : 'Pending');
-
-    setTasks(prev => prev.map(t =>
-      String(t.id) === String(taskId) ? { ...t, subtasks: updatedSubtasks, status: newStatus, progress_pct: newPct } : t
-    ));
-
-    try {
-      await fetchWithAuth(`${API_URL}/tasks/${taskId}/subtasks`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subtasks: updatedSubtasks }),
-      });
-    } catch (err) {
-      console.error('Failed to update subtasks', err);
-    }
-  };
-
   // Add Subtask to Main Task in Table View
   const handleAddSubtask = async (taskId: string | number) => {
     const title = (newSubtaskInputs[taskId] || '').trim();
@@ -540,14 +598,14 @@ const ProjectDetails: React.FC = () => {
     const updatedSubs = [...currentSubs, newSub];
     const doneCount = updatedSubs.filter(s => s.completed).length;
     const newPct = Math.round((doneCount / updatedSubs.length) * 100);
-    const newStatus = newPct === 100 ? 'Completed' : (newPct > 0 ? 'In Progress' : 'Pending');
+    const autoStatus = getTaskAutoStatus({ ...task, subtasks: updatedSubs, progress_pct: newPct });
 
     setNewSubtaskInputs(prev => ({ ...prev, [taskId]: '' }));
 
     setTasks(prev =>
       prev.map(t =>
         String(t.id) === String(taskId)
-          ? { ...t, subtasks: updatedSubs, progress_pct: newPct, status: newStatus }
+          ? { ...t, subtasks: updatedSubs, progress_pct: newPct, status: autoStatus }
           : t
       )
     );
@@ -578,13 +636,12 @@ const ProjectDetails: React.FC = () => {
     const updatedSubs = currentSubs.filter(s => s.id !== subtaskId);
     const doneCount = updatedSubs.filter(s => s.completed).length;
     const newPct = updatedSubs.length > 0 ? Math.round((doneCount / updatedSubs.length) * 100) : 0;
-    const allDone = updatedSubs.length > 0 && doneCount === updatedSubs.length;
-    const newStatus = allDone ? 'Completed' : (doneCount > 0 ? 'In Progress' : 'Pending');
+    const autoStatus = getTaskAutoStatus({ ...task, subtasks: updatedSubs, progress_pct: newPct });
 
     setTasks(prev =>
       prev.map(t =>
         String(t.id) === String(taskId)
-          ? { ...t, subtasks: updatedSubs, progress_pct: newPct, status: newStatus }
+          ? { ...t, subtasks: updatedSubs, progress_pct: newPct, status: autoStatus }
           : t
       )
     );
@@ -603,24 +660,7 @@ const ProjectDetails: React.FC = () => {
     }
   };
 
-  // 5. Task Status Change
-  const handleTaskStatusChange = async (taskId: string | number, newStatus: string) => {
-    setTasks(prev => prev.map(t =>
-      String(t.id) === String(taskId) ? { ...t, status: newStatus } : t
-    ));
 
-    try {
-      const res = await fetchWithAuth(`${API_URL}/tasks/${taskId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      if (!res.ok) throw new Error('Status update failed');
-      showToast(`Task marked as ${newStatus}`, 'success');
-    } catch {
-      showToast('Failed to update task status', 'error');
-    }
-  };
 
   const cleanMaterialItem = (raw: string) => {
     if (!raw) return '';
@@ -727,7 +767,7 @@ const ProjectDetails: React.FC = () => {
         taskName: newTaskForm.taskName.trim(),
         projectId: project.id || project.code,
         phase: newTaskForm.phase,
-        assigneeId: newTaskForm.assigneeId || (teamMembers[0]?.id ?? null),
+        assigneeId: newTaskForm.assigneeId || (engineerMembers[0]?.id ?? null),
         startDate: newTaskForm.startDate || new Date().toISOString().split('T')[0],
         dueDate: newTaskForm.dueDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
         priority: newTaskForm.priority,
@@ -966,19 +1006,18 @@ const ProjectDetails: React.FC = () => {
           </button>
           <span className="pd-divider-slash">/</span>
           {/* Quick Project Switcher Dropdown */}
-          <div className="pd-switcher-wrapper">
-            <select
-              className="pd-project-switcher"
-              value={project.code}
-              onChange={(e) => navigate(`/projects/${e.target.value}?tab=${currentTab}`)}
-            >
-              {allProjects.map(p => (
-                <option key={p.code} value={p.code}>
-                  {p.code} — {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <Dropdown
+            options={allProjects.map(p => ({
+              value: p.code,
+              label: p.code,
+              sublabel: p.name,
+              icon: <Building2 size={13} />,
+            }))}
+            value={project.code}
+            onChange={(val) => navigate(`/projects/${val}?tab=${currentTab}`)}
+            size="sm"
+            searchable={allProjects.length > 5}
+          />
         </div>
 
         <div className="pd-top-right">
@@ -1261,17 +1300,19 @@ const ProjectDetails: React.FC = () => {
                 value={taskSearch}
                 onChange={e => setTaskSearch(e.target.value)}
               />
-              <select
-                className="pd-select-filter"
+              <Dropdown
+                options={[
+                  { value: 'All', label: 'All' },
+                  { value: 'Pending', label: 'Pending' },
+                  { value: 'Ongoing', label: 'Ongoing' },
+                  { value: 'Completed', label: 'Completed' },
+                  { value: 'Delayed', label: 'Delayed' },
+                ]}
                 value={taskStatusFilter}
-                onChange={e => setTaskStatusFilter(e.target.value)}
-              >
-                <option value="All">All Statuses</option>
-                <option value="Pending">Pending</option>
-                <option value="In Progress">In Progress</option>
-                <option value="Completed">Completed</option>
-                <option value="Delayed">Delayed</option>
-              </select>
+                onChange={setTaskStatusFilter}
+                prefix="Status"
+                size="md"
+              />
               <button className="pd-btn-primary" onClick={() => setShowAddTaskModal(true)}>
                 + New Task
               </button>
@@ -1293,7 +1334,8 @@ const ProjectDetails: React.FC = () => {
               {PHASES.map(phaseName => {
                 const phaseTasks = (tasksByPhase[phaseName] || []).filter(t => {
                   const matchSearch = !taskSearch || t.task_name.toLowerCase().includes(taskSearch.toLowerCase()) || (t.assignee && t.assignee.toLowerCase().includes(taskSearch.toLowerCase()));
-                  const matchStatus = taskStatusFilter === 'All' || (t.status || '').toLowerCase() === taskStatusFilter.toLowerCase();
+                  const normStatus = getNormalizedStatus(t.status).toLowerCase();
+                  const matchStatus = taskStatusFilter === 'All' || normStatus === taskStatusFilter.toLowerCase() || (t.status || '').toLowerCase() === taskStatusFilter.toLowerCase();
                   return matchSearch && matchStatus;
                 });
 
@@ -1412,24 +1454,8 @@ const ProjectDetails: React.FC = () => {
                                         );
                                       })()}
                                     </td>
-                                    <td>
-                                      <select
-                                        className={`pd-status-select pd-status-select--${(task.status || 'pending')
-                                          .toLowerCase()
-                                          .replace(/\s+/g, '')}`}
-                                        value={task.status || 'Pending'}
-                                        onChange={e =>
-                                          handleTaskStatusChange(
-                                            task.id,
-                                            e.target.value
-                                          )
-                                        }
-                                      >
-                                        <option value="Pending">Pending</option>
-                                        <option value="In Progress">In Progress</option>
-                                        <option value="Completed">Completed</option>
-                                        <option value="Delayed">Delayed</option>
-                                      </select>
+                                    <td className="pd-task-status-cell">
+                                      <PDAutoStatusBadge task={task} />
                                     </td>
                                   </tr>
 
@@ -1443,7 +1469,10 @@ const ProjectDetails: React.FC = () => {
                                             {/* Subtasks Checklist */}
                                             <div className="pd-subtasks-box">
                                               <div className="pd-subtasks-header">
-                                                <h4>Execution Steps &amp; Subtasks</h4>
+                                                <div>
+                                                  <h4>Execution Steps &amp; Subtasks</h4>
+                                                  <span style={{ fontSize: '11px', color: '#94a3b8' }}>Checked by field engineers on mobile app</span>
+                                                </div>
                                                 {subtasks.length > 0 && (
                                                   <span className="pd-subtasks-progress-badge">
                                                     {subtasksDone} / {subtasks.length} Done ({task.progress_pct ?? Math.round((subtasksDone / (subtasks.length || 1)) * 100)}%)
@@ -1459,21 +1488,25 @@ const ProjectDetails: React.FC = () => {
                                                 <div className="pd-subtasks-list">
                                                   {subtasks.map(st => (
                                                     <div key={st.id} className="pd-subtask-row">
-                                                      <label className="pd-subtask-item">
-                                                        <input
-                                                          type="checkbox"
-                                                          checked={st.completed}
-                                                          onChange={() => {
-                                                            handleToggleSubtask(
-                                                              task.id,
-                                                              st.id
-                                                            );
-                                                          }}
-                                                        />
+                                                      <div className="pd-subtask-item" style={{ cursor: 'default' }}>
+                                                        {st.completed ? (
+                                                          <span className="pd-subtask-status-icon pd-subtask-status-icon--done" title="Completed by field engineer">
+                                                            <CheckCircle2 size={16} color="#10b981" />
+                                                          </span>
+                                                        ) : (
+                                                          <span className="pd-subtask-status-icon pd-subtask-status-icon--pending" title="Pending field engineer completion">
+                                                            <Circle size={15} color="#94a3b8" />
+                                                          </span>
+                                                        )}
                                                         <span className={st.completed ? 'pd-subtask-done' : ''}>
                                                           {st.title}
                                                         </span>
-                                                      </label>
+                                                      </div>
+                                                      {st.completed ? (
+                                                        <span className="pd-step-done-pill">Done</span>
+                                                      ) : (
+                                                        <span className="pd-step-pending-pill">Pending</span>
+                                                      )}
                                                       <button
                                                         type="button"
                                                         className="pd-subtask-delete-btn"
@@ -1876,33 +1909,31 @@ const ProjectDetails: React.FC = () => {
               <div className="pm-form-row pm-form-row--2">
                 <div className="pm-form-group">
                   <label>Construction Phase <span className="pm-required">*</span></label>
-                  <select
-                    className="pm-input pm-select"
+                  <Dropdown
+                    fullWidth
+                    options={PHASES.map(p => ({ value: p, label: p }))}
                     value={newTaskForm.phase}
-                    onChange={e => setNewTaskForm({ ...newTaskForm, phase: e.target.value })}
-                  >
-                    {PHASES.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
+                    onChange={val => setNewTaskForm(prev => ({ ...prev, phase: val }))}
+                    placeholder="Select phase"
+                  />
                 </div>
                 <div className="pm-form-group">
                   <label>Assign Lead Engineer <span className="pm-required">*</span></label>
-                  <select
-                    className="pm-input pm-select"
+                  <Dropdown
+                    fullWidth
+                    searchable={engineerMembers.length > 5}
+                    options={
+                      engineerMembers.length === 0
+                        ? [{ value: '', label: 'No engineers assigned to this project', disabled: true }]
+                        : engineerMembers.map(u => ({
+                            value: u.id,
+                            label: `${u.name || u.email} (${formatMemberRole(u.role, u.system_role)})`
+                          }))
+                    }
                     value={newTaskForm.assigneeId}
-                    onChange={e => setNewTaskForm({ ...newTaskForm, assigneeId: e.target.value })}
-                    required
-                  >
-                    <option value="">Select an engineer</option>
-                    {teamMembers.length === 0 ? (
-                      <option value="" disabled>No invited members in this project</option>
-                    ) : (
-                      teamMembers.map(u => (
-                        <option key={u.id} value={u.id}>
-                          {u.name || u.email} ({u.role})
-                        </option>
-                      ))
-                    )}
-                  </select>
+                    onChange={val => setNewTaskForm(prev => ({ ...prev, assigneeId: val }))}
+                    placeholder="Select an engineer"
+                  />
                 </div>
               </div>
 
@@ -1928,15 +1959,17 @@ const ProjectDetails: React.FC = () => {
                 </div>
                 <div className="pm-form-group">
                   <label>Priority</label>
-                  <select
-                    className="pm-input pm-select"
+                  <Dropdown
+                    fullWidth
+                    options={[
+                      { value: 'High', label: 'High' },
+                      { value: 'Medium', label: 'Medium' },
+                      { value: 'Low', label: 'Low' }
+                    ]}
                     value={newTaskForm.priority}
-                    onChange={e => setNewTaskForm({ ...newTaskForm, priority: e.target.value as 'High' | 'Medium' | 'Low' })}
-                  >
-                    <option value="High">High</option>
-                    <option value="Medium">Medium</option>
-                    <option value="Low">Low</option>
-                  </select>
+                    onChange={val => setNewTaskForm(prev => ({ ...prev, priority: val as 'High' | 'Medium' | 'Low' }))}
+                    placeholder="Select priority"
+                  />
                 </div>
               </div>
 
@@ -1997,14 +2030,17 @@ const ProjectDetails: React.FC = () => {
 
                         <div className="pm-mat-field">
                           <label className="pm-mat-label">Category <span className="pm-required">*</span></label>
-                          <select
-                            className="pm-input pm-select pm-mat-input"
+                          <Dropdown
+                            fullWidth
+                            size="sm"
+                            options={[
+                              { value: 'Material', label: 'Material' },
+                              { value: 'Equipment', label: 'Equipment' }
+                            ]}
                             value={matItemInput.category}
-                            onChange={e => setMatItemInput(prev => ({ ...prev, category: e.target.value as 'Material' | 'Equipment' }))}
-                          >
-                            <option value="Material">Material</option>
-                            <option value="Equipment">Equipment</option>
-                          </select>
+                            onChange={val => setMatItemInput(prev => ({ ...prev, category: val as 'Material' | 'Equipment' }))}
+                            placeholder="Select category"
+                          />
                         </div>
 
                         <div className="pm-mat-field">
@@ -2328,18 +2364,20 @@ const ProjectDetails: React.FC = () => {
                       Choose which task will use this resource
                     </span>
                   </label>
-                  <select
-                    className="pm-input pm-select"
+                  <Dropdown
+                    fullWidth
+                    searchable={tasks.length > 5}
+                    options={[
+                      { value: '', label: '-- General Project Inventory (No specific task) --' },
+                      ...tasks.map(t => ({
+                        value: String(t.id),
+                        label: `${t.task_name} (${t.phase})`
+                      }))
+                    ]}
                     value={resourceForm.taskId}
-                    onChange={e => setResourceForm({ ...resourceForm, taskId: e.target.value })}
-                  >
-                    <option value="">-- General Project Inventory (No specific task) --</option>
-                    {tasks.map(t => (
-                      <option key={t.id} value={String(t.id)}>
-                        {t.task_name} ({t.phase})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={val => setResourceForm(prev => ({ ...prev, taskId: val }))}
+                    placeholder="General Project Inventory"
+                  />
                 </div>
               </div>
 
@@ -2356,14 +2394,16 @@ const ProjectDetails: React.FC = () => {
                 </div>
                 <div className="pm-form-group">
                   <label>Category <span className="pm-required">*</span></label>
-                  <select
-                    className="pm-input pm-select"
+                  <Dropdown
+                    fullWidth
+                    options={[
+                      { value: 'Material', label: 'Material' },
+                      { value: 'Equipment', label: 'Equipment' }
+                    ]}
                     value={resourceForm.category}
-                    onChange={e => setResourceForm({ ...resourceForm, category: e.target.value as 'Material' | 'Equipment' })}
-                  >
-                    <option value="Material">Material</option>
-                    <option value="Equipment">Equipment</option>
-                  </select>
+                    onChange={val => setResourceForm(prev => ({ ...prev, category: val as 'Material' | 'Equipment' }))}
+                    placeholder="Select category"
+                  />
                 </div>
               </div>
 

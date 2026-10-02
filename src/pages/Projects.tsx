@@ -626,13 +626,12 @@ const Projects: React.FC = () => {
               </div>
               <div className="pm-form-group">
                 <label>Initial Phase <span className="pm-required">*</span></label>
-                <select
-                  className="pm-input pm-select"
+                <Dropdown
+                  options={PHASES}
                   value={form.phase}
-                  onChange={e => setForm({ ...form, phase: e.target.value })}
-                >
-                  {PHASES.map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
+                  onChange={val => setForm({ ...form, phase: val })}
+                  fullWidth
+                />
               </div>
             </div>
 
