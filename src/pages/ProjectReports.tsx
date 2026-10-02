@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import '../components/ProjectReports.css';
+import StatusBadge from '../components/StatusBadge';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import { showToast } from '../components/Toast';
 import ProfileDropdown from '../components/ProfileDropdown';
@@ -376,10 +377,10 @@ const ProjectReports: React.FC = () => {
             </div>
 
             <div className="ir-modal-body" style={{ gap: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#64748b', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#64748b', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>
                 <span>Date: <strong>{formatDate(viewReport.report_date)}</strong></span>
                 <span>Preparer: <strong>{viewReport.prepared_by_name || 'Site Engineer'}</strong></span>
-                <span>Status: <strong>{viewReport.status}</strong></span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>Status: <StatusBadge status={viewReport.status || 'Submitted'} /></span>
               </div>
 
               <div>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import "../components/Assigntaskmodal.css";
+import StatusBadge from "../components/StatusBadge";
 import { API_BASE_URL, fetchWithAuth } from "../utils/api";
 
 const BACKEND_URL = API_BASE_URL;
@@ -244,7 +245,7 @@ export default function AssignTaskModal({
                   >
                     <div className="atm-eng-card__top">
                       <div className="atm-eng-card__avatar">{initials(eng.name)}</div>
-                      <span className={`atm-pill atm-pill--${eng.status}`}>{eng.status}</span>
+                      <StatusBadge status={eng.status === 'busy' ? 'Busy' : 'Available'} />
                     </div>
                     <p className="atm-eng-card__name">{eng.name}</p>
                     <p className="atm-eng-card__role">{eng.role}</p>

@@ -4,6 +4,7 @@ import '../components/Projects.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import Dropdown from '../components/Dropdown';
 import ProfileDropdown from '../components/ProfileDropdown';
+import StatusBadge from '../components/StatusBadge';
 import { showToast } from '../components/Toast';
 import { ArrowRight, AlertTriangle, Building2, Package, Plus } from 'lucide-react';
 
@@ -202,14 +203,6 @@ const Projects: React.FC = () => {
     }
   };
 
-  const getStatusClass = (status: string) => {
-    const s = status.toLowerCase();
-    if (s === 'ongoing')   return 'proj-pill proj-pill--ongoing';
-    if (s === 'planning')  return 'proj-pill proj-pill--planning';
-    if (s === 'completed') return 'proj-pill proj-pill--completed';
-    return 'proj-pill proj-pill--planning';
-  };
-
   const formatTimeline = (start: string, end: string) => {
     if (!start || !end) return '—';
     const fmt = (d: string) => {
@@ -389,7 +382,7 @@ const Projects: React.FC = () => {
                           <span>{resCount} items</span>
                         </span>
                       </td>
-                      <td><span className={getStatusClass(prj.status)}>{prj.status}</span></td>
+                      <td><StatusBadge status={prj.status} /></td>
                       <td style={{ textAlign: 'right' }}>
                         <button
                           className="pm-view-btn"
@@ -453,9 +446,7 @@ const Projects: React.FC = () => {
                       </span>
                     </td>
                     <td>
-                      <span className={`pd-status-pill pd-status--${(t.status || 'pending').toLowerCase().replace(/\s+/g, '')}`}>
-                        {t.status}
-                      </span>
+                      <StatusBadge status={t.status || 'Pending'} />
                     </td>
                   </tr>
                 ))}
@@ -501,9 +492,7 @@ const Projects: React.FC = () => {
                       <td className="pm-td-muted">Min {r.minThreshold} {r.unit}</td>
                       <td>₱{Number(r.unitPrice).toLocaleString()}</td>
                       <td>
-                        <span className={`pd-status-pill ${isLow ? 'pd-status--lowstock' : 'pd-status--instock'}`}>
-                          {r.status || (isLow ? 'Low stock' : 'In stock')}
-                        </span>
+                        <StatusBadge status={r.status || (isLow ? 'Low stock' : 'In stock')} />
                       </td>
                     </tr>
                   );

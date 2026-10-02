@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import Dropdown from '../components/Dropdown';
 import ProfileDropdown from '../components/ProfileDropdown';
+import StatusBadge from '../components/StatusBadge';
 import '../components/Dashboard.css';
 import {
   TrendingUp,
@@ -61,10 +62,6 @@ interface DashboardData {
 }
 
 // --- HELPERS ---
-const pillClass = (status: string): string => {
-  const s = status.toLowerCase().replace(/\s/g, '');
-  return `status-pill status-${s}`;
-};
 
 const renderStatIcon = (label: string, icon: string) => {
   const norm = (label || '').toLowerCase();
@@ -392,7 +389,7 @@ const Dashboard: React.FC = () => {
                   <td style={{ fontWeight: 600 }}>{p.name}</td>
                   <td>{p.pm}</td>
                   <td>{p.date}</td>
-                  <td><span className={pillClass(p.status)}>{p.status}</span></td>
+                  <td><StatusBadge status={p.status} /></td>
                   <td>
                     {(() => {
                       let pct = 0;

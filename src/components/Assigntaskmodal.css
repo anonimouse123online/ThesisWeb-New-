@@ -223,15 +223,20 @@
 
 /* ── Status Pills ── */
 .atm-pill {
-  display: inline-block;
-  padding: 2px 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
   border-radius: 20px;
   font-size: 11px;
   font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: capitalize;
+  line-height: 1.2;
 }
 
-.atm-pill--available { background: #dcfce7; color: #15803d; }
-.atm-pill--busy      { background: #fef3c7; color: #92400e; }
+.atm-pill--available { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
+.atm-pill--busy      { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
 
 /* ── Form Row ── */
 .atm-row {

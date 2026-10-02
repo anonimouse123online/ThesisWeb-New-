@@ -4,6 +4,7 @@ import AddMemberModal from './add-member';
 import '../components/manage-team.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import ProfileDropdown from '../components/ProfileDropdown';
+import StatusBadge from '../components/StatusBadge';
 import { showToast } from '../components/Toast';
 import { ArrowLeft, ArrowRight, X, UserPlus, Check, CheckCircle2, Clock, Crown, ShieldCheck } from 'lucide-react';
 
@@ -343,10 +344,7 @@ const ManageTeam: React.FC = () => {
                           : '—'}
                       </td>
                       <td>
-                        <span className="mt-status-tag mt-status-tag--active" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', display: 'inline-block' }} />
-                          Active
-                        </span>
+                        <StatusBadge status="Active" />
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         {m.role === 'Owner' ? (
@@ -417,7 +415,7 @@ const ManageTeam: React.FC = () => {
                       </td>
                       <td className="mt-email">{u.email}</td>
                       <td>
-                        <span className="mt-status-tag mt-status-tag--avail">Ready to Join</span>
+                        <StatusBadge status="Ready to Join" />
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         <button

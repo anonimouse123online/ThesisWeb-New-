@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import '../components/ProjectDetails.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import ProfileDropdown from '../components/ProfileDropdown';
+import StatusBadge from '../components/StatusBadge';
 import Dropdown from '../components/Dropdown';
 import { showToast } from '../components/Toast';
 import {
@@ -322,34 +323,9 @@ const getTaskAutoStatus = (task: { status?: string; due_date?: string; subtasks?
   return 'Pending';
 };
 
-const PD_STATUS_STYLES: Record<string, { bg: string; color: string; dot: string }> = {
-  Completed: { bg: '#ecfdf5', color: '#059669', dot: '#059669' },
-  Delayed:   { bg: '#fef2f2', color: '#dc2626', dot: '#dc2626' },
-  Ongoing:   { bg: '#eff6ff',  color: '#2563eb', dot: '#2563eb' },
-  Pending:   { bg: '#fff7ed', color: '#ea580c', dot: '#ea580c' },
-};
-
 function PDAutoStatusBadge({ task }: { task: { status?: string; due_date?: string; subtasks?: SubTask[] | any; progress_pct?: number } }) {
   const autoStatus = getTaskAutoStatus(task);
-  const style = PD_STATUS_STYLES[autoStatus];
-  return (
-    <span style={{
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: '6px',
-      padding: '4px 10px',
-      borderRadius: '6px',
-      fontSize: '12px',
-      fontWeight: 600,
-      backgroundColor: style.bg,
-      color: style.color,
-      whiteSpace: 'nowrap',
-      lineHeight: 1,
-    }}>
-      <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: style.dot, display: 'inline-block', flexShrink: 0 }} />
-      {autoStatus}
-    </span>
-  );
+  return <StatusBadge status={autoStatus} />;
 }
 
 const getNormalizedStatus = (status?: string): string => {
@@ -1032,9 +1008,7 @@ const ProjectDetails: React.FC = () => {
             <div className="pd-title-row">
               <span className="pd-code-badge">{project.code}</span>
               <h1 className="pd-title">{project.name}</h1>
-              <span className={`pd-status-pill pd-status--${project.status.toLowerCase()}`}>
-                {project.status}
-              </span>
+              <StatusBadge status={project.status} />
             </div>
             <p className="pd-location">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: '-2px', marginRight: '4px' }}>
@@ -1776,9 +1750,7 @@ const ProjectDetails: React.FC = () => {
                         <td>₱{Number(res.unitPrice).toLocaleString()}</td>
                         <td><strong>₱{totalVal.toLocaleString()}</strong></td>
                         <td>
-                          <span className={`pd-status-pill ${isLow || isOut ? 'pd-status--lowstock' : 'pd-status--instock'}`}>
-                            {displayStatus}
-                          </span>
+                          <StatusBadge status={displayStatus} />
                         </td>
                         <td>
                           <button

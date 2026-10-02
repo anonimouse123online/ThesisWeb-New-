@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import "../components/Resourcemanagement.css";
 import { API_BASE_URL, fetchWithAuth } from "../utils/api";
+import StatusBadge from "../components/StatusBadge";
 import { showToast } from "../components/Toast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -44,12 +45,6 @@ const emptyForm: NewResourceForm = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const peso = (n: number) => "₱" + n.toLocaleString("en-PH");
-
-const statusClass = (s: Status) => {
-  if (s === "In stock" || s === "Available") return "badge badge--green";
-  if (s === "Low stock" || s === "Low Availability") return "badge badge--red";
-  return "badge";
-};
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -266,7 +261,7 @@ const ResourceManagement: React.FC = () => {
 
       <div className="res-card__project">Project: {r.project}</div>
       <div className="res-card__footer">
-        <span className={statusClass(r.status)}>{r.status}</span>
+        <StatusBadge status={r.status} />
         <span className="res-card__date">Updated: {r.updatedAt}</span>
       </div>
     </div>
