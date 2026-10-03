@@ -63,7 +63,6 @@ interface NewProjectForm {
   budget: string;
   start_date: string;
   end_date: string;
-  phase: string;
 }
 
 const emptyForm: NewProjectForm = {
@@ -75,16 +74,13 @@ const emptyForm: NewProjectForm = {
   budget: '',
   start_date: '',
   end_date: '',
-  phase: 'Phase 1 - Foundation',
 };
 
-const PHASES = [
-  'Foundation',
-  'Structural',
-  'Electrical & Utilities',
-  'Plumbing & MEP',
-  'Finishing',
-];
+const generateAutoProjectCode = (existingProjects: ProjectRecord[]) => {
+  const year = new Date().getFullYear();
+  const nextNum = (existingProjects.length + 1).toString().padStart(3, '0');
+  return `PRJ-${year}-${nextNum}`;
+};
 
 const Projects: React.FC = () => {
   const navigate = useNavigate();
@@ -106,6 +102,22 @@ const Projects: React.FC = () => {
   const [form, setForm] = useState<NewProjectForm>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  const openCreateModal = () => {
+    const autoCode = generateAutoProjectCode(projects);
+    setForm({
+      code: autoCode,
+      name: '',
+      location: '',
+      scope: '',
+      client: '',
+      budget: '',
+      start_date: '',
+      end_date: '',
+    });
+    setFormError(null);
+    setShowModal(true);
+  };
 
   // Filters
   const [selectedProjectFilter, setSelectedProjectFilter] = useState('All');
@@ -291,7 +303,7 @@ const Projects: React.FC = () => {
           </button>
         </div>
 
-        <button className="pm-new-btn" onClick={() => setShowModal(true)}>
+        <button className="pm-new-btn" onClick={openCreateModal}>
           <Plus size={15} />
           <span>New Project</span>
         </button>
@@ -526,12 +538,15 @@ const Projects: React.FC = () => {
                 />
               </div>
               <div className="pm-form-group">
-                <label>Project Code <span className="pm-required">*</span></label>
+                <label>
+                  Project Code <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '500', marginLeft: '4px' }}>(Auto-generated)</span>
+                </label>
                 <input
                   className="pm-input"
                   value={form.code}
-                  onChange={e => setForm({ ...form, code: e.target.value })}
-                  placeholder="e.g., PRJ-2026-001"
+                  readOnly
+                  tabIndex={-1}
+                  style={{ backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 600, cursor: 'not-allowed' }}
                 />
               </div>
             </div>
@@ -585,7 +600,7 @@ const Projects: React.FC = () => {
               </div>
             </div>
 
-            <div className="pm-form-row pm-form-row--3">
+            <div className="pm-form-row pm-form-row--2">
               <div className="pm-form-group">
                 <label>Start Date <span className="pm-required">*</span></label>
                 <input
@@ -611,15 +626,6 @@ const Projects: React.FC = () => {
                   min={form.start_date || todayStr}
                   value={form.end_date}
                   onChange={e => setForm({ ...form, end_date: e.target.value })}
-                />
-              </div>
-              <div className="pm-form-group">
-                <label>Initial Phase <span className="pm-required">*</span></label>
-                <Dropdown
-                  options={PHASES}
-                  value={form.phase}
-                  onChange={val => setForm({ ...form, phase: val })}
-                  fullWidth
                 />
               </div>
             </div>
