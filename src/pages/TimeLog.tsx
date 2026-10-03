@@ -478,35 +478,83 @@ const TimeLog: React.FC = () => {
     }, [logs]);
 
   // ==========================================================
-  // STATISTICS
+  // DASHBOARD STATISTICS
   // ==========================================================
 
-  const totalLogs =
-    logs.length;
+  const totalLogs = logs.length;
 
-  const totalWorkers =
-    logs.reduce(
-      (sum, log) =>
-        sum +
-        log.manpower.workOnSite,
-      0
+  const totalProjects = useMemo(
+    () =>
+      new Set(
+        logs
+          .map((log) => log.projectName)
+          .filter((name) => name && name !== "—")
+      ).size,
+    [logs]
+  );
+
+  const totalEngineers = engineers.length;
+
+  const safetyIncidents = logs.filter(
+    (log) => log.hasIncident
+  ).length;
+
+  const hasActiveFilters =
+    searchQuery.trim() !== "" ||
+    dateFilter !== "" ||
+    engineerFilter !== "All Engineers";
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setDateFilter("");
+    setEngineerFilter("All Engineers");
+  };
+
+  // ==========================================================
+  // DISPLAY HELPERS
+  // ==========================================================
+
+  const getLogTimestamp = (
+    log: LogEntry
+  ): number => {
+    const raw = log.createdAt || log.date;
+
+    if (!raw || raw === "—") {
+      return 0;
+    }
+
+    const timestamp = new Date(raw).getTime();
+
+    return Number.isNaN(timestamp)
+      ? 0
+      : timestamp;
+  };
+
+  const previewText = (
+    value: string,
+    maxLength = 105
+  ): string => {
+    if (!value || value === "—") {
+      return "No work summary provided.";
+    }
+
+    return value.length > maxLength
+      ? `${value.slice(0, maxLength).trim()}…`
+      : value;
+  };
+
+  const clampProgress = (
+    value: number | null
+  ): number => {
+    if (value === null) {
+      return 0;
+    }
+
+    return Math.min(
+      100,
+      Math.max(0, value)
     );
-
-  const totalHours =
-    logs.reduce(
-      (sum, log) =>
-        sum +
-        toNumber(
-          log.manpower.totalWorkHours
-        ),
-      0
-    );
-
-  const safetyAccidents =
-    logs.filter(
-      (log) =>
-        log.hasIncident
-    ).length;
+  };
 
   // ==========================================================
   // PROJECT TOGGLE
@@ -515,7 +563,6 @@ const TimeLog: React.FC = () => {
   const toggleProject = (
     projectName: string
   ) => {
-
     setExpandedProjects(
       (prev) =>
         prev.includes(projectName)
@@ -538,7 +585,6 @@ const TimeLog: React.FC = () => {
     projectName: string,
     engineerName: string
   ) => {
-
     const engineerKey =
       `${projectName}::${engineerName}`;
 
@@ -563,7 +609,6 @@ const TimeLog: React.FC = () => {
   const toggleLog = (
     id: string | number
   ) => {
-
     setExpandedLogs(
       (prev) =>
         prev.includes(id)
@@ -584,7 +629,6 @@ const TimeLog: React.FC = () => {
 
   const filteredLogs =
     useMemo(() => {
-
       const normalizedSearch =
         searchQuery
           .trim()
@@ -592,7 +636,6 @@ const TimeLog: React.FC = () => {
 
       return logs.filter(
         (log) => {
-
           const matchesSearch =
             normalizedSearch === "" ||
 
@@ -630,12 +673,17 @@ const TimeLog: React.FC = () => {
               .toLowerCase()
               .includes(
                 normalizedSearch
+              ) ||
+
+            (log.phase || "")
+              .toLowerCase()
+              .includes(
+                normalizedSearch
               );
 
           const matchesDate =
             dateFilter === "" ||
-            log.date ===
-              dateFilter;
+            log.date === dateFilter;
 
           const matchesEngineer =
             engineerFilter ===
@@ -667,7 +715,6 @@ const TimeLog: React.FC = () => {
 
   const groupedProjects =
     useMemo(() => {
-
       const groups:
         Record<
           string,
@@ -676,7 +723,6 @@ const TimeLog: React.FC = () => {
 
       filteredLogs.forEach(
         (log) => {
-
           const project =
             log.projectName ||
             "Unknown Project";
@@ -691,26 +737,10 @@ const TimeLog: React.FC = () => {
 
       Object.values(groups)
         .forEach((projectLogs) => {
-
           projectLogs.sort(
-            (a, b) => {
-
-              const aTime =
-                a.createdAt
-                  ? new Date(
-                      a.createdAt
-                    ).getTime()
-                  : 0;
-
-              const bTime =
-                b.createdAt
-                  ? new Date(
-                      b.createdAt
-                    ).getTime()
-                  : 0;
-
-              return bTime - aTime;
-            }
+            (a, b) =>
+              getLogTimestamp(b) -
+              getLogTimestamp(a)
           );
         });
 
@@ -725,13 +755,11 @@ const TimeLog: React.FC = () => {
   const groupByEngineer = (
     projectLogs: LogEntry[]
   ): Record<string, LogEntry[]> => {
-
     const groups:
       Record<string, LogEntry[]> = {};
 
     projectLogs.forEach(
       (log) => {
-
         const engineer =
           log.engineerName ||
           "Unknown Engineer";
@@ -748,26 +776,10 @@ const TimeLog: React.FC = () => {
     Object.values(groups)
       .forEach(
         (engineerLogs) => {
-
           engineerLogs.sort(
-            (a, b) => {
-
-              const aTime =
-                a.createdAt
-                  ? new Date(
-                      a.createdAt
-                    ).getTime()
-                  : 0;
-
-              const bTime =
-                b.createdAt
-                  ? new Date(
-                      b.createdAt
-                    ).getTime()
-                  : 0;
-
-              return bTime - aTime;
-            }
+            (a, b) =>
+              getLogTimestamp(b) -
+              getLogTimestamp(a)
           );
         }
       );
@@ -776,8 +788,16 @@ const TimeLog: React.FC = () => {
   };
 
   const projectEntries =
-    Object.entries(
-      groupedProjects
+    useMemo(
+      () =>
+        Object.entries(
+          groupedProjects
+        ).sort(
+          ([, aLogs], [, bLogs]) =>
+            getLogTimestamp(bLogs[0]) -
+            getLogTimestamp(aLogs[0])
+        ),
+      [groupedProjects]
     );
 
   // ==========================================================
@@ -785,99 +805,85 @@ const TimeLog: React.FC = () => {
   // ==========================================================
 
   return (
-
     <div className="timelog-container">
 
-      {/* ======================================================
-          HEADER
-      ====================================================== */}
-
+      {/* HEADER */}
       <div className="timelog-header">
-
         <div>
-
           <h1 className="timelog-title">
             Time Log
           </h1>
 
           <p className="timelog-subtitle">
-            Engineer time logs grouped by project
+            Review daily field activity by project and engineer.
           </p>
-
         </div>
 
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "8px 12px",
+            borderRadius: "999px",
+            background: "#f8fafc",
+            border: "1px solid #e2e8f0",
+            color: "#475569",
+            fontSize: "12px",
+            fontWeight: 600,
+          }}
+        >
+          {filteredLogs.length} visible
+        </div>
       </div>
 
-      {/* ======================================================
-          STATISTICS
-      ====================================================== */}
-
+      {/* SUMMARY */}
       <div className="timelog-stats">
-
         <div className="stat-card">
-
           <span className="stat-label">
             Total Logs
           </span>
-
           <span className="stat-value">
             {totalLogs}
           </span>
-
         </div>
 
         <div className="stat-card">
-
           <span className="stat-label">
-            Total Workers Logged
+            Projects
           </span>
-
           <span className="stat-value">
-            {totalWorkers}
+            {totalProjects}
           </span>
-
         </div>
 
         <div className="stat-card">
-
           <span className="stat-label">
-            Total Work Hours
+            Engineers
           </span>
-
           <span className="stat-value">
-            {totalHours}h
+            {totalEngineers}
           </span>
-
         </div>
 
         <div className="stat-card">
-
           <span className="stat-label">
             Safety Incidents
           </span>
-
           <span className="stat-value">
-            {safetyAccidents}
+            {safetyIncidents}
           </span>
-
         </div>
-
       </div>
 
-      {/* ======================================================
-          FILTERS
-      ====================================================== */}
-
+      {/* FILTERS */}
       <div className="timelog-filters">
-
         <div className="search-wrapper">
-
           <svg
             className="search-icon"
             viewBox="0 0 20 20"
             fill="none"
           >
-
             <circle
               cx="9"
               cy="9"
@@ -885,20 +891,18 @@ const TimeLog: React.FC = () => {
               stroke="#999"
               strokeWidth="1.5"
             />
-
             <path
               d="M13.5 13.5L17 17"
               stroke="#999"
               strokeWidth="1.5"
               strokeLinecap="round"
             />
-
           </svg>
 
           <input
             type="text"
             className="search-input"
-            placeholder="Search project, engineer, or work summary..."
+            placeholder="Search project, engineer, phase, or work..."
             value={searchQuery}
             onChange={
               (e) =>
@@ -907,11 +911,9 @@ const TimeLog: React.FC = () => {
                 )
             }
           />
-
         </div>
 
         <div className="date-wrapper">
-
           <input
             type="date"
             className="date-input"
@@ -923,11 +925,9 @@ const TimeLog: React.FC = () => {
                 )
             }
           />
-
         </div>
 
         <div className="select-wrapper">
-
           <select
             className="engineer-select"
             value={engineerFilter}
@@ -938,24 +938,20 @@ const TimeLog: React.FC = () => {
                 )
             }
           >
-
             <option value="All Engineers">
               All Engineers
             </option>
 
             {engineers.map(
               (name) => (
-
                 <option
                   key={name}
                   value={name}
                 >
                   {name}
                 </option>
-
               )
             )}
-
           </select>
 
           <svg
@@ -963,7 +959,6 @@ const TimeLog: React.FC = () => {
             viewBox="0 0 20 20"
             fill="none"
           >
-
             <path
               d="M5 8l5 5 5-5"
               stroke="#555"
@@ -971,71 +966,66 @@ const TimeLog: React.FC = () => {
               strokeLinecap="round"
               strokeLinejoin="round"
             />
-
           </svg>
-
         </div>
 
+        {hasActiveFilters && (
+          <button
+            type="button"
+            onClick={clearFilters}
+            style={{
+              minHeight: "42px",
+              padding: "0 14px",
+              borderRadius: "10px",
+              border: "1px solid #cbd5e1",
+              background: "#ffffff",
+              color: "#475569",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Clear filters
+          </button>
+        )}
       </div>
 
-      {/* ======================================================
-          LOADING
-      ====================================================== */}
-
+      {/* LOADING */}
       {loading && (
-
         <div className="rm-empty">
           Loading time logs...
         </div>
-
       )}
 
-      {/* ======================================================
-          ERROR
-      ====================================================== */}
-
+      {/* ERROR */}
       {error && (
-
         <div
           className="rm-empty"
-          style={{
-            color: "red"
-          }}
+          style={{ color: "#b91c1c" }}
         >
           {error}
         </div>
-
       )}
 
-      {/* ======================================================
-          PROJECTS
-      ====================================================== */}
-
-      {!loading &&
-        !error && (
-
+      {/* PROJECTS */}
+      {!loading && !error && (
         <div className="timelog-entries">
-
           {projectEntries.length === 0 ? (
-
             <div
               style={{
                 padding: "3rem",
                 textAlign: "center",
                 background: "#fff",
                 borderRadius: "14px",
-                border:
-                  "1px solid #e2e8f0",
+                border: "1px solid #e2e8f0",
               }}
             >
-
               <p
                 style={{
                   fontSize: "16px",
                   fontWeight: 600,
                   color: "#1e293b",
-                  margin:
-                    "0 0 6px",
+                  margin: "0 0 6px",
                 }}
               >
                 No time logs found
@@ -1048,19 +1038,12 @@ const TimeLog: React.FC = () => {
                   margin: 0,
                 }}
               >
-                Engineer time logs will appear here.
+                Try changing the search, date, or engineer filter.
               </p>
-
             </div>
-
           ) : (
-
             projectEntries.map(
-              ([
-                projectName,
-                projectLogs
-              ]) => {
-
+              ([projectName, projectLogs]) => {
                 const projectExpanded =
                   expandedProjects.includes(
                     projectName
@@ -1079,17 +1062,24 @@ const TimeLog: React.FC = () => {
                 const latestLog =
                   projectLogs[0];
 
-                return (
+                const projectIncidentCount =
+                  projectLogs.filter(
+                    (log) => log.hasIncident
+                  ).length;
 
+                const latestProgress =
+                  latestLog?.progressPct;
+
+                return (
                   <div
                     key={projectName}
                     className="log-card"
+                    style={{
+                      borderRadius: "16px",
+                      overflow: "hidden",
+                    }}
                   >
-
-                    {/* ==========================================
-                        PROJECT HEADER
-                    ========================================== */}
-
+                    {/* PROJECT HEADER */}
                     <div
                       className="log-row"
                       onClick={
@@ -1098,63 +1088,109 @@ const TimeLog: React.FC = () => {
                             projectName
                           )
                       }
+                      onKeyDown={(e) => {
+                        if (
+                          e.key === "Enter" ||
+                          e.key === " "
+                        ) {
+                          e.preventDefault();
+                          toggleProject(
+                            projectName
+                          );
+                        }
+                      }}
                       role="button"
                       tabIndex={0}
+                      aria-expanded={projectExpanded}
+                      style={{
+                        padding: "18px 20px",
+                        alignItems: "center",
+                      }}
                     >
-
-                      <div className="log-row-left">
-
-                        <div className="log-meta">
-
+                      <div
+                        className="log-row-left"
+                        style={{ minWidth: 0 }}
+                      >
+                        <div
+                          className="log-meta"
+                          style={{ minWidth: 0 }}
+                        >
                           <span className="log-project-name">
                             {projectName}
                           </span>
 
                           <span className="log-engineer">
-
-                            {engineerEntries.length}{" "}
-
-                            {engineerEntries.length === 1
-                              ? "Engineer"
-                              : "Engineers"}
-
-                            {" • "}
-
-                            {projectLogs.length}{" "}
-
-                            {projectLogs.length === 1
-                              ? "Log"
-                              : "Logs"}
-
+                            Latest update: {formatPrettyDate(
+                              latestLog?.createdAt ||
+                              latestLog?.date
+                            )}
                             {latestLog?.createdAt && (
                               <>
-                                {" • Latest "}
+                                {" • "}
                                 {formatTime(
                                   latestLog.createdAt
                                 )}
                               </>
                             )}
-
                           </span>
 
+                          <span
+                            style={{
+                              marginTop: "7px",
+                              color: "#475569",
+                              fontSize: "13px",
+                              lineHeight: 1.45,
+                            }}
+                          >
+                            {previewText(
+                              latestLog?.workCompleted ||
+                              "—",
+                              125
+                            )}
+                          </span>
                         </div>
-
                       </div>
 
-                      <div className="log-tags">
-
+                      <div
+                        className="log-tags"
+                        style={{
+                          flexWrap: "wrap",
+                          justifyContent: "flex-end",
+                        }}
+                      >
                         <span className="log-tag">
-                          {engineerEntries.length} Engineers
+                          {engineerEntries.length} {engineerEntries.length === 1 ? "Engineer" : "Engineers"}
                         </span>
 
                         <span className="log-tag">
-                          {projectLogs.length} Logs
+                          {projectLogs.length} {projectLogs.length === 1 ? "Entry" : "Entries"}
                         </span>
 
+                        {latestLog?.phase && (
+                          <span className="log-tag">
+                            {latestLog.phase}
+                            {latestProgress !== null &&
+                            latestProgress !== undefined
+                              ? ` • ${latestProgress}%`
+                              : ""}
+                          </span>
+                        )}
+
+                        {projectIncidentCount > 0 && (
+                          <span
+                            className="log-tag"
+                            style={{
+                              background: "#fef2f2",
+                              color: "#b91c1c",
+                              borderColor: "#fecaca",
+                            }}
+                          >
+                            {projectIncidentCount} Incident{projectIncidentCount === 1 ? "" : "s"}
+                          </span>
+                        )}
                       </div>
 
                       <div className="log-chevron">
-
                         <svg
                           viewBox="0 0 20 20"
                           fill="none"
@@ -1165,12 +1201,10 @@ const TimeLog: React.FC = () => {
                               projectExpanded
                                 ? "rotate(180deg)"
                                 : "rotate(0deg)",
-
                             transition:
                               "transform 0.2s ease",
                           }}
                         >
-
                           <path
                             d="M5 8l5 5 5-5"
                             stroke="#666"
@@ -1178,27 +1212,21 @@ const TimeLog: React.FC = () => {
                             strokeLinecap="round"
                             strokeLinejoin="round"
                           />
-
                         </svg>
-
                       </div>
-
                     </div>
 
-                    {/* ==========================================
-                        ENGINEERS
-                    ========================================== */}
-
+                    {/* PROJECT CONTENT */}
                     {projectExpanded && (
-
-                      <div className="log-detail">
-
+                      <div
+                        className="log-detail"
+                        style={{
+                          padding: "16px",
+                          background: "#f8fafc",
+                        }}
+                      >
                         {engineerEntries.map(
-                          ([
-                            engineerName,
-                            engineerLogs
-                          ]) => {
-
+                          ([engineerName, engineerLogs]) => {
                             const engineerKey =
                               `${projectName}::${engineerName}`;
 
@@ -1211,27 +1239,17 @@ const TimeLog: React.FC = () => {
                               engineerLogs[0];
 
                             return (
-
                               <div
                                 key={engineerKey}
                                 style={{
-                                  border:
-                                    "1px solid #e5eaf0",
-                                  borderRadius:
-                                    "12px",
-                                  background:
-                                    "#ffffff",
-                                  marginBottom:
-                                    "10px",
-                                  overflow:
-                                    "hidden",
+                                  border: "1px solid #e2e8f0",
+                                  borderRadius: "14px",
+                                  background: "#ffffff",
+                                  marginBottom: "12px",
+                                  overflow: "hidden",
                                 }}
                               >
-
-                                {/* ==================================
-                                    ENGINEER HEADER
-                                ================================== */}
-
+                                {/* ENGINEER HEADER */}
                                 <div
                                   className="log-row"
                                   onClick={
@@ -1241,63 +1259,80 @@ const TimeLog: React.FC = () => {
                                         engineerName
                                       )
                                   }
+                                  onKeyDown={(e) => {
+                                    if (
+                                      e.key === "Enter" ||
+                                      e.key === " "
+                                    ) {
+                                      e.preventDefault();
+                                      toggleEngineer(
+                                        projectName,
+                                        engineerName
+                                      );
+                                    }
+                                  }}
                                   role="button"
                                   tabIndex={0}
+                                  aria-expanded={engineerExpanded}
                                   style={{
-                                    background:
-                                      "#fbfcfd",
+                                    background: "#ffffff",
+                                    padding: "14px 16px",
                                   }}
                                 >
-
-                                  <div className="log-row-left">
-
-                                    <div className="log-meta">
-
+                                  <div
+                                    className="log-row-left"
+                                    style={{ minWidth: 0 }}
+                                  >
+                                    <div
+                                      className="log-meta"
+                                      style={{ minWidth: 0 }}
+                                    >
                                       <span className="log-project-name">
                                         {engineerName}
                                       </span>
 
                                       <span className="log-engineer">
-
-                                        {engineerLogs.length}{" "}
-
-                                        {engineerLogs.length === 1
-                                          ? "time log"
-                                          : "time logs"}
-
-                                        {latestEngineerLog
-                                          ?.createdAt && (
-                                          <>
-                                            {" • Latest "}
-                                            {formatTime(
-                                              latestEngineerLog
-                                                .createdAt
-                                            )}
-                                          </>
+                                        {engineerLogs.length} {engineerLogs.length === 1 ? "time log" : "time logs"}
+                                        {" • Last entry "}
+                                        {formatPrettyDate(
+                                          latestEngineerLog?.createdAt ||
+                                          latestEngineerLog?.date
                                         )}
-
                                       </span>
 
+                                      <span
+                                        style={{
+                                          marginTop: "6px",
+                                          color: "#64748b",
+                                          fontSize: "12px",
+                                          lineHeight: 1.4,
+                                        }}
+                                      >
+                                        Latest: {previewText(
+                                          latestEngineerLog?.workCompleted ||
+                                          "—",
+                                          95
+                                        )}
+                                      </span>
                                     </div>
-
                                   </div>
 
                                   <div className="log-tags">
+                                    {latestEngineerLog?.conditions.weather &&
+                                    latestEngineerLog.conditions.weather !== "—" && (
+                                      <span className="log-tag">
+                                        {latestEngineerLog.conditions.weather}
+                                      </span>
+                                    )}
 
-                                    <span className="log-tag">
-
-                                      {engineerLogs.length}{" "}
-
-                                      {engineerLogs.length === 1
-                                        ? "Log"
-                                        : "Logs"}
-
-                                    </span>
-
+                                    {latestEngineerLog?.phase && (
+                                      <span className="log-tag">
+                                        {latestEngineerLog.phase}
+                                      </span>
+                                    )}
                                   </div>
 
                                   <div className="log-chevron">
-
                                     <svg
                                       viewBox="0 0 20 20"
                                       fill="none"
@@ -1308,12 +1343,10 @@ const TimeLog: React.FC = () => {
                                           engineerExpanded
                                             ? "rotate(180deg)"
                                             : "rotate(0deg)",
-
                                         transition:
                                           "transform 0.2s ease",
                                       }}
                                     >
-
                                       <path
                                         d="M5 8l5 5 5-5"
                                         stroke="#666"
@@ -1321,62 +1354,43 @@ const TimeLog: React.FC = () => {
                                         strokeLinecap="round"
                                         strokeLinejoin="round"
                                       />
-
                                     </svg>
-
                                   </div>
-
                                 </div>
 
-                                {/* ==================================
-                                    ENGINEER TIME LOGS
-                                ================================== */}
-
+                                {/* ENGINEER LOGS */}
                                 {engineerExpanded && (
-
                                   <div
                                     style={{
-                                      padding:
-                                        "10px 14px 14px",
-                                      background:
-                                        "#f8fafc",
+                                      padding: "12px",
+                                      background: "#f8fafc",
+                                      borderTop: "1px solid #eef2f7",
                                     }}
                                   >
-
                                     {engineerLogs.map(
                                       (log) => {
-
                                         const logExpanded =
                                           expandedLogs.includes(
                                             log.id
                                           );
 
-                                        return (
+                                        const progress =
+                                          clampProgress(
+                                            log.progressPct
+                                          );
 
+                                        return (
                                           <div
                                             key={log.id}
                                             style={{
-                                              background:
-                                                "#ffffff",
-
-                                              border:
-                                                "1px solid #e8edf3",
-
-                                              borderRadius:
-                                                "10px",
-
-                                              marginBottom:
-                                                "8px",
-
-                                              overflow:
-                                                "hidden",
+                                              background: "#ffffff",
+                                              border: "1px solid #e2e8f0",
+                                              borderRadius: "12px",
+                                              marginBottom: "10px",
+                                              overflow: "hidden",
                                             }}
                                           >
-
-                                            {/* ======================
-                                                LOG TIME
-                                            ====================== */}
-
+                                            {/* LOG SUMMARY */}
                                             <div
                                               className="log-row"
                                               onClick={
@@ -1385,70 +1399,114 @@ const TimeLog: React.FC = () => {
                                                     log.id
                                                   )
                                               }
+                                              onKeyDown={(e) => {
+                                                if (
+                                                  e.key === "Enter" ||
+                                                  e.key === " "
+                                                ) {
+                                                  e.preventDefault();
+                                                  toggleLog(
+                                                    log.id
+                                                  );
+                                                }
+                                              }}
                                               role="button"
                                               tabIndex={0}
+                                              aria-expanded={logExpanded}
+                                              style={{
+                                                alignItems: "flex-start",
+                                                padding: "14px 16px",
+                                              }}
                                             >
-
-                                              <div className="log-row-left">
-
-                                                <div className="log-meta">
-
+                                              <div
+                                                className="log-row-left"
+                                                style={{ minWidth: 0 }}
+                                              >
+                                                <div
+                                                  className="log-meta"
+                                                  style={{ minWidth: 0 }}
+                                                >
                                                   <span className="log-project-name">
-
-                                                    {formatTime(
-                                                      log.createdAt
-                                                    )}
-
-                                                  </span>
-
-                                                  <span className="log-engineer">
-
                                                     {formatPrettyDate(
                                                       log.createdAt ||
                                                       log.date
                                                     )}
-
+                                                    {log.createdAt && (
+                                                      <>
+                                                        {" • "}
+                                                        {formatTime(
+                                                          log.createdAt
+                                                        )}
+                                                      </>
+                                                    )}
                                                   </span>
 
-                                                </div>
+                                                  <span className="log-engineer">
+                                                    Daily field entry
+                                                  </span>
 
+                                                  <span
+                                                    style={{
+                                                      marginTop: "7px",
+                                                      color: "#334155",
+                                                      fontSize: "13px",
+                                                      lineHeight: 1.5,
+                                                      maxWidth: "720px",
+                                                    }}
+                                                  >
+                                                    {previewText(
+                                                      log.workCompleted,
+                                                      150
+                                                    )}
+                                                  </span>
+                                                </div>
                                               </div>
 
-                                              <div className="log-tags">
+                                              <div
+                                                className="log-tags"
+                                                style={{
+                                                  flexWrap: "wrap",
+                                                  justifyContent: "flex-end",
+                                                }}
+                                              >
+                                                {log.phase && (
+                                                  <span className="log-tag">
+                                                    {log.phase}
+                                                    {log.progressPct !== null
+                                                      ? ` • ${log.progressPct}%`
+                                                      : ""}
+                                                  </span>
+                                                )}
 
-                                                <span className="log-tag">
+                                                {log.conditions.weather !== "—" && (
+                                                  <span className="log-tag">
+                                                    {log.conditions.weather}
+                                                  </span>
+                                                )}
 
-                                                  {
-                                                    log.manpower
-                                                      .workOnSite
-                                                  }{" "}
-                                                  Workers
-
-                                                </span>
-
-                                                <span className="log-tag">
-
-                                                  {
-                                                    log.conditions
-                                                      .weather
-                                                  }
-
-                                                </span>
-
-                                                <span className="log-tag">
-
-                                                  {
+                                                <span
+                                                  className="log-tag"
+                                                  style={
                                                     log.hasIncident
-                                                      ? "Incident"
-                                                      : "No Incident"
+                                                      ? {
+                                                          background: "#fef2f2",
+                                                          color: "#b91c1c",
+                                                          borderColor: "#fecaca",
+                                                        }
+                                                      : {
+                                                          background: "#f0fdf4",
+                                                          color: "#166534",
+                                                          borderColor: "#bbf7d0",
+                                                        }
                                                   }
-
+                                                >
+                                                  {log.hasIncident
+                                                    ? "Incident recorded"
+                                                    : "No incident"}
                                                 </span>
-
                                               </div>
 
                                               <div className="log-chevron">
-
                                                 <svg
                                                   viewBox="0 0 20 20"
                                                   fill="none"
@@ -1459,12 +1517,10 @@ const TimeLog: React.FC = () => {
                                                       logExpanded
                                                         ? "rotate(180deg)"
                                                         : "rotate(0deg)",
-
                                                     transition:
                                                       "transform 0.2s ease",
                                                   }}
                                                 >
-
                                                   <path
                                                     d="M5 8l5 5 5-5"
                                                     stroke="#666"
@@ -1472,188 +1528,191 @@ const TimeLog: React.FC = () => {
                                                     strokeLinecap="round"
                                                     strokeLinejoin="round"
                                                   />
-
                                                 </svg>
-
                                               </div>
-
                                             </div>
 
-                                            {/* ======================
-                                                LOG DETAILS
-                                            ====================== */}
-
+                                            {/* LOG DETAILS */}
                                             {logExpanded && (
-
-                                              <div className="log-detail">
-
-                                                <div className="detail-grid">
-
-                                                  {/* MANPOWER */}
-
-                                                  <div className="detail-col">
-
+                                              <div
+                                                className="log-detail"
+                                                style={{
+                                                  borderTop: "1px solid #eef2f7",
+                                                  padding: "18px",
+                                                }}
+                                              >
+                                                {/* PROJECT STATUS */}
+                                                {(log.phase ||
+                                                  log.progressPct !== null) && (
+                                                  <div
+                                                    className="detail-section"
+                                                    style={{
+                                                      marginBottom: "18px",
+                                                    }}
+                                                  >
                                                     <h4 className="section-title">
-                                                      Manpower Breakdown
+                                                      Project Status
                                                     </h4>
 
-                                                    <div className="detail-row">
+                                                    <div
+                                                      style={{
+                                                        padding: "14px",
+                                                        border: "1px solid #e2e8f0",
+                                                        borderRadius: "10px",
+                                                        background: "#f8fafc",
+                                                      }}
+                                                    >
+                                                      <div
+                                                        style={{
+                                                          display: "flex",
+                                                          justifyContent: "space-between",
+                                                          gap: "16px",
+                                                          flexWrap: "wrap",
+                                                          marginBottom:
+                                                            log.progressPct !== null
+                                                              ? "10px"
+                                                              : 0,
+                                                        }}
+                                                      >
+                                                        <span
+                                                          style={{
+                                                            color: "#475569",
+                                                            fontSize: "13px",
+                                                          }}
+                                                        >
+                                                          Phase
+                                                        </span>
+                                                        <strong
+                                                          style={{
+                                                            color: "#0f172a",
+                                                            fontSize: "13px",
+                                                          }}
+                                                        >
+                                                          {log.phase || "Not specified"}
+                                                          {log.progressPct !== null
+                                                            ? ` • ${log.progressPct}%`
+                                                            : ""}
+                                                        </strong>
+                                                      </div>
 
-                                                      <span className="detail-label">
-                                                        Active on Site:
-                                                      </span>
-
-                                                      <span className="detail-value">
-                                                        {
-                                                          log
-                                                            .manpower
-                                                            .workOnSite
-                                                        }
-                                                      </span>
-
+                                                      {log.progressPct !== null && (
+                                                        <div
+                                                          style={{
+                                                            height: "8px",
+                                                            borderRadius: "999px",
+                                                            background: "#e2e8f0",
+                                                            overflow: "hidden",
+                                                          }}
+                                                        >
+                                                          <div
+                                                            style={{
+                                                              width: `${progress}%`,
+                                                              height: "100%",
+                                                              background: "#334155",
+                                                              borderRadius: "999px",
+                                                            }}
+                                                          />
+                                                        </div>
+                                                      )}
                                                     </div>
-
-                                                    <div className="detail-row">
-
-                                                      <span className="detail-label">
-                                                        Supervisors:
-                                                      </span>
-
-                                                      <span className="detail-value">
-                                                        {
-                                                          log
-                                                            .manpower
-                                                            .supervisors
-                                                        }
-                                                      </span>
-
-                                                    </div>
-
-                                                    <div className="detail-row">
-
-                                                      <span className="detail-label">
-                                                        Sub-contractors:
-                                                      </span>
-
-                                                      <span className="detail-value">
-                                                        {
-                                                          log
-                                                            .manpower
-                                                            .subContractors
-                                                        }
-                                                      </span>
-
-                                                    </div>
-
-                                                    <div className="detail-row">
-
-                                                      <span className="detail-label">
-                                                        Total Work Hours:
-                                                      </span>
-
-                                                      <span className="detail-value">
-                                                        {
-                                                          log
-                                                            .manpower
-                                                            .totalWorkHours
-                                                        }
-                                                      </span>
-
-                                                    </div>
-
                                                   </div>
+                                                )}
 
-                                                  {/* CONDITIONS */}
-
+                                                {/* QUICK FACTS */}
+                                                <div className="detail-grid">
                                                   <div className="detail-col">
-
                                                     <h4 className="section-title">
                                                       Site Conditions
                                                     </h4>
 
                                                     <div className="detail-row">
-
                                                       <span className="detail-label">
                                                         Weather:
                                                       </span>
-
                                                       <span className="detail-value">
-                                                        {
-                                                          log
-                                                            .conditions
-                                                            .weather
-                                                        }
+                                                        {log.conditions.weather}
                                                       </span>
-
                                                     </div>
 
                                                     <div className="detail-row">
-
                                                       <span className="detail-label">
                                                         Temperature:
                                                       </span>
-
                                                       <span className="detail-value">
-                                                        {
-                                                          log
-                                                            .conditions
-                                                            .temperature
-                                                        }
+                                                        {log.conditions.temperature}
                                                       </span>
-
                                                     </div>
 
                                                     <div className="detail-row">
-
                                                       <span className="detail-label">
                                                         Safety Incident:
                                                       </span>
-
-                                                      <span className="detail-value">
-
-                                                        {
-                                                          log.hasIncident
-                                                            ? "Yes"
-                                                            : "No"
-                                                        }
-
+                                                      <span
+                                                        className="detail-value"
+                                                        style={{
+                                                          fontWeight: 700,
+                                                          color: log.hasIncident
+                                                            ? "#b91c1c"
+                                                            : "#166534",
+                                                        }}
+                                                      >
+                                                        {log.hasIncident
+                                                          ? "Yes"
+                                                          : "No"}
                                                       </span>
-
                                                     </div>
-
-                                                    {log.phase && (
-
-                                                      <div className="detail-row">
-
-                                                        <span className="detail-label">
-                                                          Milestone Phase:
-                                                        </span>
-
-                                                        <span className="detail-value">
-
-                                                          {log.phase}
-
-                                                          {
-                                                            log.progressPct !==
-                                                            null
-                                                              ? ` (${log.progressPct}%)`
-                                                              : ""
-                                                          }
-
-                                                        </span>
-
-                                                      </div>
-
-                                                    )}
-
                                                   </div>
 
+                                                  <div className="detail-col">
+                                                    <h4 className="section-title">
+                                                      Recorded Site Activity
+                                                    </h4>
+
+                                                    <div className="detail-row">
+                                                      <span className="detail-label">
+                                                        Workers on Site:
+                                                      </span>
+                                                      <span className="detail-value">
+                                                        {log.manpower.workOnSite}
+                                                      </span>
+                                                    </div>
+
+                                                    <div className="detail-row">
+                                                      <span className="detail-label">
+                                                        Supervisors:
+                                                      </span>
+                                                      <span className="detail-value">
+                                                        {log.manpower.supervisors}
+                                                      </span>
+                                                    </div>
+
+                                                    <div className="detail-row">
+                                                      <span className="detail-label">
+                                                        Sub-contractors:
+                                                      </span>
+                                                      <span className="detail-value">
+                                                        {log.manpower.subContractors}
+                                                      </span>
+                                                    </div>
+
+                                                    <div className="detail-row">
+                                                      <span className="detail-label">
+                                                        Work Hours:
+                                                      </span>
+                                                      <span className="detail-value">
+                                                        {log.manpower.totalWorkHours}
+                                                      </span>
+                                                    </div>
+                                                  </div>
                                                 </div>
 
                                                 {/* WORK COMPLETED */}
-
-                                                <div className="detail-section">
-
+                                                <div
+                                                  className="detail-section"
+                                                  style={{
+                                                    marginTop: "18px",
+                                                  }}
+                                                >
                                                   <h4 className="section-title">
                                                     Work Completed
                                                   </h4>
@@ -1661,106 +1720,70 @@ const TimeLog: React.FC = () => {
                                                   <div className="detail-box">
                                                     {log.workCompleted}
                                                   </div>
-
                                                 </div>
 
                                                 {/* MATERIALS / EQUIPMENT */}
-
                                                 <div
                                                   className="two-col-sections"
                                                   style={{
-                                                    marginTop:
-                                                      "16px",
+                                                    marginTop: "16px",
                                                   }}
                                                 >
-
                                                   <div>
-
                                                     <h4 className="section-title">
                                                       Materials Delivered
                                                     </h4>
-
                                                     <div className="detail-box">
-                                                      {
-                                                        log.materialsDelivered
-                                                      }
+                                                      {log.materialsDelivered}
                                                     </div>
-
                                                   </div>
 
                                                   <div>
-
                                                     <h4 className="section-title">
                                                       Equipment Used
                                                     </h4>
-
                                                     <div className="detail-box">
-                                                      {
-                                                        log.equipmentUsed
-                                                      }
+                                                      {log.equipmentUsed}
                                                     </div>
-
                                                   </div>
-
                                                 </div>
 
                                                 {/* NOTES */}
-
                                                 <div
                                                   className="detail-section"
                                                   style={{
-                                                    marginTop:
-                                                      "16px",
+                                                    marginTop: "16px",
                                                   }}
                                                 >
-
                                                   <h4 className="section-title">
                                                     Additional Notes
                                                   </h4>
 
                                                   <div className="detail-box">
-                                                    {
-                                                      log.additionalNotes
-                                                    }
+                                                    {log.additionalNotes}
                                                   </div>
-
                                                 </div>
-
                                               </div>
-
                                             )}
-
                                           </div>
-
                                         );
                                       }
                                     )}
-
                                   </div>
-
                                 )}
-
                               </div>
-
                             );
                           }
                         )}
-
                       </div>
-
                     )}
-
                   </div>
-
                 );
               }
             )
           )}
-
         </div>
-
       )}
-
     </div>
   );
 };

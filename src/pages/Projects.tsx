@@ -74,7 +74,7 @@ const emptyForm: NewProjectForm = {
   budget: '',
   start_date: '',
   end_date: '',
-  phase: 'Foundation',
+  phase: 'Phase 1 - Foundation',
 };
 
 const PHASES = [

@@ -8,11 +8,11 @@ import { Package, Truck, Building2, X, AlertTriangle, Info } from 'lucide-react'
 const API_URL = API_BASE_URL;
 
 const PHASES = [
-  'Foundation',
-  'Structural',
-  'Electrical & Utilities',
-  'Plumbing & MEP',
-  'Finishing',
+  'Phase 1 - Foundation',
+  'Phase 2 - Structural',
+  'Phase 3 - Electrical & Utilities',
+  'Phase 4 - Plumbing & MEP',
+  'Phase 5 - Finishing',
 ];
 
 interface ProjectOption {
@@ -49,7 +49,7 @@ const CreateTask: React.FC = () => {
   const [formData, setFormData] = useState({
     taskName: '',
     projectId: '',
-    phase: 'Foundation',
+    phase: 'Phase 1 - Foundation',
     assigneeId: '',
     startDate: new Date().toISOString().split('T')[0],
     dueDate: '',
