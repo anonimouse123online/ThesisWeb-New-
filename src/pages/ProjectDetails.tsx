@@ -52,6 +52,7 @@ interface Project {
   phase: string;
   scope: string;
   progress_pct?: number;
+  owner_id?: string;
 }
 
 interface TeamMember {
@@ -151,7 +152,7 @@ function avatarColor(name: string): string {
 const formatBudget = (b: string | number) => {
   const n = parseFloat(String(b));
   if (isNaN(n)) return b;
-  return `₱${(n / 1_000_000).toFixed(2)}M`;
+  return '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 const formatCurrency = (n: number) => {
@@ -165,6 +166,23 @@ const formatTimeline = (start: string, end: string) => {
     return `${(dt.getMonth() + 1).toString().padStart(2, '0')}/${dt.getDate().toString().padStart(2, '0')}/${String(dt.getFullYear()).slice(2)}`;
   };
   return `${fmt(start)} – ${fmt(end)}`;
+};
+
+export const toDateInputValue = (d?: string | null) => {
+  if (!d) return undefined;
+  if (/^\d{4}-\d{2}-\d{2}/.test(d)) {
+    return d.slice(0, 10);
+  }
+  try {
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return undefined;
+    const year = dt.getFullYear();
+    const month = String(dt.getMonth() + 1).padStart(2, '0');
+    const day = String(dt.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  } catch {
+    return undefined;
+  }
 };
 
 // ─── Generate Invite Code Modal ───────────────────────────────────────────────
@@ -387,6 +405,16 @@ const ProjectDetails: React.FC = () => {
     return r;
   };
 
+  const isProjectOwner = (u: TeamMember) => {
+    const r = (u.role || '').toLowerCase();
+    return r === 'owner' || (Boolean(project?.owner_id) && String(u.id) === String(project?.owner_id));
+  };
+
+  const siteTeamMembers = useMemo(
+    () => teamMembers.filter(u => !isProjectOwner(u)),
+    [teamMembers, project?.owner_id]
+  );
+
   const engineerMembers = useMemo(
     () => teamMembers.filter(isEngineerMember),
     [teamMembers]
@@ -398,7 +426,7 @@ const ProjectDetails: React.FC = () => {
     taskName: '',
     phase: PHASES[0],
     assigneeId: '',
-    startDate: new Date().toISOString().split('T')[0],
+    startDate: '',
     dueDate: '',
     priority: 'Medium' as 'High' | 'Medium' | 'Low',
     manpowerNeeded: '',
@@ -704,6 +732,22 @@ const ProjectDetails: React.FC = () => {
     }));
   };
 
+  const handleOpenAddTaskModal = (phaseName?: string) => {
+    setNewTaskForm(prev => ({
+      ...prev,
+      taskName: '',
+      phase: phaseName || prev.phase || PHASES[0],
+      startDate: '',
+      dueDate: '',
+      assigneeId: engineerMembers[0]?.id || '',
+      materialsRequired: '',
+      siteInstructions: '',
+      subtasks: [],
+    }));
+    setAllocatedMaterials([]);
+    setShowAddTaskModal(true);
+  };
+
   const handleCloseAddTaskModal = () => {
     setShowAddTaskModal(false);
     setAllocatedMaterials([]);
@@ -728,12 +772,44 @@ const ProjectDetails: React.FC = () => {
     }
 
     const todayStr = new Date().toISOString().split('T')[0];
-    if (newTaskForm.startDate && newTaskForm.dueDate && newTaskForm.dueDate < newTaskForm.startDate) {
+    if (!newTaskForm.startDate) {
+      showToast('Start date is required', 'warning');
+      return;
+    }
+    if (newTaskForm.startDate < todayStr) {
+      showToast('Task start date cannot be a past date', 'warning');
+      return;
+    }
+    if (!newTaskForm.dueDate) {
+      showToast('Due date is required', 'warning');
+      return;
+    }
+    if (newTaskForm.dueDate < newTaskForm.startDate) {
       showToast('Due date cannot be earlier than start date', 'warning');
       return;
     }
-    if (newTaskForm.dueDate && newTaskForm.dueDate < todayStr) {
+    if (newTaskForm.dueDate < todayStr) {
       showToast('Due date cannot be a past date', 'warning');
+      return;
+    }
+
+    const projStart = toDateInputValue(project.start_date);
+    const projEnd = toDateInputValue(project.end_date);
+
+    if (projStart && newTaskForm.startDate && newTaskForm.startDate < projStart) {
+      showToast(`Task start date cannot be earlier than project start date (${projStart})`, 'warning');
+      return;
+    }
+    if (projEnd && newTaskForm.startDate && newTaskForm.startDate > projEnd) {
+      showToast(`Task start date cannot exceed project end date (${projEnd})`, 'warning');
+      return;
+    }
+    if (projStart && newTaskForm.dueDate && newTaskForm.dueDate < projStart) {
+      showToast(`Task due date cannot be earlier than project start date (${projStart})`, 'warning');
+      return;
+    }
+    if (projEnd && newTaskForm.dueDate && newTaskForm.dueDate > projEnd) {
+      showToast(`Task due date cannot exceed project end date (${projEnd})`, 'warning');
       return;
     }
 
@@ -744,8 +820,8 @@ const ProjectDetails: React.FC = () => {
         projectId: project.id || project.code,
         phase: newTaskForm.phase,
         assigneeId: newTaskForm.assigneeId || (engineerMembers[0]?.id ?? null),
-        startDate: newTaskForm.startDate || new Date().toISOString().split('T')[0],
-        dueDate: newTaskForm.dueDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+        startDate: newTaskForm.startDate || (projStart && projStart > todayStr ? projStart : todayStr),
+        dueDate: newTaskForm.dueDate || (projEnd || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]),
         priority: newTaskForm.priority,
         manpowerNeeded: newTaskForm.manpowerNeeded,
         materialsRequired: newTaskForm.materialsRequired || formatMaterialsString(allocatedMaterials),
@@ -951,6 +1027,12 @@ const ProjectDetails: React.FC = () => {
     return (t > 0 && q <= t) || (r.status || '').toLowerCase().includes('low');
   });
   const totalResourceCost = resources.reduce((sum, r) => sum + (Number(r.quantity) || 0) * (Number(r.unitPrice) || 0), 0);
+  const initialBudget = parseFloat(String(project.budget)) || 0;
+  const remainingBudget = Math.max(0, initialBudget - totalResourceCost);
+  const todayStr = new Date().toISOString().split('T')[0];
+  const projectMinDate = toDateInputValue(project.start_date);
+  const projectMaxDate = toDateInputValue(project.end_date);
+  const minStartDate = projectMinDate && projectMinDate > todayStr ? projectMinDate : todayStr;
 
   // Group tasks by Phase
   const tasksByPhase: Record<string, TaskItem[]> = {};
@@ -1041,9 +1123,12 @@ const ProjectDetails: React.FC = () => {
               <p className="pd-meta-label">Timeline</p>
               <p className="pd-meta-value">{formatTimeline(project.start_date, project.end_date)}</p>
             </div>
-            <div className="pd-meta-item">
+            <div
+              className="pd-meta-item"
+              title={totalResourceCost > 0 ? `Original Budget: ${formatCurrency(initialBudget)} | Allocated Inventory Cost: -${formatCurrency(totalResourceCost)} | Remaining Available Budget: ${formatCurrency(remainingBudget)}` : undefined}
+            >
               <p className="pd-meta-label">Budget Allocated</p>
-              <p className="pd-meta-value">{formatBudget(project.budget)}</p>
+              <p className="pd-meta-value">{formatBudget(remainingBudget)}</p>
             </div>
           </div>
 
@@ -1132,7 +1217,7 @@ const ProjectDetails: React.FC = () => {
           onClick={() => setTab('team')}
         >
           <span className="pd-tab-icon"><Users size={16} /></span>
-          Team ({teamMembers.length})
+          Team ({siteTeamMembers.length})
         </button>
 
         <button
@@ -1182,14 +1267,16 @@ const ProjectDetails: React.FC = () => {
               </div>
             </div>
 
-            <div className="pd-kpi-card">
+            <div className="pd-kpi-card" onClick={() => setTab('resources')} style={{ cursor: 'pointer' }}>
               <div className="pd-kpi-icon" style={{ background: '#fef3c7', color: '#d97706' }}>
                 <DollarSign size={22} />
               </div>
               <div>
                 <p className="pd-kpi-label">Allocated Inventory Cost</p>
                 <p className="pd-kpi-value">{formatCurrency(totalResourceCost)}</p>
-                <span className="pd-kpi-sub">Tracked on site</span>
+                <span className="pd-kpi-sub" style={{ color: totalResourceCost > 0 ? '#b45309' : undefined, fontWeight: totalResourceCost > 0 ? 600 : undefined }}>
+                  {totalResourceCost > 0 ? 'Deducted from budget' : 'Tracked on site'}
+                </span>
               </div>
             </div>
 
@@ -1199,7 +1286,7 @@ const ProjectDetails: React.FC = () => {
               </div>
               <div>
                 <p className="pd-kpi-label">Site Team</p>
-                <p className="pd-kpi-value">{teamMembers.length} Members</p>
+                <p className="pd-kpi-value">{siteTeamMembers.length} {siteTeamMembers.length === 1 ? 'Member' : 'Members'}</p>
                 <span className="pd-kpi-sub">Engineers &amp; Crew</span>
               </div>
             </div>
@@ -1212,7 +1299,7 @@ const ProjectDetails: React.FC = () => {
                 <h2 className="pd-card-heading">Construction Phases &amp; Milestones</h2>
                 <p className="pd-card-sub">Track progress and tasks across all construction phases</p>
               </div>
-              <button className="pd-btn-primary" onClick={() => setShowAddTaskModal(true)}>
+              <button className="pd-btn-primary" onClick={() => handleOpenAddTaskModal()}>
                 + Add Task to Phase
               </button>
             </div>
@@ -1287,7 +1374,7 @@ const ProjectDetails: React.FC = () => {
                 prefix="Status"
                 size="md"
               />
-              <button className="pd-btn-primary" onClick={() => setShowAddTaskModal(true)}>
+              <button className="pd-btn-primary" onClick={() => handleOpenAddTaskModal()}>
                 + New Task
               </button>
             </div>
@@ -1299,7 +1386,7 @@ const ProjectDetails: React.FC = () => {
             <div className="pd-empty-card">
               <p className="pd-empty-title">No tasks created for this project yet</p>
               <p className="pd-empty-sub">Add tasks to organize daily construction activities across Foundation, Structural, and MEP phases.</p>
-              <button className="pd-btn-primary" onClick={() => setShowAddTaskModal(true)} style={{ marginTop: '12px' }}>
+              <button className="pd-btn-primary" onClick={() => handleOpenAddTaskModal()} style={{ marginTop: '12px' }}>
                 + Create First Task
               </button>
             </div>
@@ -1329,10 +1416,7 @@ const ProjectDetails: React.FC = () => {
                       </div>
                       <button
                         className="pd-btn-link"
-                        onClick={() => {
-                          setNewTaskForm(prev => ({ ...prev, phase: phaseName }));
-                          setShowAddTaskModal(true);
-                        }}
+                        onClick={() => handleOpenAddTaskModal(phaseName)}
                       >
                         + Add to {phaseName.replace(/^Phase\s*\d+\s*[-–:]\s*/i, '') || phaseName}
                       </button>
@@ -1911,22 +1995,53 @@ const ProjectDetails: React.FC = () => {
 
               <div className="pm-form-row pm-form-row--3">
                 <div className="pm-form-group">
-                  <label>Start Date</label>
+                  <label>
+                    Start Date
+                    {minStartDate && (
+                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500, marginLeft: '4px' }}>
+                        (From {minStartDate})
+                      </span>
+                    )}
+                  </label>
                   <input
                     type="date"
+                    min={minStartDate}
+                    max={newTaskForm.dueDate ? (projectMaxDate && projectMaxDate < newTaskForm.dueDate ? projectMaxDate : newTaskForm.dueDate) : projectMaxDate}
                     className="pm-input"
                     value={newTaskForm.startDate}
-                    onChange={e => setNewTaskForm({ ...newTaskForm, startDate: e.target.value })}
+                    onChange={e => {
+                      const newStart = e.target.value;
+                      if (minStartDate && newStart && newStart < minStartDate) return;
+                      if (projectMaxDate && newStart && newStart > projectMaxDate) return;
+                      setNewTaskForm(prev => ({
+                        ...prev,
+                        startDate: newStart,
+                        dueDate: prev.dueDate && prev.dueDate < newStart ? newStart : prev.dueDate
+                      }));
+                    }}
                   />
                 </div>
                 <div className="pm-form-group">
-                  <label>Due Date</label>
+                  <label>
+                    Due Date
+                    {projectMaxDate && (
+                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500, marginLeft: '4px' }}>
+                        (Until {projectMaxDate})
+                      </span>
+                    )}
+                  </label>
                   <input
                     type="date"
-                    min={newTaskForm.startDate || new Date().toISOString().split('T')[0]}
+                    min={newTaskForm.startDate ? (minStartDate && minStartDate > newTaskForm.startDate ? minStartDate : newTaskForm.startDate) : minStartDate}
+                    max={projectMaxDate}
                     className="pm-input"
                     value={newTaskForm.dueDate}
-                    onChange={e => setNewTaskForm({ ...newTaskForm, dueDate: e.target.value })}
+                    onChange={e => {
+                      const newDue = e.target.value;
+                      if (projectMaxDate && newDue && newDue > projectMaxDate) return;
+                      if (minStartDate && newDue && newDue < minStartDate) return;
+                      setNewTaskForm(prev => ({ ...prev, dueDate: newDue }));
+                    }}
                   />
                 </div>
                 <div className="pm-form-group">

@@ -82,6 +82,8 @@ interface Project {
   id: string;
   code: string;
   name: string;
+  start_date?: string;
+  end_date?: string;
 }
 
 const PHASES = [
@@ -362,7 +364,7 @@ interface CreateTaskFormProps {
 
 const EMPTY_FORM = {
   taskName: "", phase: "", assigneeId: "", projectId: "",
-  startDate: new Date().toISOString().split('T')[0],
+  startDate: "",
   dueDate: "",
   priority: "Medium" as Priority, manpowerNeeded: "",
   siteInstructions: "",
@@ -394,6 +396,59 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
   const [usersLoading, setUsersLoading]       = useState(true);
   const [projects, setProjects]               = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
+
+  const selectedProject = useMemo(() => {
+    return projects.find(p => String(p.id) === String(form.projectId) || p.code === form.projectId);
+  }, [projects, form.projectId]);
+
+  const toDateStr = (d?: string | null): string => {
+    if (!d) return '';
+    if (/^\d{4}-\d{2}-\d{2}/.test(d)) return d.slice(0, 10);
+    try {
+      const dt = new Date(d);
+      if (isNaN(dt.getTime())) return '';
+      const year = dt.getFullYear();
+      const month = String(dt.getMonth() + 1).padStart(2, '0');
+      const day = String(dt.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    } catch {
+      return '';
+    }
+  };
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const projectMinDate = toDateStr(selectedProject?.start_date);
+  const projectMaxDate = toDateStr(selectedProject?.end_date);
+  const minStartDate = projectMinDate && projectMinDate > todayStr ? projectMinDate : todayStr;
+
+  // Auto-clamp start and due dates within project timeline (only if date entered)
+  useEffect(() => {
+    if (!selectedProject) return;
+    const minD = toDateStr(selectedProject.start_date);
+    const maxD = toDateStr(selectedProject.end_date);
+
+    setForm(prev => {
+      let initialStart = prev.startDate;
+      if (initialStart) {
+        if (minD && initialStart < minD) initialStart = minD;
+        if (maxD && initialStart > maxD) initialStart = maxD;
+      }
+
+      let initialDue = prev.dueDate;
+      if (initialDue) {
+        if (maxD && initialDue > maxD) initialDue = maxD;
+        if (minD && initialDue < minD) initialDue = minD;
+        if (initialStart && initialDue < initialStart) initialDue = initialStart;
+      }
+
+      if (initialStart === prev.startDate && initialDue === prev.dueDate) return prev;
+      return {
+        ...prev,
+        startDate: initialStart,
+        dueDate: initialDue
+      };
+    });
+  }, [selectedProject]);
 
   useEffect(() => {
     if (initialPhase) {
@@ -433,8 +488,6 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const todayStr = new Date().toISOString().split('T')[0];
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.taskName.trim())          { setError("Task name is required."); return; }
@@ -443,8 +496,25 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
     if (!form.assigneeId)               { setError("Please select an assignee engineer."); return; }
     if (!form.priority)                 { setError("Priority is required."); return; }
     if (!form.startDate)                { setError("Start date is required."); return; }
+    if (form.startDate < todayStr)      { setError("Start date cannot be a past date."); return; }
     if (!form.dueDate)                  { setError("Due date is required."); return; }
     if (form.dueDate < form.startDate)  { setError("Due date cannot be earlier than start date."); return; }
+    if (projectMinDate && form.startDate < projectMinDate) {
+      setError(`Task start date cannot be earlier than project start date (${projectMinDate}).`);
+      return;
+    }
+    if (projectMaxDate && form.startDate > projectMaxDate) {
+      setError(`Task start date cannot exceed project end date (${projectMaxDate}).`);
+      return;
+    }
+    if (projectMinDate && form.dueDate < projectMinDate) {
+      setError(`Task due date cannot be earlier than project start date (${projectMinDate}).`);
+      return;
+    }
+    if (projectMaxDate && form.dueDate > projectMaxDate) {
+      setError(`Task due date cannot exceed project end date (${projectMaxDate}).`);
+      return;
+    }
     if (form.dueDate < todayStr)        { setError("Due date cannot be a past date."); return; }
     if (!form.siteInstructions.trim())  { setError("Site instructions are required."); return; }
 
@@ -576,13 +646,59 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
 
           <div className="ct-row">
             <div className="ct-field">
-              <label className="ct-label">Start Date <span className="ct-required">*</span></label>
-              <input name="startDate" type="date" className="ct-input" value={form.startDate} onChange={handleChange} required />
+              <label className="ct-label">
+                Start Date <span className="ct-required">*</span>
+                {minStartDate && (
+                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500, marginLeft: '4px' }}>
+                    (From {minStartDate})
+                  </span>
+                )}
+              </label>
+              <input
+                name="startDate"
+                type="date"
+                className="ct-input"
+                min={minStartDate}
+                max={projectMaxDate || undefined}
+                value={form.startDate}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (minStartDate && val && val < minStartDate) return;
+                  if (projectMaxDate && val && val > projectMaxDate) return;
+                  setForm(prev => ({
+                    ...prev,
+                    startDate: val,
+                    dueDate: prev.dueDate && val && prev.dueDate < val ? val : prev.dueDate
+                  }));
+                }}
+                required
+              />
             </div>
 
             <div className="ct-field">
-              <label className="ct-label">Due Date <span className="ct-required">*</span></label>
-              <input name="dueDate" type="date" min={form.startDate || todayStr} className="ct-input" value={form.dueDate} onChange={handleChange} required />
+              <label className="ct-label">
+                Due Date <span className="ct-required">*</span>
+                {projectMaxDate && (
+                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500, marginLeft: '4px' }}>
+                    (Project ends: {projectMaxDate})
+                  </span>
+                )}
+              </label>
+              <input
+                name="dueDate"
+                type="date"
+                min={form.startDate ? (minStartDate && minStartDate > form.startDate ? minStartDate : form.startDate) : minStartDate}
+                max={projectMaxDate || undefined}
+                className="ct-input"
+                value={form.dueDate}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (projectMaxDate && val && val > projectMaxDate) return;
+                  if (minStartDate && val && val < minStartDate) return;
+                  setForm(prev => ({ ...prev, dueDate: val }));
+                }}
+                required
+              />
             </div>
           </div>
 

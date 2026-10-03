@@ -20,7 +20,26 @@ interface ProjectOption {
   id: string;
   code: string;
   name: string;
+  start_date?: string;
+  end_date?: string;
 }
+
+const toDateInputValue = (d?: string | null): string => {
+  if (!d) return '';
+  if (/^\d{4}-\d{2}-\d{2}/.test(d)) {
+    return d.slice(0, 10);
+  }
+  try {
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return '';
+    const year = dt.getFullYear();
+    const month = String(dt.getMonth() + 1).padStart(2, '0');
+    const day = String(dt.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  } catch {
+    return '';
+  }
+};
 
 interface UserOption {
   id: string;
@@ -73,13 +92,24 @@ const CreateTask: React.FC = () => {
     projectId: '',
     phase: 'Phase 1 - Foundation',
     assigneeId: '',
-    startDate: new Date().toISOString().split('T')[0],
+    startDate: '',
     dueDate: '',
     priority: 'Medium',
     manpowerNeeded: 1,
     materialsRequired: '',
     siteInstructions: '',
   });
+
+  const selectedProject = useMemo(() => {
+    return projects.find(
+      p => String(p.id) === String(formData.projectId) || p.code === formData.projectId
+    );
+  }, [projects, formData.projectId]);
+
+  const projectMinDate = toDateInputValue(selectedProject?.start_date);
+  const projectMaxDate = toDateInputValue(selectedProject?.end_date);
+  const todayStr = new Date().toISOString().split('T')[0];
+  const minStartDate = projectMinDate && projectMinDate > todayStr ? projectMinDate : todayStr;
 
   const [subtasks, setSubtasks] = useState<{ id: string; title: string; completed: boolean }[]>([]);
   const [subtaskInput, setSubtaskInput] = useState('');
@@ -128,7 +158,34 @@ const CreateTask: React.FC = () => {
     fetchOptions();
   }, []);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  // Keep task dates strictly inside project timeline (only if date entered)
+  useEffect(() => {
+    if (!selectedProject) return;
+    const minD = toDateInputValue(selectedProject.start_date);
+    const maxD = toDateInputValue(selectedProject.end_date);
+
+    setFormData(prev => {
+      let initialStart = prev.startDate;
+      if (initialStart) {
+        if (minD && initialStart < minD) initialStart = minD;
+        if (maxD && initialStart > maxD) initialStart = maxD;
+      }
+
+      let initialDue = prev.dueDate;
+      if (initialDue) {
+        if (maxD && initialDue > maxD) initialDue = maxD;
+        if (minD && initialDue < minD) initialDue = minD;
+        if (initialStart && initialDue < initialStart) initialDue = initialStart;
+      }
+
+      if (initialStart === prev.startDate && initialDue === prev.dueDate) return prev;
+      return {
+        ...prev,
+        startDate: initialStart,
+        dueDate: initialDue
+      };
+    });
+  }, [selectedProject]);
 
   useEffect(() => {
     if (!formData.projectId) return;
@@ -246,12 +303,36 @@ const CreateTask: React.FC = () => {
       setError('Start date is required.');
       return;
     }
+    if (formData.startDate < todayStr) {
+      setError('Start date cannot be a past date.');
+      return;
+    }
     if (!formData.dueDate) {
       setError('Due date is required.');
       return;
     }
     if (formData.dueDate < formData.startDate) {
       setError('Due date cannot be earlier than start date.');
+      return;
+    }
+    if (formData.dueDate < todayStr) {
+      setError('Due date cannot be a past date.');
+      return;
+    }
+    if (projectMinDate && formData.startDate < projectMinDate) {
+      setError(`Task start date cannot be earlier than project start date (${projectMinDate}).`);
+      return;
+    }
+    if (projectMaxDate && formData.startDate > projectMaxDate) {
+      setError(`Task start date cannot exceed project end date (${projectMaxDate}).`);
+      return;
+    }
+    if (projectMinDate && formData.dueDate < projectMinDate) {
+      setError(`Task due date cannot be earlier than project start date (${projectMinDate}).`);
+      return;
+    }
+    if (projectMaxDate && formData.dueDate > projectMaxDate) {
+      setError(`Task due date cannot exceed project end date (${projectMaxDate}).`);
       return;
     }
     if (!formData.siteInstructions.trim()) {
@@ -363,24 +444,55 @@ const CreateTask: React.FC = () => {
 
             {/* Start Date */}
             <div className="form-group">
-              <label>Start Date *</label>
+              <label>
+                Start Date *
+                {minStartDate && (
+                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500, marginLeft: '4px' }}>
+                    (From {minStartDate})
+                  </span>
+                )}
+              </label>
               <input
                 type="date"
+                min={minStartDate}
+                max={projectMaxDate || undefined}
                 required
                 value={formData.startDate}
-                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (minStartDate && val && val < minStartDate) return;
+                  if (projectMaxDate && val && val > projectMaxDate) return;
+                  setFormData(prev => ({
+                    ...prev,
+                    startDate: val,
+                    dueDate: prev.dueDate && val && prev.dueDate < val ? val : prev.dueDate
+                  }));
+                }}
               />
             </div>
 
             {/* Due Date */}
             <div className="form-group">
-              <label>Due Date *</label>
+              <label>
+                Due Date *
+                {projectMaxDate && (
+                  <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500, marginLeft: '4px' }}>
+                    (Project ends: {projectMaxDate})
+                  </span>
+                )}
+              </label>
               <input
                 type="date"
-                min={formData.startDate || todayStr}
+                min={formData.startDate ? (minStartDate && minStartDate > formData.startDate ? minStartDate : formData.startDate) : minStartDate}
+                max={projectMaxDate || undefined}
                 required
                 value={formData.dueDate}
-                onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (projectMaxDate && val && val > projectMaxDate) return;
+                  if (minStartDate && val && val < minStartDate) return;
+                  setFormData(prev => ({ ...prev, dueDate: val }));
+                }}
               />
             </div>
 

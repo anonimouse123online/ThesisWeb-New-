@@ -63,6 +63,7 @@ interface NewProjectForm {
   budget: string;
   start_date: string;
   end_date: string;
+  phase?: string;
 }
 
 const emptyForm: NewProjectForm = {
@@ -74,6 +75,7 @@ const emptyForm: NewProjectForm = {
   budget: '',
   start_date: '',
   end_date: '',
+  phase: 'Foundation',
 };
 
 const generateRandomProjectCode = (existingProjects: ProjectRecord[] = []) => {
@@ -203,7 +205,10 @@ const Projects: React.FC = () => {
       const res = await fetchWithAuth(`${BACKEND_URL}/projects`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          phase: form.phase || 'Foundation',
+        }),
       });
 
       const data = await res.json();
@@ -232,7 +237,7 @@ const Projects: React.FC = () => {
   const formatBudget = (b: string | number) => {
     const n = parseFloat(String(b));
     if (isNaN(n)) return b;
-    return `₱${(n / 1_000_000).toFixed(2)}M`;
+    return '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
   // Filter options
@@ -281,6 +286,15 @@ const Projects: React.FC = () => {
 
   const getProjectResourceCount = (prjName: string) => {
     return resources.filter(r => r.project && r.project.toLowerCase() === prjName.toLowerCase()).length;
+  };
+
+  const getProjectResourceCost = (prjName: string, prjCode?: string) => {
+    return resources
+      .filter(r => r.project && (
+        r.project.toLowerCase() === prjName.toLowerCase() ||
+        (prjCode && r.project.toLowerCase() === prjCode.toLowerCase())
+      ))
+      .reduce((sum, r) => sum + (Number(r.quantity) || 0) * (Number(r.unitPrice) || 0), 0);
   };
 
   return (
@@ -370,6 +384,9 @@ const Projects: React.FC = () => {
                 {filteredProjects.map((prj) => {
                   const { done, total, pct } = getProjectTaskStats(prj.code, prj.name);
                   const resCount = getProjectResourceCount(prj.name);
+                  const initialBudget = parseFloat(String(prj.budget)) || 0;
+                  const invCost = getProjectResourceCost(prj.name, prj.code);
+                  const remainingBudget = Math.max(0, initialBudget - invCost);
 
                   return (
                     <tr key={prj.code}>
@@ -382,7 +399,11 @@ const Projects: React.FC = () => {
                       </td>
                       <td>{prj.client}</td>
                       <td className="pm-td-muted">{formatTimeline(prj.start_date, prj.end_date)}</td>
-                      <td><strong>{formatBudget(prj.budget)}</strong></td>
+                      <td>
+                        <strong title={invCost > 0 ? `Original Budget: ${formatBudget(initialBudget)} | Inventory Cost: -${formatBudget(invCost)} | Remaining: ${formatBudget(remainingBudget)}` : undefined}>
+                          {formatBudget(remainingBudget)}
+                        </strong>
+                      </td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <div className="pd-progress-track" style={{ width: '80px', marginBottom: 0 }}>
