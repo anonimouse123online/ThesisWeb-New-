@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import '../components/upload-document.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
+import { saveDocFile } from '../utils/documentStore';
 import { UploadCloud } from 'lucide-react';
 
 const API_URL = API_BASE_URL;
@@ -98,11 +99,18 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const normalizeType = (t: string): 'DWG' | 'PDF' | 'XLS' | 'DOC' => {
-    const upper = t.toUpperCase();
-    if (upper === 'DOCX') return 'DOC';
-    if (upper === 'XLSX') return 'XLS';
-    if (['JPG', 'PNG', 'JPEG'].includes(upper)) return 'PDF';
+  const normalizeType = (t: string, fileName?: string): 'DWG' | 'PDF' | 'XLS' | 'DOC' => {
+    if (fileName) {
+      const ext = fileName.split('.').pop()?.toUpperCase() || '';
+      if (ext === 'DOC' || ext === 'DOCX') return 'DOC';
+      if (ext === 'XLS' || ext === 'XLSX' || ext === 'CSV') return 'XLS';
+      if (ext === 'DWG' || ext === 'DXF') return 'DWG';
+      if (ext === 'PDF') return 'PDF';
+    }
+    const upper = (t || '').toUpperCase();
+    if (upper.includes('WORD') || upper.includes('DOCUMENT') || upper === 'DOCX' || upper === 'DOC') return 'DOC';
+    if (upper.includes('SHEET') || upper.includes('EXCEL') || upper.includes('CSV') || upper === 'XLSX' || upper === 'XLS') return 'XLS';
+    if (['JPG', 'PNG', 'JPEG'].some(x => upper.includes(x))) return 'PDF';
     if (['DWG', 'PDF', 'XLS', 'DOC'].includes(upper)) return upper as any;
     return 'PDF';
   };
@@ -128,7 +136,7 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
       if (files.length === 1) {
         // Single file upload
         const docName = name.trim() || files[0].name.replace(/\.[^/.]+$/, '');
-        const selectedType = docType ? normalizeType(docType) : normalizeType(files[0].type);
+        const selectedType = docType ? normalizeType(docType, files[0].name) : normalizeType(files[0].type, files[0].name);
 
         documentsPayload.push({
           name: docName,
@@ -147,28 +155,45 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
 
           return {
             name: docName,
-            type: normalizeType(f.type || docType || 'PDF'),
+            type: normalizeType(f.type || docType || 'PDF', f.name),
             category,
             version: version || null,
           };
         });
       }
 
-      const primary = documentsPayload[0];
+      const primaryDocName = name.trim() || files[0].name.replace(/\.[^/.]+$/, '');
+      const primaryDocType = docType ? normalizeType(docType, files[0].name) : normalizeType(files[0].type, files[0].name);
+
+      const formData = new FormData();
+      for (const item of files) {
+        formData.append('files', item.file);
+      }
+      formData.append('name', primaryDocName);
+      formData.append('type', primaryDocType);
+      formData.append('category', category);
+      if (version) formData.append('version', version);
+
       const res = await fetchWithAuth(`${API_URL}/projects/${projectCode}/documents`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: primary.name,
-          type: primary.type,
-          category: primary.category,
-          version: primary.version,
-          documents: documentsPayload,
-        }),
+        body: formData,
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || data.error || 'Failed to upload document(s)');
+
+      // Persist attached file blobs locally so they can be downloaded directly
+      for (const item of files) {
+        await saveDocFile(`doc_${projectCode}_${item.name}`, item.file);
+        await saveDocFile(`doc_${item.name}`, item.file);
+        const cleanName = item.file.name.replace(/\.[^/.]+$/, '');
+        await saveDocFile(`doc_${projectCode}_${cleanName}`, item.file);
+        await saveDocFile(`doc_${cleanName}`, item.file);
+        if (primaryDocName) {
+          await saveDocFile(`doc_${projectCode}_${primaryDocName}`, item.file);
+          await saveDocFile(`doc_${primaryDocName}`, item.file);
+        }
+      }
 
       onUploaded();
       onClose();

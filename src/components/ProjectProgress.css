@@ -212,21 +212,37 @@
   padding: 10px 14px;
   border: 1.5px solid #e2e8f0;
   border-radius: 10px;
-  background: #f8fafc;
-  font-size: 13px;
+  background: #ffffff;
+  font-size: 13.5px;
+  font-weight: 500;
   color: #1e293b;
   outline: none;
   font-family: inherit;
   box-sizing: border-box;
   transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.pp-form-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23ea580c' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 38px;
+  cursor: pointer;
 }
 
 .pp-form-input:focus,
 .pp-form-select:focus,
 .pp-form-textarea:focus {
-  border-color: #f05a28;
+  border-color: #ea580c;
   background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(240, 90, 40, 0.1);
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15);
+}
+
+.pp-form-select:hover:not(:disabled) {
+  border-color: #cbd5e1;
+  background-color: #f8fafc;
 }
 
 .pp-form-textarea {

@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../components/CreateTask.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import { showToast } from '../components/Toast';
 import { Package, Truck, Building2, X, AlertTriangle, Info } from 'lucide-react';
+import Dropdown from '../components/Dropdown';
 
 const API_URL = API_BASE_URL;
 
@@ -25,6 +26,7 @@ interface UserOption {
   id: string;
   full_name: string;
   role: string;
+  system_role?: string;
 }
 
 interface AllocatedMaterial {
@@ -43,6 +45,26 @@ const CreateTask: React.FC = () => {
 
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [users, setUsers]       = useState<UserOption[]>([]);
+
+  const isEngineerUser = (u: { role?: string; system_role?: string }) => {
+    const r = (u.role || '').toLowerCase();
+    const sr = (u.system_role || '').toLowerCase();
+    return r.includes('engineer') || sr.includes('engineer');
+  };
+
+  const formatUserRole = (role?: string, system_role?: string) => {
+    const r = role || system_role || 'Engineer';
+    if (r.toLowerCase() === 'engineer') return 'Engineer';
+    if (r.toLowerCase() === 'site engineer') return 'Site Engineer';
+    if (r.toLowerCase() === 'lead engineer') return 'Lead Engineer';
+    if (r.toLowerCase() === 'admin') return 'Admin';
+    return r;
+  };
+
+  const engineerUsers = useMemo(
+    () => users.filter(isEngineerUser),
+    [users]
+  );
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [projectResources, setProjectResources] = useState<any[]>([]);
 
@@ -58,6 +80,9 @@ const CreateTask: React.FC = () => {
     materialsRequired: '',
     siteInstructions: '',
   });
+
+  const [subtasks, setSubtasks] = useState<{ id: string; title: string; completed: boolean }[]>([]);
+  const [subtaskInput, setSubtaskInput] = useState('');
 
   const [allocatedMaterials, setAllocatedMaterials] = useState<AllocatedMaterial[]>([]);
   const [matItemInput, setMatItemInput] = useState<{
@@ -132,12 +157,14 @@ const CreateTask: React.FC = () => {
             full_name: m.name || m.full_name || m.email,
             email: m.email || '',
             role: m.role || 'Member',
+            system_role: m.system_role || '',
           }));
           setUsers(members);
-          if (members.length > 0) {
+          const engineers = members.filter(isEngineerUser);
+          if (engineers.length > 0) {
             setFormData(prev => ({
               ...prev,
-              assigneeId: members.some(u => u.id === prev.assigneeId) ? prev.assigneeId : members[0].id,
+              assigneeId: engineers.some(u => u.id === prev.assigneeId) ? prev.assigneeId : engineers[0].id,
             }));
           } else {
             setFormData(prev => ({ ...prev, assigneeId: '' }));
@@ -227,10 +254,6 @@ const CreateTask: React.FC = () => {
       setError('Due date cannot be earlier than start date.');
       return;
     }
-    if (!formData.manpowerNeeded || formData.manpowerNeeded <= 0) {
-      setError('Estimated manpower is required (e.g. 5 workers).');
-      return;
-    }
     if (!formData.siteInstructions.trim()) {
       setError('Site specific instructions are required.');
       return;
@@ -243,7 +266,7 @@ const CreateTask: React.FC = () => {
       const res = await fetchWithAuth(`${API_URL}/tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, allocatedMaterials }),
+        body: JSON.stringify({ ...formData, allocatedMaterials, subtasks }),
       });
 
       const data = await res.json();
@@ -294,47 +317,48 @@ const CreateTask: React.FC = () => {
             {/* Target Project */}
             <div className="form-group">
               <label>Target Project *</label>
-              <select
-                value={formData.projectId}
-                required
+              <Dropdown
+                fullWidth
                 disabled={loadingOptions}
-                onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
-              >
-                <option value="" disabled>{loadingOptions ? 'Loading projects…' : 'Select a project'}</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>{p.code} — {p.name}</option>
-                ))}
-              </select>
+                searchable={projects.length > 5}
+                options={projects.map((p) => ({ value: p.id, label: `${p.code} — ${p.name}` }))}
+                value={formData.projectId}
+                onChange={(val) => setFormData((prev) => ({ ...prev, projectId: val }))}
+                placeholder={loadingOptions ? 'Loading projects…' : 'Select a project'}
+              />
             </div>
 
             {/* Project Phase */}
             <div className="form-group">
               <label>Project Phase *</label>
-              <select
+              <Dropdown
+                fullWidth
+                options={PHASES.map((ph) => ({ value: ph, label: ph }))}
                 value={formData.phase}
-                required
-                onChange={(e) => setFormData({ ...formData, phase: e.target.value })}
-              >
-                {PHASES.map((ph) => (
-                  <option key={ph} value={ph}>{ph}</option>
-                ))}
-              </select>
+                onChange={(val) => setFormData((prev) => ({ ...prev, phase: val }))}
+                placeholder="Select a phase"
+              />
             </div>
 
             {/* Assignee */}
             <div className="form-group">
               <label>Assign Lead Engineer *</label>
-              <select
-                value={formData.assigneeId}
-                required
+              <Dropdown
+                fullWidth
                 disabled={loadingOptions}
-                onChange={(e) => setFormData({ ...formData, assigneeId: e.target.value })}
-              >
-                <option value="" disabled>{loadingOptions ? 'Loading engineers…' : users.length === 0 ? 'No invited members in this project' : 'Select an engineer'}</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>{u.full_name} ({u.role})</option>
-                ))}
-              </select>
+                searchable={engineerUsers.length > 5}
+                options={
+                  engineerUsers.length === 0
+                    ? [{ value: '', label: 'No engineers assigned to this project', disabled: true }]
+                    : engineerUsers.map((u) => ({
+                        value: u.id,
+                        label: `${u.full_name} (${formatUserRole(u.role, u.system_role)})`
+                      }))
+                }
+                value={formData.assigneeId}
+                onChange={(val) => setFormData((prev) => ({ ...prev, assigneeId: val }))}
+                placeholder={loadingOptions ? 'Loading engineers…' : 'Select an engineer'}
+              />
             </div>
 
             {/* Start Date */}
@@ -379,12 +403,11 @@ const CreateTask: React.FC = () => {
 
             {/* Manpower */}
             <div className="form-group">
-              <label>Estimated Manpower (Workers Needed) *</label>
+              <label>Estimated Manpower (Workers Needed)</label>
               <input
                 type="number"
-                min="1"
-                placeholder="e.g. 5"
-                required
+                min="0"
+                placeholder="e.g. 5 (optional)"
                 value={formData.manpowerNeeded || ''}
                 onChange={(e) => setFormData({ ...formData, manpowerNeeded: parseInt(e.target.value) || 0 })}
               />
@@ -448,14 +471,17 @@ const CreateTask: React.FC = () => {
 
                     <div className="pm-mat-field">
                       <label className="pm-mat-label">Category <span className="pm-required">*</span></label>
-                      <select
-                        className="pm-mat-input"
+                      <Dropdown
+                        fullWidth
+                        size="sm"
+                        options={[
+                          { value: 'Material', label: 'Material' },
+                          { value: 'Equipment', label: 'Equipment' }
+                        ]}
                         value={matItemInput.category}
-                        onChange={e => setMatItemInput(prev => ({ ...prev, category: e.target.value as 'Material' | 'Equipment' }))}
-                      >
-                        <option value="Material">Material</option>
-                        <option value="Equipment">Equipment</option>
-                      </select>
+                        onChange={(val) => setMatItemInput((prev) => ({ ...prev, category: val as 'Material' | 'Equipment' }))}
+                        placeholder="Select category"
+                      />
                     </div>
 
                     <div className="pm-mat-field">
@@ -627,6 +653,86 @@ const CreateTask: React.FC = () => {
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Subtasks / Execution Steps */}
+            <div className="form-group">
+              <label>Execution Steps / Subtasks (Optional)</label>
+              <p className="pm-mat-hint" style={{ marginBottom: '8px' }}>Add checklist items or step-by-step milestones for site workers to complete</p>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                <input
+                  type="text"
+                  placeholder="e.g., Pour concrete foundation, Inspect steel rebar..."
+                  value={subtaskInput}
+                  onChange={(e) => setSubtaskInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (subtaskInput.trim()) {
+                        setSubtasks((prev) => [
+                          ...prev,
+                          { id: `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`, title: subtaskInput.trim(), completed: false },
+                        ]);
+                        setSubtaskInput('');
+                      }
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="submit-btn"
+                  style={{ whiteSpace: 'nowrap', padding: '0 16px', fontSize: '13px' }}
+                  onClick={() => {
+                    if (subtaskInput.trim()) {
+                      setSubtasks((prev) => [
+                        ...prev,
+                        { id: `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`, title: subtaskInput.trim(), completed: false },
+                      ]);
+                      setSubtaskInput('');
+                    }
+                  }}
+                >
+                  + Add Step
+                </button>
+              </div>
+              {subtasks.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
+                  {subtasks.map((st, idx) => (
+                    <div
+                      key={st.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '6px',
+                        padding: '8px 12px',
+                        fontSize: '13px',
+                      }}
+                    >
+                      <span style={{ fontWeight: 500, color: '#1e293b' }}>{idx + 1}. {st.title}</span>
+                      <button
+                        type="button"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#ef4444',
+                          cursor: 'pointer',
+                          fontWeight: 700,
+                          fontSize: '16px',
+                          display: 'flex',
+                          alignItems: 'center',
+                        }}
+                        onClick={() => setSubtasks((prev) => prev.filter((s) => s.id !== st.id))}
+                        title="Remove subtask"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="form-group">

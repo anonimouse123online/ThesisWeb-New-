@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import "../components/Assigntaskmodal.css";
+import StatusBadge from "../components/StatusBadge";
 import { API_BASE_URL, fetchWithAuth } from "../utils/api";
 
 const BACKEND_URL = API_BASE_URL;
@@ -92,13 +93,15 @@ export default function AssignTaskModal({
         if (!res.ok) throw new Error("Failed to fetch users.");
         const { data } = await res.json();
 
-        const mapped: Engineer[] = data.map((u: any) => ({
-          id:           String(u.id),
-          name:         u.full_name ?? u.email,
-          role:         u.role,
-          status:       Number(u.current_tasks) > 0 ? "busy" : "available",
-          currentTasks: Number(u.current_tasks ?? 0),
-        }));
+        const mapped: Engineer[] = data
+          .filter((u: any) => u.role && u.role.toLowerCase().includes('engineer'))
+          .map((u: any) => ({
+            id:           String(u.id),
+            name:         u.full_name ?? u.email,
+            role:         u.role,
+            status:       Number(u.current_tasks) > 0 ? "busy" : "available",
+            currentTasks: Number(u.current_tasks ?? 0),
+          }));
 
         setEngineers(mapped);
         if (mapped.length > 0) setSelectedEngineer(mapped[0].id);
@@ -228,7 +231,7 @@ export default function AssignTaskModal({
             {engLoading ? (
               <p className="atm-section-label">Loading users…</p>
             ) : engineers.length === 0 ? (
-              <p className="atm-section-label">No users found.</p>
+              <p className="atm-section-label">No engineers found.</p>
             ) : (
               <div className="atm-engineers">
                 {engineers.map((eng) => (
@@ -242,7 +245,7 @@ export default function AssignTaskModal({
                   >
                     <div className="atm-eng-card__top">
                       <div className="atm-eng-card__avatar">{initials(eng.name)}</div>
-                      <span className={`atm-pill atm-pill--${eng.status}`}>{eng.status}</span>
+                      <StatusBadge status={eng.status === 'busy' ? 'Busy' : 'Available'} />
                     </div>
                     <p className="atm-eng-card__name">{eng.name}</p>
                     <p className="atm-eng-card__role">{eng.role}</p>

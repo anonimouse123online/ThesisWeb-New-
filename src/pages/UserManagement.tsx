@@ -13,6 +13,8 @@ interface User {
   email: string;
   role: Role;
   current_tasks: string;
+  relationship?: 'self' | 'my_member' | 'project_owner' | 'co_member';
+  can_remove?: boolean;
 }
 
 const BACKEND_URL = API_BASE_URL;
@@ -108,8 +110,8 @@ const UserManagement: React.FC = () => {
       const res = await fetchWithAuth(`${BACKEND_URL}/users/${userId}`, {
         method: "DELETE",
       });
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json();
         throw new Error(data.error || "Failed to remove user from projects");
       }
       setUsers(prev => prev.filter(u => u.id !== userId));
@@ -153,25 +155,52 @@ const UserManagement: React.FC = () => {
                 <div className="um-card__name" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span>{user.full_name}</span>
                   {user.id === currentUserId ? (
-                    <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>You (Owner)</span>
-                  ) : (
+                    <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>You</span>
+                  ) : user.can_remove ? (
                     <button
                       onClick={() => handleRemoveUser(user.id, user.full_name)}
-                      disabled={!isAdmin}
-                      title={isAdmin ? "Remove from your project team" : "Only Admins can remove members"}
+                      title="Remove member from your project team"
                       style={{
                         background: 'transparent',
-                        border: isAdmin ? '1px solid #ff4d4f' : '1px solid #ccc',
-                        color: isAdmin ? '#ff4d4f' : '#ccc',
+                        border: '1px solid #ff4d4f',
+                        color: '#ff4d4f',
                         borderRadius: '6px',
                         padding: '4px 10px',
                         fontSize: '12px',
-                        cursor: isAdmin ? 'pointer' : 'not-allowed',
+                        cursor: 'pointer',
                         fontWeight: 600
                       }}
                     >
                       Remove
                     </button>
+                  ) : user.relationship === 'project_owner' ? (
+                    <span
+                      title="Project Owner cannot be removed by members"
+                      style={{
+                        fontSize: '11px',
+                        color: '#0284c7',
+                        background: '#e0f2fe',
+                        padding: '3px 8px',
+                        borderRadius: '4px',
+                        fontWeight: 600
+                      }}
+                    >
+                      Project Owner
+                    </span>
+                  ) : (
+                    <span
+                      title="Only the Project Owner can remove members"
+                      style={{
+                        fontSize: '11px',
+                        color: '#64748b',
+                        background: '#f1f5f9',
+                        padding: '3px 8px',
+                        borderRadius: '4px',
+                        fontWeight: 500
+                      }}
+                    >
+                      Team Member
+                    </span>
                   )}
                 </div>
 
@@ -180,7 +209,7 @@ const UserManagement: React.FC = () => {
                   <div className="um-field">
                     <span className="um-field__label">Role</span>
                     <div className="um-role-wrap">
-                      {isAdmin ? (
+                      {user.can_remove || (isAdmin && user.relationship !== 'project_owner' && user.id !== currentUserId) ? (
                         <>
                           <button
                             className="um-role-btn"

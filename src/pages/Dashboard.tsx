@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import Dropdown from '../components/Dropdown';
 import ProfileDropdown from '../components/ProfileDropdown';
+import StatusBadge from '../components/StatusBadge';
 import '../components/Dashboard.css';
 import {
   TrendingUp,
   TrendingDown,
-  Check,
   Search,
   X,
   FolderClosed,
@@ -62,10 +62,6 @@ interface DashboardData {
 }
 
 // --- HELPERS ---
-const pillClass = (status: string): string => {
-  const s = status.toLowerCase().replace(/\s/g, '');
-  return `status-pill status-${s}`;
-};
 
 const renderStatIcon = (label: string, icon: string) => {
   const norm = (label || '').toLowerCase();
@@ -158,12 +154,6 @@ const StatCard: React.FC<StatItem> = ({
   </div>
 );
 
-const Checkbox: React.FC<{ checked: boolean }> = ({ checked }) => (
-  <div className={`monitor-checkbox ${checked ? 'checked' : ''}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-    {checked && <Check size={10} color="white" strokeWidth={3} />}
-  </div>
-);
-
 // --- MAIN COMPONENT ---
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -227,10 +217,19 @@ const Dashboard: React.FC = () => {
   if (error)   return <div className="rm-empty" style={{ color: 'red' }}>{error}</div>;
   if (!data)   return <div className="rm-empty">No data available.</div>;
 
-  const { stats, projects, monitorItems, rfis, notes } = data;
-  const delayedProjects = projects.filter(
-  project => project.status.toLowerCase() === 'delayed'
-).length;
+  const { stats, projects } = data;
+  const delayedProjects = projects.filter(project => {
+    // Explicitly marked as delayed
+    if (project.status.toLowerCase() === 'delayed') return true;
+    // Auto-detect: end date has passed and project is not completed
+    if (project.date && project.status.toLowerCase() !== 'completed') {
+      const endDate = new Date(project.date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (!isNaN(endDate.getTime()) && endDate < today) return true;
+    }
+    return false;
+  }).length;
   // Filter options
   const projectOptions = [
     { value: 'All', label: 'All Projects' },
@@ -242,12 +241,19 @@ const Dashboard: React.FC = () => {
     ...Array.from(new Set(projects.map(p => p.pm))).map(pm => ({ value: pm, label: pm }))
   ];
 
+  const baseStatuses = ['Planning', 'Ongoing', 'Completed'];
+  const extraStatuses = Array.from(
+    new Set(
+      projects
+        .map(p => p.status)
+        .filter(s => s && !baseStatuses.map(b => b.toLowerCase()).includes(s.toLowerCase()))
+    )
+  );
+
   const statusOptions = [
     { value: 'All', label: 'All Statuses' },
-    { value: 'Approved', label: 'Approved' },
-    { value: 'Delayed', label: 'Delayed' },
-    { value: 'At risk', label: 'At risk' },
-    { value: 'In Review', label: 'In Review' },
+    ...baseStatuses.map(s => ({ value: s, label: s })),
+    ...extraStatuses.map(s => ({ value: s, label: s })),
   ];
 
   const timeRangeOptions = [
@@ -268,17 +274,6 @@ const Dashboard: React.FC = () => {
     const matchStatus  = selectedStatusFilter === 'All' || p.status.toLowerCase() === selectedStatusFilter.toLowerCase();
     return matchSearch && matchProject && matchPm && matchStatus;
   });
-
-  // Filter monitoring items
-  const filteredMonitor = monitorItems.filter(m =>
-    !searchQuery || m.label.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-  const filteredRfis = rfis.filter(r =>
-    !searchQuery || r.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-  const filteredNotes = notes.filter(n =>
-    !searchQuery || n.label.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   return (
     <main className="main-content">
@@ -394,14 +389,20 @@ const Dashboard: React.FC = () => {
                   <td style={{ fontWeight: 600 }}>{p.name}</td>
                   <td>{p.pm}</td>
                   <td>{p.date}</td>
-                  <td><span className={pillClass(p.status)}>{p.status}</span></td>
+                  <td><StatusBadge status={p.status} /></td>
                   <td>
                     {(() => {
-                      const pct = typeof p.progress_pct === 'number'
-                        ? Math.min(100, Math.max(0, Math.round(p.progress_pct)))
-                        : (p.prog && !isNaN(Number(String(p.prog).replace('%', ''))))
-                          ? Math.min(100, Math.max(0, Math.round(Number(String(p.prog).replace('%', '')))))
-                          : 0;
+                      let pct = 0;
+                      if (typeof p.progress_pct === 'number' && !isNaN(p.progress_pct)) {
+                        pct = p.progress_pct;
+                      } else if (typeof (p as any).progress === 'number' && !isNaN((p as any).progress)) {
+                        pct = (p as any).progress;
+                      } else if (p.total_tasks && p.total_tasks > 0) {
+                        pct = Math.round(((p.completed_tasks || 0) / p.total_tasks) * 100);
+                      } else if (p.prog && !isNaN(Number(String(p.prog).replace('%', '')))) {
+                        pct = Number(String(p.prog).replace('%', ''));
+                      }
+                      pct = Math.min(100, Math.max(0, Math.round(pct)));
 
                       return (
                         <div

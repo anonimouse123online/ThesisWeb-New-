@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
-import { Search, Send, Users, User, Plus, X, Check, Paperclip, FileText, Download, ArrowLeft, MoreVertical } from 'lucide-react';
+import { Search, Send, Users, User, Plus, X, Check, Paperclip, FileText, Download, ArrowLeft, MoreVertical, Folder } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
 import './Messages.css';
@@ -21,6 +21,15 @@ export interface Conversation {
   lastMessage: string;
   lastTime: string;
   unread: number;
+  memberCount?: number;
+}
+
+export interface GroupMember {
+  id: string;
+  full_name: string;
+  email: string;
+  role: string;
+  joined_at: string;
 }
 
 export interface Message {
@@ -39,9 +48,10 @@ export interface UserContact {
   full_name: string;
   email: string;
   role: string;
+  shared_projects?: string[];
 }
 
-const MAX_BYTES = 4 * 1024 * 1024;
+const MAX_BYTES = 10 * 1024 * 1024;
 
 const fmtSize = (bytes: number) => {
   if (bytes < 1024) return `${bytes} B`;
@@ -75,9 +85,12 @@ const Messages: React.FC = () => {
   const [search, setSearch] = useState('');
   const [draft, setDraft] = useState('');
   const [pending, setPending] = useState<Attachment | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [sending, setSending] = useState(false);
   const [attachError, setAttachError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [showMembersModal, setShowMembersModal] = useState(false);
   
   // Modals/Dropdowns
   const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
@@ -101,20 +114,27 @@ const Messages: React.FC = () => {
       const data = await res.json();
       if (data.success) {
         const formatted = data.conversations.map((c: any) => {
-          const isGroup = c.is_group;
-          const name = isGroup ? c.group_name : (c.dm_user?.full_name || 'Unknown User');
-          const subtitle = isGroup ? 'Group Chat' : (c.dm_user?.email || '');
-          const avatar = isGroup ? '👥' : (name.charAt(0).toUpperCase());
+          const isGroup = Boolean(c.is_group);
+          const name = isGroup
+            ? (c.group_name || 'Group Chat')
+            : (c.full_name || c.dm_user?.full_name || c.name || (c.email ? c.email.split('@')[0] : 'Unknown User'));
+          const subtitle = isGroup
+            ? (c.member_count ? `${c.member_count} members` : 'Group Chat')
+            : (c.email || c.dm_user?.email || '');
+          const avatar = isGroup
+            ? ''
+            : (name && name !== 'Unknown User' ? name.trim().charAt(0).toUpperCase() : (subtitle ? subtitle.trim().charAt(0).toUpperCase() : 'U'));
           
           return {
-            id: c.conversation_id,
-            type: isGroup ? 'group' : 'dm',
+            id: String(c.conversation_id),
+            type: (isGroup ? 'group' : 'dm') as 'group' | 'dm',
             name,
             subtitle,
             avatar,
             lastMessage: c.last_message || (isGroup ? 'New group' : 'New conversation'),
             lastTime: c.last_message_time ? new Date(c.last_message_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-            unread: c.unread_count || 0
+            unread: c.unread_count || 0,
+            memberCount: c.member_count
           };
         });
         setConversations(formatted);
@@ -132,14 +152,33 @@ const Messages: React.FC = () => {
       if (!res.ok) return;
       const data = await res.json();
       if (data.success) {
-        const formatted = data.messages.map((m: any) => ({
-          id: m.id,
-          senderId: m.sender_id,
-          senderName: m.sender_name || 'User',
-          text: m.message_type === 'text' ? m.message_text : 'Sent an attachment',
-          time: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          is_mine: m.is_mine,
-        }));
+        const formatted = data.messages.map((m: any) => {
+          let attachment: Attachment | undefined = undefined;
+          if (m.attachments && m.attachments.length > 0) {
+            const att = m.attachments[0];
+            const isImage = (att.mimeType || '').startsWith('image/') || m.message_type === 'image';
+            const fileUrl = att.filePath
+              ? (att.filePath.startsWith('http') ? att.filePath : `http://localhost:5001${att.filePath}`)
+              : '';
+            attachment = {
+              name: att.originalName || att.fileName || 'Attachment',
+              type: att.mimeType || 'application/octet-stream',
+              size: Number(att.fileSize) || 0,
+              dataUrl: fileUrl,
+              isImage
+            };
+          }
+
+          return {
+            id: m.id,
+            senderId: m.sender_id,
+            senderName: m.sender_name || 'User',
+            text: m.message_text || '',
+            time: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            is_mine: m.is_mine,
+            attachment
+          };
+        });
         setMessages(formatted);
       }
     } catch (e) {
@@ -160,10 +199,8 @@ const Messages: React.FC = () => {
       fetchConversations();
       
       // If it belongs to active conversation, append it
-      if (msg.conversation_id === activeId) {
-        // Only append if it's not our own message to prevent duplicates (our local send already updates UI)
-        // Actually wait, sending doesn't append locally immediately in our new code, we re-fetch! So we should re-fetch or append safely.
-        fetchMessages(msg.conversation_id);
+      if (String(msg.conversation_id) === String(activeId)) {
+        fetchMessages(String(msg.conversation_id));
       }
     });
 
@@ -222,7 +259,7 @@ const Messages: React.FC = () => {
     setEmailRecipient('');
   };
 
-  const handleReport = (msgId: string) => {
+  const handleReport = (_msgId: string) => {
     if (window.confirm('Are you sure you want to report this message?')) {
       alert('Message has been reported to the administration.');
     }
@@ -266,15 +303,24 @@ const Messages: React.FC = () => {
     try {
       const att = await fileToAttachment(file);
       setPending(att);
+      setPendingFile(file);
     } catch {
       setAttachError('Could not read that file.');
+    }
+  };
+
+  const removeAttachment = () => {
+    setPending(null);
+    setPendingFile(null);
+    setAttachError('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
   const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) stageFile(file);
-    e.target.value = '';
   };
 
   const onPaste = (e: React.ClipboardEvent) => {
@@ -287,30 +333,56 @@ const Messages: React.FC = () => {
 
   const send = async () => {
     const text = draft.trim();
-    if ((!text && !pending) || !activeId) return;
+    if ((!text && !pendingFile) || !activeId || sending) return;
 
-    if (pending) {
-      alert("Attachment sending via backend not fully implemented in UI yet.");
-      setPending(null);
-      return;
-    }
-
+    setSending(true);
     try {
-      const res = await fetch('http://localhost:5001/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          conversationId: activeId,
-          message: text,
-        })
-      });
-      if (res.ok) {
+      if (pendingFile) {
+        const formData = new FormData();
+        formData.append('conversationId', activeId);
+        if (text) {
+          formData.append('message', text);
+        }
+        formData.append('file', pendingFile);
+
+        const res = await fetch('http://localhost:5001/messages/upload', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`
+          },
+          body: formData
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) {
+          alert(data.message || 'Failed to upload attachment');
+          return;
+        }
+
         setDraft('');
-        fetchMessages(activeId);
-        fetchConversations();
+        removeAttachment();
+        await fetchMessages(activeId);
+        await fetchConversations();
+      } else {
+        const res = await fetch('http://localhost:5001/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            conversationId: activeId,
+            message: text,
+          })
+        });
+        if (res.ok) {
+          setDraft('');
+          await fetchMessages(activeId);
+          await fetchConversations();
+        }
       }
     } catch (e) {
       console.error(e);
+      alert('Error sending message');
+    } finally {
+      setSending(false);
     }
   };
 
@@ -324,7 +396,7 @@ const Messages: React.FC = () => {
       const data = await res.json();
       if (data.success) {
         await fetchConversations();
-        setActiveId(data.conversationId);
+        setActiveId(String(data.conversationId));
         setShowCreate(false);
       }
     } catch (e) {
@@ -342,11 +414,14 @@ const Messages: React.FC = () => {
       const data = await res.json();
       if (data.success) {
         await fetchConversations();
-        setActiveId(data.conversationId);
+        setActiveId(String(data.conversationId));
         setShowCreateGroup(false);
+      } else {
+        alert(data.message || 'Failed to create group');
       }
     } catch (e) {
       console.error(e);
+      alert('Error creating group chat');
     }
   };
 
@@ -376,7 +451,9 @@ const Messages: React.FC = () => {
         <div className="msg-conversations">
           {filtered.map((c) => (
             <button key={c.id} className={`msg-conv${c.id === activeId ? ' active' : ''}`} onClick={() => openConversation(c.id)}>
-              <span className={`msg-avatar dm`}>{c.avatar}</span>
+              <span className={`msg-avatar ${c.type === 'group' ? 'group' : 'dm'}`}>
+                {c.type === 'group' ? <Users size={17} /> : c.avatar}
+              </span>
               <span className="msg-conv-main">
                 <span className="msg-conv-top">
                   <span className="msg-conv-name">{c.name}</span>
@@ -399,11 +476,32 @@ const Messages: React.FC = () => {
         {active ? (
           <>
             <header className="msg-thread-header">
-              <span className={`msg-avatar dm`}>{active.avatar}</span>
-              <div>
+              <span className={`msg-avatar ${active.type === 'group' ? 'group' : 'dm'}`}>
+                {active.type === 'group' ? <Users size={18} /> : active.avatar}
+              </span>
+              <div 
+                className="msg-thread-info"
+                style={active.type === 'group' ? { cursor: 'pointer' } : undefined}
+                onClick={active.type === 'group' ? () => setShowMembersModal(true) : undefined}
+                title={active.type === 'group' ? 'Click to view group members' : undefined}
+              >
                 <div className="msg-thread-name">{active.name}</div>
-                <div className="msg-thread-sub">{active.subtitle}</div>
+                <div className="msg-thread-sub">
+                  {active.subtitle}
+                  {active.type === 'group' && <span className="msg-header-view-members-link"> • View members</span>}
+                </div>
               </div>
+              {active.type === 'group' && (
+                <button
+                  type="button"
+                  className="msg-thread-members-btn"
+                  onClick={() => setShowMembersModal(true)}
+                  title="View group members"
+                >
+                  <Users size={15} />
+                  <span>Members</span>
+                </button>
+              )}
             </header>
 
             <div className="msg-thread-body">
@@ -474,7 +572,7 @@ const Messages: React.FC = () => {
                   <span className="msg-attach-name">{pending.name}</span>
                   <span className="msg-attach-size">{fmtSize(pending.size)}</span>
                 </span>
-                <button className="msg-attach-remove" onClick={() => setPending(null)} aria-label="Remove attachment"><X size={16} /></button>
+                <button className="msg-attach-remove" onClick={removeAttachment} aria-label="Remove attachment"><X size={16} /></button>
               </div>
             )}
             {attachError && <div className="msg-attach-error">{attachError}</div>}
@@ -502,8 +600,8 @@ const Messages: React.FC = () => {
                 onPaste={onPaste}
                 onKeyDown={(e) => { if (e.key === 'Enter') send(); }}
               />
-              <button className="msg-send" onClick={send} disabled={!draft.trim() && !pending}>
-                <Send size={16} /> Send
+              <button className="msg-send" onClick={send} disabled={(!draft.trim() && !pending) || sending}>
+                <Send size={16} /> {sending ? 'Sending...' : 'Send'}
               </button>
             </div>
           </>
@@ -517,6 +615,14 @@ const Messages: React.FC = () => {
 
       {showCreate && <CreateChatModal onClose={() => setShowCreate(false)} onCreate={createChat} token={token} />}
       {showCreateGroup && <CreateGroupModal onClose={() => setShowCreateGroup(false)} onCreate={createGroupChat} token={token} />}
+      {showMembersModal && active && active.type === 'group' && (
+        <GroupMembersModal
+          conversationId={active.id}
+          conversationName={active.name}
+          onClose={() => setShowMembersModal(false)}
+          token={token}
+        />
+      )}
 
       {forwardModalMsg && (
         <div className="msg-overlay" onClick={() => setForwardModalMsg(null)}>
@@ -527,7 +633,9 @@ const Messages: React.FC = () => {
             <div className="msg-member-list">
               {conversations.map((c) => (
                 <button key={c.id} className="msg-member" onClick={() => handleForward(c.id)}>
-                  <span className={`msg-avatar dm`}>{c.avatar}</span>
+                  <span className={`msg-avatar ${c.type === 'group' ? 'group' : 'dm'}`}>
+                    {c.type === 'group' ? <Users size={17} /> : c.avatar}
+                  </span>
                   <span className="msg-member-main">
                     <span className="msg-member-name">{c.name}</span>
                     <span className="msg-member-role">{c.subtitle}</span>
@@ -586,13 +694,13 @@ const Messages: React.FC = () => {
 const AttachmentView: React.FC<{ att: Attachment; mine: boolean }> = ({ att, mine }) => {
   if (att.isImage) {
     return (
-      <a href={att.dataUrl} download={att.name} className="msg-img-link">
+      <a href={att.dataUrl} target="_blank" rel="noopener noreferrer" download={att.name} className="msg-img-link" title="Click to view/download image">
         <img src={att.dataUrl} alt={att.name} className="msg-img" />
       </a>
     );
   }
   return (
-    <a href={att.dataUrl} download={att.name} className={`msg-file-card${mine ? ' mine' : ''}`}>
+    <a href={att.dataUrl} download={att.name} target="_blank" rel="noopener noreferrer" className={`msg-file-card${mine ? ' mine' : ''}`} title={`Download ${att.name}`}>
       <span className="msg-file-icon"><FileText size={20} /></span>
       <span className="msg-file-info">
         <span className="msg-file-name">{att.name}</span>
@@ -615,12 +723,12 @@ const CreateChatModal: React.FC<{
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const res = await fetch(`http://localhost:5001/users/search?q=${search}`, {
+        const res = await fetch(`http://localhost:5001/users/search?q=${encodeURIComponent(search)}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         const data = await res.json();
         if (data.success) {
-          setUsers(data.users);
+          setUsers(data.users || []);
         }
       } catch (e) {
         console.error(e);
@@ -639,41 +747,68 @@ const CreateChatModal: React.FC<{
       <div className="msg-modal" onClick={(e) => e.stopPropagation()}>
         <button className="msg-modal-close" onClick={onClose} aria-label="Close"><X size={18} /></button>
         <h3 className="msg-modal-title">New Chat</h3>
-        <p className="msg-modal-sub">Search for a user to start a conversation.</p>
+        <p className="msg-modal-sub">Select a team member from your projects to start a conversation.</p>
         <div className="msg-field">
-          <input 
-            type="text" 
-            value={search} 
-            onChange={(e) => setSearch(e.target.value)} 
-            placeholder="Search name or email..." 
-            autoFocus 
-          />
+          <div className="msg-search-box-modal" style={{ marginBottom: '8px' }}>
+            <Search size={15} color="#8A8270" />
+            <input 
+              type="text" 
+              value={search} 
+              onChange={(e) => setSearch(e.target.value)} 
+              placeholder="Search by name, email, or project..." 
+              autoFocus 
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px', color: '#8A8270', display: 'flex' }}
+                aria-label="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
         </div>
         <div className="msg-member-list">
           {users.map((u) => {
             return (
-              <button key={u.id} className="msg-member" onClick={() => onCreate(u.id)}>
+              <button key={u.id} type="button" className="msg-member" onClick={() => onCreate(u.id)}>
                 <span className="msg-avatar dm">{(u.full_name || 'U').charAt(0).toUpperCase()}</span>
                 <span className="msg-member-main">
                   <span className="msg-member-name">{u.full_name}</span>
-                  <span className="msg-member-role">{u.email}</span>
+                  <span className="msg-member-role">{u.email} {u.role ? `• ${u.role}` : ''}</span>
+                  {u.shared_projects && u.shared_projects.length > 0 ? (
+                    <span className="msg-member-projects">
+                      {u.shared_projects.slice(0, 2).map((p, idx) => (
+                        <span key={idx} className="msg-member-project-tag"><Folder size={11} /> {p}</span>
+                      ))}
+                      {u.shared_projects.length > 2 && (
+                        <span className="msg-member-project-more">+{u.shared_projects.length - 2} more</span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="msg-member-projects">
+                      <span className="msg-member-project-tag empty"><Folder size={11} /> No Projects</span>
+                    </span>
+                  )}
                 </span>
               </button>
             );
           })}
           {users.length === 0 && search && (
              <div className="msg-empty" style={{ padding: '20px', minHeight: 'auto', textAlign: 'center' }}>
-               <p style={{ color: 'var(--text-sub)' }}>No users found matching "{search}"</p>
+               <p style={{ color: 'var(--text-sub)' }}>No project members found matching "{search}"</p>
              </div>
           )}
           {users.length === 0 && !search && (
              <div className="msg-empty" style={{ padding: '20px', minHeight: 'auto', textAlign: 'center' }}>
-               <p style={{ color: 'var(--text-sub)' }}>Type to search for users in the database.</p>
+               <p style={{ color: 'var(--text-sub)' }}>No team members found in your projects yet. Only members of projects you own or belong to will appear here.</p>
              </div>
           )}
         </div>
         <div className="msg-modal-actions">
-          <button className="msg-btn-cancel" onClick={onClose}>Cancel</button>
+          <button type="button" className="msg-btn-cancel" onClick={onClose}>Cancel</button>
         </div>
       </div>
     </div>
@@ -691,15 +826,23 @@ const CreateGroupModal: React.FC<{
   const [groupName, setGroupName] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<UserContact[]>([]);
 
+  const currentUser = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || '{}');
+    } catch {
+      return {};
+    }
+  }, []);
+
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const res = await fetch(`http://localhost:5001/users/search?q=${search}`, {
+        const res = await fetch(`http://localhost:5001/users/search?q=${encodeURIComponent(search)}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         const data = await res.json();
         if (data.success) {
-          setUsers(data.users);
+          setUsers(data.users || []);
         }
       } catch (e) {
         console.error(e);
@@ -714,7 +857,7 @@ const CreateGroupModal: React.FC<{
   }, [search, token]);
 
   const toggleUser = (user: UserContact) => {
-    if (selectedUsers.find(u => u.id === user.id)) {
+    if (selectedUsers.some(u => u.id === user.id)) {
       setSelectedUsers(selectedUsers.filter(u => u.id !== user.id));
     } else {
       setSelectedUsers([...selectedUsers, user]);
@@ -723,12 +866,26 @@ const CreateGroupModal: React.FC<{
 
   return (
     <div className="msg-overlay" onClick={onClose}>
-      <div className="msg-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="msg-modal msg-create-group-modal" onClick={(e) => e.stopPropagation()}>
         <button className="msg-modal-close" onClick={onClose} aria-label="Close"><X size={18} /></button>
-        <h3 className="msg-modal-title">New Group Chat</h3>
         
-        <div className="msg-field" style={{ marginBottom: '16px' }}>
-          <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-sub)', marginBottom: '4px', display: 'block' }}>GROUP NAME</label>
+        <div className="msg-members-header" style={{ marginBottom: '16px' }}>
+          <div className="msg-members-title-row">
+            <span className="msg-members-icon-wrap">
+              <Users size={20} />
+            </span>
+            <div>
+              <h3 className="msg-modal-title" style={{ margin: 0 }}>Create Group Chat</h3>
+              <p className="msg-modal-sub" style={{ margin: '2px 0 0 0' }}>
+                Name your group and choose members from your projects
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        {/* Group Name */}
+        <div className="msg-field" style={{ marginBottom: '14px' }}>
+          <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-sub)', marginBottom: '4px', display: 'block' }}>GROUP NAME *</label>
           <input 
             type="text" 
             value={groupName} 
@@ -738,51 +895,317 @@ const CreateGroupModal: React.FC<{
           />
         </div>
 
-        <div className="msg-field">
-          <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-sub)', marginBottom: '4px', display: 'block' }}>ADD MEMBERS</label>
-          <input 
-            type="text" 
-            value={search} 
-            onChange={(e) => setSearch(e.target.value)} 
-            placeholder="Search name or email..." 
-          />
-        </div>
+        {/* Added Members Preview Panel */}
+        <div style={{ marginBottom: '14px' }}>
+          <div className="msg-added-section-header">
+            <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-sub)', margin: 0 }}>
+              MEMBERS IN GROUP ({selectedUsers.length + 1})
+            </label>
+            {selectedUsers.length > 0 && (
+              <button
+                type="button"
+                className="msg-clear-all-btn"
+                onClick={() => setSelectedUsers([])}
+              >
+                Clear added ({selectedUsers.length})
+              </button>
+            )}
+          </div>
 
-        {selectedUsers.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+          <div className="msg-added-members-tray">
+            {/* Creator Badge (Always included) */}
+            <div className="msg-added-chip creator" title="You will be in this group as creator">
+              <span className="msg-chip-avatar">
+                {(currentUser.full_name || currentUser.email || 'Y').charAt(0).toUpperCase()}
+              </span>
+              <span className="msg-chip-name">{currentUser.full_name || 'You'}</span>
+              <span className="msg-chip-creator-tag">You (Creator)</span>
+            </div>
+
+            {/* Added Members Chips */}
             {selectedUsers.map(u => (
-              <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', backgroundColor: 'var(--primary)', color: 'white', borderRadius: '12px', fontSize: '12px' }}>
-                {u.full_name.split(' ')[0]}
-                <button onClick={() => toggleUser(u)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: 0, display: 'flex' }}><X size={12} /></button>
+              <div key={u.id} className="msg-added-chip" title={`${u.full_name} (${u.email})`}>
+                <span className="msg-chip-avatar">
+                  {(u.full_name || u.email || 'U').charAt(0).toUpperCase()}
+                </span>
+                <div className="msg-chip-info">
+                  <span className="msg-chip-name">{u.full_name}</span>
+                  {u.role && <span className="msg-chip-sub">{u.role}</span>}
+                </div>
+                <button 
+                  type="button" 
+                  className="msg-chip-remove" 
+                  onClick={() => toggleUser(u)} 
+                  title={`Remove ${u.full_name}`}
+                  aria-label={`Remove ${u.full_name}`}
+                >
+                  <X size={13} />
+                </button>
               </div>
             ))}
-          </div>
-        )}
 
-        <div className="msg-member-list" style={{ maxHeight: '200px' }}>
+            {selectedUsers.length === 0 && (
+              <div className="msg-added-empty-notice">
+                <span>Select members below to add them to this group.</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Search & Select Users */}
+        <div className="msg-field">
+          <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-sub)', marginBottom: '4px', display: 'block' }}>
+            ADD MEMBERS FROM TEAM
+          </label>
+          <div className="msg-search-box-modal" style={{ marginBottom: '8px' }}>
+            <Search size={15} color="#8A8270" />
+            <input 
+              type="text" 
+              value={search} 
+              onChange={(e) => setSearch(e.target.value)} 
+              placeholder="Search name, email, or role..." 
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px', color: '#8A8270', display: 'flex' }}
+                aria-label="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="msg-member-list" style={{ maxHeight: '180px' }}>
           {users.map((u) => {
             const isSelected = selectedUsers.some(su => su.id === u.id);
             return (
-              <button key={u.id} className="msg-member" onClick={() => toggleUser(u)} style={{ opacity: isSelected ? 0.6 : 1 }}>
+              <button 
+                key={u.id} 
+                type="button"
+                className={`msg-member${isSelected ? ' selected' : ''}`} 
+                onClick={() => toggleUser(u)}
+              >
                 <span className="msg-avatar dm">{(u.full_name || 'U').charAt(0).toUpperCase()}</span>
                 <span className="msg-member-main">
                   <span className="msg-member-name">{u.full_name}</span>
-                  <span className="msg-member-role">{u.email}</span>
+                  <span className="msg-member-role">{u.email} {u.role ? `• ${u.role}` : ''}</span>
+                  {u.shared_projects && u.shared_projects.length > 0 ? (
+                    <span className="msg-member-projects">
+                      {u.shared_projects.slice(0, 2).map((p, idx) => (
+                        <span key={idx} className="msg-member-project-tag"><Folder size={11} /> {p}</span>
+                      ))}
+                      {u.shared_projects.length > 2 && (
+                        <span className="msg-member-project-more">+{u.shared_projects.length - 2} more</span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="msg-member-projects">
+                      <span className="msg-member-project-tag empty"><Folder size={11} /> No Projects</span>
+                    </span>
+                  )}
                 </span>
-                {isSelected && <Check size={16} color="var(--primary)" />}
+                {isSelected ? (
+                  <span className="msg-member-badge-added">
+                    <Check size={12} /> Added
+                  </span>
+                ) : (
+                  <span className="msg-check">
+                    <Plus size={12} color="#CBBFB0" />
+                  </span>
+                )}
               </button>
             );
           })}
+          {users.length === 0 && (
+            <div className="msg-empty" style={{ padding: '20px', minHeight: 'auto', textAlign: 'center' }}>
+              <p style={{ color: 'var(--text-sub)' }}>
+                {search ? `No project members found matching "${search}"` : 'No team members found in your projects yet.'}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Live Pre-Creation Summary */}
+        <div className="msg-create-summary-bar">
+          <Users size={16} />
+          <span>
+            {selectedUsers.length === 0
+              ? 'Please select at least 1 member to create group'
+              : `Group will have ${selectedUsers.length + 1} members (You + ${selectedUsers.length} added)`}
+          </span>
         </div>
         
         <div className="msg-modal-actions" style={{ marginTop: '16px' }}>
-          <button className="msg-btn-cancel" onClick={onClose}>Cancel</button>
+          <button type="button" className="msg-btn-cancel" onClick={onClose}>Cancel</button>
           <button 
+            type="button"
             className="msg-btn-create" 
             onClick={() => onCreate(groupName, selectedUsers.map(u => u.id))}
             disabled={!groupName.trim() || selectedUsers.length === 0}
           >
-            Create Group
+            Create Group ({selectedUsers.length + 1} members)
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ============================================================================
+   Group Members Modal
+   ============================================================================ */
+interface GroupMembersModalProps {
+  conversationId: string;
+  conversationName: string;
+  onClose: () => void;
+  token: string;
+}
+
+const GroupMembersModal: React.FC<GroupMembersModalProps> = ({ conversationId, conversationName, onClose, token }) => {
+  const [members, setMembers] = useState<GroupMember[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [error, setError] = useState('');
+
+  const currentUser = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || '{}');
+    } catch {
+      return {};
+    }
+  }, []);
+
+  useEffect(() => {
+    const fetchMembers = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch(`http://localhost:5001/messages/conversations/${conversationId}/members`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.success) {
+          setMembers(data.members || []);
+        } else {
+          setError(data.message || 'Failed to load group members');
+        }
+      } catch (err) {
+        console.error(err);
+        setError('Error fetching members');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchMembers();
+  }, [conversationId, token]);
+
+  const filteredMembers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return members;
+    return members.filter(m =>
+      (m.full_name && m.full_name.toLowerCase().includes(q)) ||
+      (m.email && m.email.toLowerCase().includes(q)) ||
+      (m.role && m.role.toLowerCase().includes(q))
+    );
+  }, [members, search]);
+
+  return (
+    <div className="msg-overlay" onClick={onClose}>
+      <div className="msg-modal msg-members-modal" onClick={(e) => e.stopPropagation()}>
+        <button className="msg-modal-close" onClick={onClose} aria-label="Close">
+          <X size={18} />
+        </button>
+
+        <div className="msg-members-header">
+          <div className="msg-members-title-row">
+            <span className="msg-members-icon-wrap">
+              <Users size={20} />
+            </span>
+            <div>
+              <h3 className="msg-modal-title" style={{ margin: 0 }}>{conversationName}</h3>
+              <p className="msg-modal-sub" style={{ margin: '2px 0 0 0' }}>
+                {members.length} {members.length === 1 ? 'member' : 'members'} in this group
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="msg-field" style={{ marginTop: '14px', marginBottom: '12px' }}>
+          <div className="msg-search-box-modal">
+            <Search size={15} color="#8A8270" />
+            <input
+              type="text"
+              placeholder="Search by name, email, or role..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoFocus
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px', color: '#8A8270', display: 'flex' }}
+                aria-label="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="msg-empty" style={{ padding: '30px 20px', minHeight: 'auto', textAlign: 'center' }}>
+            <p style={{ color: 'var(--text-sub)' }}>Loading group members...</p>
+          </div>
+        ) : error ? (
+          <div className="msg-empty" style={{ padding: '30px 20px', minHeight: 'auto', textAlign: 'center' }}>
+            <p style={{ color: '#DC2626' }}>{error}</p>
+          </div>
+        ) : (
+          <div className="msg-member-list msg-members-list-scroll">
+            {filteredMembers.map((m) => {
+              const isMe = m.id === currentUser.id || m.email === currentUser.email;
+              const initials = (m.full_name || m.email || 'U').trim().charAt(0).toUpperCase();
+              const joinedDate = m.joined_at ? new Date(m.joined_at).toLocaleDateString(undefined, {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+              }) : '';
+
+              return (
+                <div key={m.id} className="msg-group-member-item">
+                  <div className="msg-avatar dm">
+                    {initials}
+                  </div>
+                  <div className="msg-group-member-info">
+                    <div className="msg-group-member-top">
+                      <span className="msg-group-member-name">{m.full_name || 'Unnamed User'}</span>
+                      {isMe && <span className="msg-you-badge">You</span>}
+                    </div>
+                    <span className="msg-group-member-email">{m.email}</span>
+                  </div>
+                  <div className="msg-group-member-meta">
+                    {m.role && <span className={`msg-role-pill role-${m.role.toLowerCase()}`}>{m.role}</span>}
+                    {joinedDate && <span className="msg-joined-date">Joined {joinedDate}</span>}
+                  </div>
+                </div>
+              );
+            })}
+            {filteredMembers.length === 0 && (
+              <div className="msg-empty" style={{ padding: '24px 20px', minHeight: 'auto', textAlign: 'center' }}>
+                <p style={{ color: 'var(--text-sub)' }}>
+                  {search ? `No members match "${search}"` : 'No members found.'}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="msg-modal-actions" style={{ marginTop: '16px' }}>
+          <button className="msg-btn-cancel" onClick={onClose} style={{ width: '100%' }}>
+            Close
           </button>
         </div>
       </div>

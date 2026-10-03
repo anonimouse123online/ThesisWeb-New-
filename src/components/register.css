@@ -80,6 +80,46 @@
   box-shadow: 0 0 0 3px rgba(240, 90, 40, 0.12);
 }
 
+.input-with-button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.btn-send-code {
+  padding: 11px 16px;
+  background: #0f172a;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.btn-send-code:hover:not(:disabled) {
+  background: #1e293b;
+}
+
+.btn-send-code:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #94a3b8;
+}
+
+.success-message {
+  color: #16a34a;
+  font-size: 12px;
+  margin-bottom: 10px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .pass-wrapper {
   position: relative;
   width: 100%;

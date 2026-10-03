@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import "../components/TimeLog.css";
 import { API_BASE_URL, fetchWithAuth } from "../utils/api";
+import Dropdown, { type DropdownOption } from "../components/Dropdown";
+import { Users, User } from "lucide-react";
 
 const BACKEND_URL = API_BASE_URL;
 
@@ -477,6 +479,19 @@ const TimeLog: React.FC = () => {
 
     }, [logs]);
 
+  const engineerOptions: DropdownOption[] = useMemo(() => [
+    {
+      value: "All Engineers",
+      label: "All Engineers",
+      icon: <Users size={14} />,
+    },
+    ...engineers.map((name) => ({
+      value: name,
+      label: name,
+      icon: <User size={14} />,
+    })),
+  ], [engineers]);
+
   // ==========================================================
   // DASHBOARD STATISTICS
   // ==========================================================
@@ -927,47 +942,13 @@ const TimeLog: React.FC = () => {
           />
         </div>
 
-        <div className="select-wrapper">
-          <select
-            className="engineer-select"
-            value={engineerFilter}
-            onChange={
-              (e) =>
-                setEngineerFilter(
-                  e.target.value
-                )
-            }
-          >
-            <option value="All Engineers">
-              All Engineers
-            </option>
-
-            {engineers.map(
-              (name) => (
-                <option
-                  key={name}
-                  value={name}
-                >
-                  {name}
-                </option>
-              )
-            )}
-          </select>
-
-          <svg
-            className="select-arrow"
-            viewBox="0 0 20 20"
-            fill="none"
-          >
-            <path
-              d="M5 8l5 5 5-5"
-              stroke="#555"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </div>
+        <Dropdown
+          options={engineerOptions}
+          value={engineerFilter}
+          onChange={setEngineerFilter}
+          prefix="Engineer"
+          searchable={engineers.length > 5}
+        />
 
         {hasActiveFilters && (
           <button

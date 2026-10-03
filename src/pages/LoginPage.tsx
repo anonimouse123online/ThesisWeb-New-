@@ -51,6 +51,19 @@ const LoginPage: React.FC = () => {
 
 
   React.useEffect(() => {
+    // If user is already authenticated as admin, redirect directly to dashboard
+    const token = localStorage.getItem('token');
+    const userStr = localStorage.getItem('user');
+    if (token && userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        if (user.role?.trim().toLowerCase() === 'admin') {
+          navigate('/dashboard', { replace: true });
+          return;
+        }
+      } catch { /* ignore */ }
+    }
+
     const savedEmail =
       localStorage.getItem(
         'remembered_email'
@@ -59,7 +72,7 @@ const LoginPage: React.FC = () => {
     if (savedEmail) {
       setEmail(savedEmail);
     }
-  }, []);
+  }, [navigate]);
 
 
   // ============================================================

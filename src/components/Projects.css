@@ -126,17 +126,34 @@
 
 /* ── Status Pills ── */
 .proj-pill {
-  display: inline-block;
-  padding: 4px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
   border-radius: 20px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+  box-sizing: border-box;
 }
 
-.proj-pill--ongoing   { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
-.proj-pill--planning  { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
-.proj-pill--completed { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+.proj-pill::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: currentColor;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.proj-pill--completed { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
+.proj-pill--ongoing   { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+.proj-pill--planning  { background: #fef3c7; color: #d97706; border: 1px solid #fde68a; }
+.proj-pill--pending   { background: #fff7ed; color: #ea580c; border: 1px solid #fed7aa; }
+.proj-pill--delayed   { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
 
 /* ── View Details Button ── */
 .pm-view-btn {

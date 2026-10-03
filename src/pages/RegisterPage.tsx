@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ShieldCheck, Eye, EyeOff } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ShieldCheck, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../utils/api';
 import '../components/register.css';
@@ -7,19 +7,74 @@ import '../components/register.css';
 const RegisterPage: React.FC = () => {
   const [name, setName]                         = useState('');
   const [email, setEmail]                       = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
   const [password, setPassword]                 = useState('');
   const [confirmPassword, setConfirmPassword]   = useState('');
   const [showPassword, setShowPassword]         = useState(false);
   const [showConfirm, setShowConfirm]           = useState(false);
   const [error, setError]                       = useState('');
+  const [successMsg, setSuccessMsg]             = useState('');
   const [loading, setLoading]                   = useState(false);
-  const navigate = useNavigate();
+  const [sendingCode, setSendingCode]           = useState(false);
+  const [codeSent, setCodeSent]                 = useState(false);
+  const [resendTimer, setResendTimer]           = useState(0);
 
+  const navigate = useNavigate();
   const BACKEND_URL = API_BASE_URL;
+
+  // Countdown timer for resending verification code
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    if (resendTimer > 0) {
+      timer = setTimeout(() => setResendTimer((prev) => prev - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [resendTimer]);
+
+  const handleSendCode = async () => {
+    setError('');
+    setSuccessMsg('');
+
+    if (!email || !email.includes('@')) {
+      setError('Please enter a valid email address first.');
+      return;
+    }
+
+    setSendingCode(true);
+    try {
+      const response = await fetch(`${BACKEND_URL}/auth/send-verification-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || data.message || 'Failed to send verification code.');
+        return;
+      }
+
+      setCodeSent(true);
+      setSuccessMsg('Verification code sent! Please check your email inbox.');
+      setResendTimer(60);
+    } catch (err) {
+      console.error('Send verification code failed', err);
+      setError('Cannot connect to server. Check your connection.');
+    } finally {
+      setSendingCode(false);
+    }
+  };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccessMsg('');
+
+    if (!verificationCode.trim()) {
+      setError('Please enter the verification code sent to your email.');
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError('Passwords do not match.');
@@ -31,13 +86,19 @@ const RegisterPage: React.FC = () => {
       const response = await fetch(`${BACKEND_URL}/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), email, password, role: 'Admin' }),
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim(),
+          verificationCode: verificationCode.trim(),
+          password,
+          role: 'Admin',
+        }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Registration failed. Please try again.');
+        setError(data.error || data.message || 'Registration failed. Please try again.');
         return;
       }
 
@@ -85,15 +146,45 @@ const RegisterPage: React.FC = () => {
               />
             </div>
 
-            {/* Email */}
+            {/* Email + Send Code Button */}
             <div className="input-group">
               <label className="label-sm">Email Address</label>
+              <div className="input-with-button">
+                <input
+                  type="email"
+                  placeholder="Enter your email"
+                  className="text-input"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  className="btn-send-code"
+                  onClick={handleSendCode}
+                  disabled={sendingCode || resendTimer > 0}
+                >
+                  {sendingCode
+                    ? 'Sending...'
+                    : resendTimer > 0
+                    ? `Resend in ${resendTimer}s`
+                    : codeSent
+                    ? 'Resend Code'
+                    : 'Send Code'}
+                </button>
+              </div>
+            </div>
+
+            {/* Verification Code */}
+            <div className="input-group">
+              <label className="label-sm">Verification Code</label>
               <input
-                type="email"
-                placeholder="Enter your email"
+                type="text"
+                placeholder="Enter 6-digit code sent to email"
                 className="text-input"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                maxLength={6}
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value)}
                 required
               />
             </div>
@@ -142,29 +233,19 @@ const RegisterPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Error message */}
-            {error && (
-              <p style={{ color: 'red', fontSize: '12px', marginBottom: '8px' }}>
-                {error}
+            {/* Success message */}
+            {successMsg && (
+              <p className="success-message">
+                <CheckCircle2 size={14} /> {successMsg}
               </p>
             )}
 
-            {/* Terms checkbox */}
-            {/*<div className="row-links" style={{ alignItems: 'flex-start' }}>
-              <label className="check-item" style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                <input
-                  type="checkbox"
-                  checked={agreed}
-                  onChange={(e) => setAgreed(e.target.checked)}
-                />
-                <span style={{ fontSize: '12px', color: '#475569', lineHeight: '1.5' }}>
-                  I agree to SitePulse's{' '}
-                  <a href="#" className="blue-link">Terms of Service</a>
-                  {' '}and{' '}
-                  <a href="#" className="blue-link">Privacy Policy</a>
-                </span>
-              </label>
-            </div>*/}
+            {/* Error message */}
+            {error && (
+              <p style={{ color: '#ef4444', fontSize: '12px', marginBottom: '8px', fontWeight: 500 }}>
+                {error}
+              </p>
+            )}
 
             <button type="submit" className="btn-submit" disabled={loading}>
               {loading ? 'Creating account...' : 'Sign Up'}

@@ -4,8 +4,9 @@ import AddMemberModal from './add-member';
 import '../components/manage-team.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import ProfileDropdown from '../components/ProfileDropdown';
+import StatusBadge from '../components/StatusBadge';
 import { showToast } from '../components/Toast';
-import { ArrowLeft, ArrowRight, X, UserPlus, Check, CheckCircle2, Clock } from 'lucide-react';
+import { ArrowLeft, ArrowRight, X, UserPlus, Check, CheckCircle2, Clock, Crown, ShieldCheck } from 'lucide-react';
 
 const API_URL = API_BASE_URL;
 
@@ -316,19 +317,21 @@ const ManageTeam: React.FC = () => {
                 </thead>
                 <tbody>
                   {filteredMembers.map((m) => (
-                    <tr key={m.id}>
+                    <tr key={m.id} style={m.role === 'Owner' ? { background: '#fffbeb' } : undefined}>
                       <td>
                         <div className="mt-member-cell">
-                          <span className="mt-avatar" style={{ background: getAvatarColor(m.name) }}>
+                          <span className="mt-avatar" style={{ background: m.role === 'Owner' ? '#f59e0b' : getAvatarColor(m.name) }}>
                             {getInitials(m.name)}
                           </span>
                           <div>
-                            <span className="mt-member-name">{m.name}</span>
+                            <span className="mt-member-name">{m.name} {m.role === 'Owner' && <Crown size={14} style={{ color: '#f59e0b', verticalAlign: '-2px', marginLeft: 4 }} />}</span>
                           </div>
                         </div>
                       </td>
                       <td>
-                        <span className="mt-role-chip">{m.role}</span>
+                        <span className="mt-role-chip" style={m.role === 'Owner' ? { background: '#fef3c7', color: '#b45309', fontWeight: 700 } : undefined}>
+                          {m.role === 'Owner' ? <><ShieldCheck size={13} style={{ verticalAlign: '-2px', marginRight: 3 }} /> Project Owner</> : m.role}
+                        </span>
                       </td>
                       <td className="mt-email">{m.email || '—'}</td>
                       <td className="mt-joined">
@@ -341,19 +344,20 @@ const ManageTeam: React.FC = () => {
                           : '—'}
                       </td>
                       <td>
-                        <span className="mt-status-tag mt-status-tag--active" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', display: 'inline-block' }} />
-                          Active
-                        </span>
+                        <StatusBadge status="Active" />
                       </td>
                       <td style={{ textAlign: 'right' }}>
-                        <button
-                          className="mt-remove-btn"
-                          onClick={() => handleRemove(m.id)}
-                          disabled={removingId === m.id}
-                        >
-                          {removingId === m.id ? 'Removing…' : 'Remove'}
-                        </button>
+                        {m.role === 'Owner' ? (
+                          <span style={{ fontSize: '12px', color: '#9ca3af', fontStyle: 'italic' }}>Owner</span>
+                        ) : (
+                          <button
+                            className="mt-remove-btn"
+                            onClick={() => handleRemove(m.id)}
+                            disabled={removingId === m.id}
+                          >
+                            {removingId === m.id ? 'Removing…' : 'Remove'}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -411,7 +415,7 @@ const ManageTeam: React.FC = () => {
                       </td>
                       <td className="mt-email">{u.email}</td>
                       <td>
-                        <span className="mt-status-tag mt-status-tag--avail">Ready to Join</span>
+                        <StatusBadge status="Ready to Join" />
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         <button

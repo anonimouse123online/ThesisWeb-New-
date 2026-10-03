@@ -420,16 +420,107 @@
   color: #9ca3af;
 }
 
+.notification-form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.notification-subtext {
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 5px;
+}
+
 .notification-audience-badge {
   display: inline-flex;
   align-items: center;
+  gap: 5px;
   min-height: 24px;
-  padding: 0 9px;
+  padding: 0 10px;
   border-radius: 999px;
-  background: #fff3eb;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.notification-audience-badge--all {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+.notification-audience-badge--engineer {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+
+.notification-audience-badge--project {
+  background: #f5f3ff;
+  color: #7c3aed;
+  border: 1px solid #ddd6fe;
+}
+
+.notification-audience-badge--individual {
+  background: #fff7ed;
   color: #ea580c;
+  border: 1px solid #fed7aa;
+}
+
+.notification-project-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: #f3f4f6;
+  color: #4b5563;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 500;
+  border: 1px solid #e5e7eb;
+}
+
+/* ============================================================
+   FILTER TABS
+============================================================ */
+
+.notification-filter-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.notification-filter-btn {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  color: #4b5563;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.notification-filter-btn:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+  color: #111827;
+}
+
+.notification-filter-btn--active {
+  background: #ea580c;
+  border-color: #ea580c;
+  color: #ffffff;
+}
+
+.notification-filter-btn--active:hover {
+  background: #c2410c;
+  border-color: #c2410c;
+  color: #ffffff;
 }
 
 /* ============================================================

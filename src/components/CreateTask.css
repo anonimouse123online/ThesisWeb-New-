@@ -117,17 +117,66 @@
   outline: none;
 }
 
+.ct-field .sp-dropdown {
+  width: 100%;
+}
+
+.ct-field .sp-dropdown-trigger {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #111827;
+  background: #f9fafb;
+}
+
+.ct-field .sp-dropdown-trigger:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.ct-field .sp-dropdown-trigger--active {
+  border-color: #ea580c !important;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15) !important;
+}
+
+.form-group .sp-dropdown {
+  width: 100%;
+}
+
+.form-group .sp-dropdown-trigger {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #111827;
+  background: #f9fafb;
+}
+
+.form-group .sp-dropdown-trigger:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.form-group .sp-dropdown-trigger--active {
+  border-color: #ea580c !important;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15) !important;
+}
+
 .ct-input::placeholder,
 .ct-textarea::placeholder {
   color: #9ca3af;
 }
 
 .ct-input:focus,
-.ct-textarea:focus,
-.ct-select:focus {
-  border-color: #111827;
+.ct-textarea:focus {
+  border-color: #ea580c;
   background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.07);
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15);
 }
 
 .ct-input--error {
@@ -145,11 +194,26 @@
 
 .ct-select {
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-color: #ffffff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23ea580c' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 12px center;
-  padding-right: 36px;
+  background-position: right 14px center;
+  padding-right: 38px;
+  border-radius: 10px;
+  border: 1.5px solid #e2e8f0;
   cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ct-select:hover:not(:disabled) {
+  border-color: #cbd5e1;
+  background-color: #f8fafc;
+}
+
+.ct-select:focus {
+  border-color: #ea580c;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15);
 }
 
 /* ── Two-column row ── */

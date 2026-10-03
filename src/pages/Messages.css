@@ -197,6 +197,40 @@
     color: #8A8270;
 }
 
+.msg-thread-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.msg-header-view-members-link {
+    color: #E8590C;
+    font-weight: 500;
+}
+
+.msg-thread-members-btn {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 20px;
+    border: 1px solid #E4DACB;
+    background: #FAF7F2;
+    color: #4A4031;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.msg-thread-members-btn:hover {
+    background: #E8590C;
+    color: #FFFFFF;
+    border-color: #E8590C;
+    box-shadow: 0 2px 8px rgba(232, 89, 12, 0.2);
+}
+
 .msg-thread-body {
     flex: 1;
     overflow-y: auto;
@@ -287,17 +321,17 @@
 
 .msg-options-dropdown {
     position: absolute;
-    top: 100%;
-    background: #fff;
-    border: 1px solid #E4DACB;
-    border-radius: 10px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    top: calc(100% + 4px);
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 12px 30px -4px rgba(15, 23, 42, 0.12), 0 4px 12px -2px rgba(15, 23, 42, 0.06);
     min-width: 190px;
     z-index: 50;
     display: flex;
     flex-direction: column;
     padding: 6px;
-    margin-top: 4px;
+    animation: spDropdownSlideUp 0.16s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .msg-options-dropdown.left {
@@ -309,28 +343,35 @@
 }
 
 .msg-options-dropdown button {
-    background: none;
+    background: transparent;
     border: none;
     text-align: left;
     padding: 8px 12px;
     font-size: 13px;
+    font-weight: 500;
     color: #334155;
     cursor: pointer;
-    border-radius: 6px;
+    border-radius: 8px;
     width: 100%;
-    transition: background 0.12s;
+    transition: all 0.12s ease;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .msg-options-dropdown button:hover {
-    background: #FAF5EF;
+    background: #fff7ed;
+    color: #ea580c;
 }
 
 .msg-options-dropdown button.text-red {
-    color: #DC2626;
+    color: #dc2626;
 }
 
 .msg-options-dropdown button.text-red:hover {
-    background: #FEE2E2;
+    background: #fee2e2;
+    color: #b91c1c;
 }
 
 .msg-field-error {
@@ -677,6 +718,45 @@
     color: #8A8270;
 }
 
+.msg-member-projects {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+    margin-top: 4px;
+}
+
+.msg-member-project-tag {
+    font-size: 10px;
+    font-weight: 500;
+    color: #854D0E;
+    background: #FEF9C3;
+    border: 1px solid #FEF08A;
+    padding: 1px 6px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+}
+
+.msg-member-project-tag.empty {
+    color: #8A8270;
+    background: #F4EFE6;
+    border-color: #E2DDD3;
+}
+
+.msg-member.selected .msg-member-project-tag {
+    background: #FFFBEB;
+    border-color: #FDE68A;
+}
+
+.msg-member-project-more {
+    font-size: 10px;
+    color: #8A8270;
+    font-weight: 500;
+}
+
 .msg-check {
     width: 20px;
     height: 20px;
@@ -887,4 +967,318 @@
 .msg-file-dl {
     flex-shrink: 0;
     opacity: 0.8;
+}
+
+/* ============================================================================
+   Group Members Modal
+   ============================================================================ */
+.msg-members-modal {
+    max-width: 500px;
+}
+
+.msg-members-title-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.msg-members-icon-wrap {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: #FCE9DD;
+    color: #E8590C;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.msg-search-box-modal {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #FAF7F2;
+    border: 1px solid #E4DACB;
+    border-radius: 8px;
+}
+
+.msg-search-box-modal input {
+    border: none;
+    background: transparent;
+    outline: none;
+    font-size: 13px;
+    color: #0F172A;
+    width: 100%;
+}
+
+.msg-members-list-scroll {
+    max-height: 320px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-right: 4px;
+}
+
+.msg-group-member-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: #FAF7F2;
+    border: 1px solid #EFE7DA;
+    border-radius: 10px;
+    transition: background 0.15s ease;
+}
+
+.msg-group-member-item:hover {
+    background: #F4EFE9;
+}
+
+.msg-group-member-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.msg-group-member-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.msg-group-member-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #0F172A;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.msg-you-badge {
+    font-size: 11px;
+    font-weight: 700;
+    color: #E8590C;
+    background: #FCE9DD;
+    padding: 2px 7px;
+    border-radius: 10px;
+    line-height: 1.2;
+    letter-spacing: 0.2px;
+    flex-shrink: 0;
+}
+
+.msg-group-member-email {
+    font-size: 12px;
+    color: #8A8270;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.msg-group-member-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.msg-role-pill {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: #EDE8E1;
+    color: #4A4031;
+    text-transform: capitalize;
+}
+
+.msg-role-pill.role-admin {
+    background: #FCE9DD;
+    color: #D9480F;
+}
+
+.msg-role-pill.role-engineer {
+    background: #E0F2FE;
+    color: #0369A1;
+}
+
+.msg-role-pill.role-manager {
+    background: #FEF3C7;
+    color: #B45309;
+}
+
+.msg-joined-date {
+    font-size: 11px;
+    color: #A39B8B;
+}
+
+/* ============================================================================
+   Create Group Modal - Added Members Preview & Badges
+   ============================================================================ */
+.msg-create-group-modal {
+    max-width: 540px;
+    width: 100%;
+}
+
+.msg-added-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.msg-clear-all-btn {
+    background: none;
+    border: none;
+    color: #DC2626;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+}
+
+.msg-clear-all-btn:hover {
+    text-decoration: underline;
+}
+
+.msg-added-members-tray {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 12px;
+    background: #FAF7F2;
+    border: 1px solid #EFE7DA;
+    border-radius: 12px;
+    max-height: 130px;
+    overflow-y: auto;
+}
+
+.msg-added-empty-notice {
+    font-size: 12px;
+    color: #8A8270;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 2px;
+}
+
+.msg-added-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px 4px 5px;
+    background: #FFFFFF;
+    border: 1px solid #E4DACB;
+    border-radius: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    font-size: 12px;
+    transition: all 0.15s ease;
+}
+
+.msg-added-chip:hover {
+    border-color: #E8590C;
+    box-shadow: 0 2px 6px rgba(232, 89, 12, 0.12);
+}
+
+.msg-added-chip.creator {
+    background: #FCE9DD;
+    border-color: #F8B48B;
+}
+
+.msg-chip-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #E8590C;
+    color: #FFFFFF;
+    font-size: 11px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.msg-added-chip.creator .msg-chip-avatar {
+    background: #D9480F;
+}
+
+.msg-chip-info {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+}
+
+.msg-chip-name {
+    font-weight: 600;
+    color: #0F172A;
+    font-size: 12px;
+}
+
+.msg-chip-sub {
+    font-size: 10px;
+    color: #8A8270;
+    text-transform: capitalize;
+}
+
+.msg-chip-creator-tag {
+    font-size: 10px;
+    font-weight: 700;
+    color: #D9480F;
+    background: #FFFFFF;
+    padding: 2px 7px;
+    border-radius: 10px;
+    margin-left: 2px;
+}
+
+.msg-chip-remove {
+    background: none;
+    border: none;
+    color: #8A8270;
+    cursor: pointer;
+    padding: 2px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.12s, background 0.12s;
+    margin-left: 2px;
+}
+
+.msg-chip-remove:hover {
+    background: #FEE2E2;
+    color: #DC2626;
+}
+
+.msg-member-badge-added {
+    font-size: 11px;
+    font-weight: 600;
+    color: #E8590C;
+    background: #FCE9DD;
+    padding: 3px 8px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.msg-create-summary-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: #FCF6F1;
+    border: 1px solid #F3DFC8;
+    border-radius: 10px;
+    margin-top: 14px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #7C2D12;
 }

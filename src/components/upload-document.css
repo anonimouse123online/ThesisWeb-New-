@@ -124,34 +124,43 @@
   right: 14px;
   top: 50%;
   transform: translateY(-50%);
-  width: 10px;
-  height: 6px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  width: 14px;
+  height: 14px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23ea580c' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain;
   pointer-events: none;
+  transition: transform 0.2s ease;
 }
 
 .ud-select {
   width: 100%;
-  padding: 11px 36px 11px 14px;
-  border: 1.5px solid #ede9e3;
+  padding: 10px 38px 10px 14px;
+  border: 1.5px solid #e2e8f0;
   border-radius: 10px;
-  font-size: 13px;
-  color: #111;
-  background: #f7f5f2;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #0f172a;
+  background: #ffffff;
   font-family: inherit;
   outline: none;
   appearance: none;
   box-sizing: border-box;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.ud-select:hover:not(:disabled) {
+  border-color: #cbd5e1;
+  background-color: #f8fafc;
 }
 
 .ud-select:focus {
-  border-color: #d6cfc6;
-  background: #fff;
+  border-color: #ea580c;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15);
 }
 
 /* ── Drop zone ── */

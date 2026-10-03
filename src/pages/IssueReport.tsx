@@ -4,6 +4,7 @@ import '../components/IssueReport.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import { showToast } from '../components/Toast';
 import ProfileDropdown from '../components/ProfileDropdown';
+import StatusBadge from '../components/StatusBadge';
 import Dropdown from '../components/Dropdown';
 import {
   AlertCircle,
@@ -341,7 +342,6 @@ const IssueReport: React.FC = () => {
       ) : (
         <div className="ir-grid">
           {issues.map((issue) => {
-            const statusClass = issue.status === 'Open' ? 'status-open' : issue.status === 'In Progress' ? 'status-in-progress' : 'status-resolved';
             const prioClass = `prio-${issue.priority.toLowerCase()}`;
 
             return (
@@ -349,7 +349,7 @@ const IssueReport: React.FC = () => {
                 <div>
                   <div className="ir-card-top">
                     <div className="ir-badges-row">
-                      <span className={`ir-badge-status ${statusClass}`}>{issue.status}</span>
+                      <StatusBadge status={issue.status} />
                       <span className={`ir-badge-priority ${prioClass}`}>{issue.priority}</span>
                     </div>
                     <span className="ir-card-category">{issue.category}</span>
