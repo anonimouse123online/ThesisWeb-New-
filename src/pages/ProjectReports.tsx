@@ -17,7 +17,8 @@ import {
   CloudSun,
   Truck,
   Download,
-  ArrowLeft
+  ArrowLeft,
+  Printer
 } from 'lucide-react';
 
 const API_URL = API_BASE_URL;
@@ -47,11 +48,201 @@ interface ProjectReportItem {
   created_at: string;
 }
 
+interface ClientReportParsed {
+  title: string;
+  date: string;
+  projectName: string;
+  location: string;
+  manpower?: {
+    total?: string;
+    breakdown: string[];
+  } | null;
+  workProgress: string[];
+  ongoingScope: string[];
+}
+
+const parseClientReport = (
+  report: ProjectReportItem,
+  defaultProjectName?: string,
+  defaultLocation?: string
+): ClientReportParsed => {
+  const summary = (report.summary || '').trim();
+  const lowerSummary = summary.toLowerCase();
+
+  // If summary already follows the client report structure:
+  if (lowerSummary.includes('daily site report') || (lowerSummary.includes('work progress') && lowerSummary.includes('ongoing scope'))) {
+    const rawLines = summary.split('\n');
+    let title = 'Daily Site Report';
+    let date = '';
+    let projectName = '';
+    let location = '';
+    let currentSection: 'header' | 'manpower' | 'work_progress' | 'ongoing_scope' = 'header';
+
+    const manpowerLines: string[] = [];
+    const workProgressLines: string[] = [];
+    const ongoingScopeLines: string[] = [];
+
+    for (const raw of rawLines) {
+      const line = raw.trim();
+      if (!line) continue;
+      const lower = line.toLowerCase();
+
+      if (lower === 'daily site report') {
+        title = line;
+        currentSection = 'header';
+        continue;
+      }
+      if (lower === 'manpower') {
+        currentSection = 'manpower';
+        continue;
+      }
+      if (lower === 'work progress' || lower.startsWith('work progress:')) {
+        currentSection = 'work_progress';
+        continue;
+      }
+      if (lower.startsWith('ongoing scope of work') || lower.startsWith('ongoing scope of works')) {
+        currentSection = 'ongoing_scope';
+        continue;
+      }
+
+      if (currentSection === 'header') {
+        if (lower.startsWith('date:')) {
+          date = line.replace(/^date:\s*/i, '').trim();
+        } else if (lower.startsWith('project name:')) {
+          projectName = line.replace(/^project name:\s*/i, '').trim();
+        } else if (lower.startsWith('location:')) {
+          location = line.replace(/^location:\s*/i, '').trim();
+        }
+      } else if (currentSection === 'manpower') {
+        manpowerLines.push(line);
+      } else if (currentSection === 'work_progress') {
+        workProgressLines.push(line);
+      } else if (currentSection === 'ongoing_scope') {
+        ongoingScopeLines.push(line);
+      }
+    }
+
+    if (!date && report.report_date) {
+      date = new Date(report.report_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    }
+    if (defaultProjectName && defaultProjectName.trim()) {
+      projectName = defaultProjectName.trim();
+    } else if (!projectName) {
+      projectName = report.project_code || 'Project';
+    }
+
+    if (defaultLocation && defaultLocation.trim()) {
+      location = defaultLocation.trim();
+    } else if (!location || location.toLowerCase() === 'foundation' || location.toLowerCase() === 'project site') {
+      location = defaultLocation || 'Project Site';
+    }
+
+    let manpower = null;
+    if (manpowerLines.length > 0) {
+      let totalStr = '';
+      const breakdown: string[] = [];
+      for (const mLine of manpowerLines) {
+        if (mLine.toLowerCase().startsWith('total:')) {
+          totalStr = mLine.replace(/^total:\s*/i, '').trim();
+        } else {
+          breakdown.push(mLine);
+        }
+      }
+      manpower = { total: totalStr || undefined, breakdown };
+    } else if (report.manpower_count && report.manpower_count > 0) {
+      manpower = { total: String(report.manpower_count), breakdown: [`- Technicians: ${report.manpower_count}`] };
+    }
+
+    return {
+      title,
+      date,
+      projectName,
+      location,
+      manpower,
+      workProgress: workProgressLines.length > 0 ? workProgressLines : ['Site Inspection: 100% Completed'],
+      ongoingScope: ongoingScopeLines.length > 0 ? ongoingScopeLines : ['General Site Operations']
+    };
+  }
+
+  // Handle older SITEPULSE FIELD INSPECTION REPORT
+  if (lowerSummary.includes('sitepulse field inspection report') || lowerSummary.includes('work activity:')) {
+    let activity = '';
+    let progress = '100%';
+    let assessment = '';
+    const lines = summary.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (line.toLowerCase().startsWith('work activity:')) {
+        activity = lines[i + 1]?.trim() || line.replace(/work activity:\s*/i, '').trim();
+      } else if (line.toLowerCase().startsWith('engineer-recorded progress:')) {
+        progress = lines[i + 1]?.trim() || line.replace(/engineer-recorded progress:\s*/i, '').trim();
+      } else if (line.toLowerCase().startsWith('field assessment:')) {
+        assessment = lines[i + 1]?.trim() || '';
+      }
+    }
+    const wp = activity
+      ? [`${activity}: ${progress.includes('%') ? progress : progress + '%'} Completed`]
+      : ['Site Inspection: 100% Completed'];
+    const scope = assessment ? [assessment] : ['General Site Operations'];
+    return {
+      title: 'Daily Site Report',
+      date: report.report_date
+        ? new Date(report.report_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+        : 'Today',
+      projectName: defaultProjectName || report.project_code || 'Project',
+      location: defaultLocation || 'Project Site',
+      manpower: (report.manpower_count && report.manpower_count > 0)
+        ? { total: String(report.manpower_count), breakdown: [`- Technicians: ${report.manpower_count}`] }
+        : null,
+      workProgress: wp,
+      ongoingScope: scope
+    };
+  }
+
+  // Fallback for manual web reports
+  const formattedDate = report.report_date
+    ? new Date(report.report_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    : 'Today';
+  const wpLines: string[] = [];
+  if (report.key_activities) {
+    report.key_activities.split('\n').forEach(a => {
+      const t = a.trim().replace(/^[-•*]\s*/, '');
+      if (t) wpLines.push(t.includes('%') ? t : `${t}: 100% Completed`);
+    });
+  } else if (summary) {
+    summary.split('\n').forEach(s => {
+      const t = s.trim().replace(/^[-•*]\s*/, '');
+      if (t) wpLines.push(t.includes('%') ? t : `${t}: 100% Completed`);
+    });
+  }
+
+  const scopeLines: string[] = [];
+  if (report.issues_highlighted) {
+    report.issues_highlighted.split('\n').forEach(iss => {
+      const t = iss.trim().replace(/^[-•*]\s*/, '');
+      if (t) scopeLines.push(t);
+    });
+  }
+
+  return {
+    title: 'Daily Site Report',
+    date: formattedDate,
+    projectName: defaultProjectName || report.project_code || 'Project',
+    location: defaultLocation || 'Project Site',
+    manpower: (report.manpower_count && report.manpower_count > 0)
+      ? { total: String(report.manpower_count), breakdown: [`- Technicians: ${report.manpower_count}`] }
+      : null,
+    workProgress: wpLines.length ? wpLines : ['Site Inspection: 100% Completed'],
+    ongoingScope: scopeLines.length ? scopeLines : ['General Site Operations']
+  };
+};
+
 const ProjectReports: React.FC = () => {
   const { projectCode } = useParams<{ projectCode: string }>();
   const navigate = useNavigate();
 
   const [reports, setReports]           = useState<ProjectReportItem[]>([]);
+  const [projectData, setProjectData]   = useState<{ name: string; location: string } | null>(null);
   const [loading, setLoading]           = useState(true);
   const [search, setSearch]             = useState('');
   const [selectedType, setSelectedType] = useState<string>('All');
@@ -89,7 +280,20 @@ const ProjectReports: React.FC = () => {
   };
 
   useEffect(() => {
-    if (projectCode) fetchReports();
+    if (projectCode) {
+      fetchReports();
+      fetchWithAuth(`${API_URL}/projects/${projectCode}`)
+        .then((res) => res.json())
+        .then((json) => {
+          if (json?.data) {
+            setProjectData({
+              name: json.data.name || '',
+              location: json.data.location || '',
+            });
+          }
+        })
+        .catch(() => {});
+    }
   }, [projectCode, selectedType]);
 
   const handleCreateReport = async (e: React.FormEvent) => {
@@ -138,7 +342,10 @@ const ProjectReports: React.FC = () => {
   };
 
   const handleExportPDF = (report: ProjectReportItem) => {
-    showToast(`Exporting "${report.title}" as PDF Document...`, 'success');
+    setViewReport(report);
+    setTimeout(() => {
+      window.print();
+    }, 280);
   };
 
   // Metrics
@@ -356,70 +563,117 @@ const ProjectReports: React.FC = () => {
         </div>
       )}
 
-      {/* ── View Full Report Modal ── */}
-      {viewReport && (
-        <div className="ir-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setViewReport(null); }}>
-          <div className="ir-modal" style={{ maxWidth: '640px' }}>
-            <div className="ir-modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <span className={`pr-card-type-badge ${getTypeBadgeClass(viewReport.report_type)}`}>
-                  {viewReport.report_type}
-                </span>
-                <h2 className="ir-modal-title" style={{ marginTop: '6px' }}>{viewReport.title}</h2>
-              </div>
-              <button
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                onClick={() => setViewReport(null)}
-                aria-label="Close"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="ir-modal-body" style={{ gap: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', color: '#64748b', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>
-                <span>Date: <strong>{formatDate(viewReport.report_date)}</strong></span>
-                <span>Preparer: <strong>{viewReport.prepared_by_name || 'Site Engineer'}</strong></span>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>Status: <StatusBadge status={viewReport.status || 'Submitted'} /></span>
-              </div>
-
-              <div>
-                <h4 style={{ margin: '0 0 4px', fontSize: '13px', color: '#111827' }}>Executive Summary</h4>
-                <p style={{ margin: 0, fontSize: '13px', color: '#475569', lineHeight: 1.6 }}>{viewReport.summary}</p>
-              </div>
-
-              {viewReport.key_activities && (
-                <div>
-                  <h4 style={{ margin: '0 0 4px', fontSize: '13px', color: '#111827' }}>Key Activities Completed</h4>
-                  <p style={{ margin: 0, fontSize: '13px', color: '#475569', lineHeight: 1.6 }}>{viewReport.key_activities}</p>
+      {/* ── View Full Report Modal (Client Report Document Format) ── */}
+      {viewReport && (() => {
+        const doc = parseClientReport(viewReport, projectData?.name, projectData?.location);
+        return (
+          <div className="client-doc-overlay" onClick={(e) => { if (e.target === e.currentTarget) setViewReport(null); }}>
+            <div className="client-doc-modal">
+              {/* Top toolbar */}
+              <div className="client-doc-topbar no-print">
+                <div className="client-doc-topbar-left">
+                  <span className={`pr-card-type-badge ${getTypeBadgeClass(viewReport.report_type)}`}>
+                    {viewReport.report_type}
+                  </span>
+                  <span className="client-doc-topbar-title">{viewReport.title}</span>
+                  <StatusBadge status={viewReport.status || 'Submitted'} />
                 </div>
-              )}
-
-              {viewReport.issues_highlighted && (
-                <div>
-                  <h4 style={{ margin: '0 0 4px', fontSize: '13px', color: '#dc2626' }}>Observations & Issues Noted</h4>
-                  <p style={{ margin: 0, fontSize: '13px', color: '#dc2626', lineHeight: 1.6 }}>{viewReport.issues_highlighted}</p>
+                <div className="client-doc-topbar-actions">
+                  <button
+                    className="client-doc-btn-print"
+                    onClick={() => window.print()}
+                    title="Print or Save as PDF"
+                  >
+                    <Printer size={15} /> Print / Export PDF
+                  </button>
+                  <button
+                    className="client-doc-btn-close"
+                    onClick={() => setViewReport(null)}
+                    aria-label="Close"
+                  >
+                    <X size={18} />
+                  </button>
                 </div>
-              )}
-
-              <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', fontSize: '12px', color: '#475569' }}>
-                <div><strong>Active Manpower:</strong> {viewReport.manpower_count} workers on shift</div>
-                {viewReport.equipment_on_site && <div style={{ marginTop: '4px' }}><strong>Heavy Equipment:</strong> {viewReport.equipment_on_site}</div>}
-                <div style={{ marginTop: '4px' }}><strong>Site Weather:</strong> {viewReport.weather || 'Clear'}</div>
               </div>
-            </div>
 
-            <div className="ir-modal-footer">
-              <button className="ir-btn-cancel" onClick={() => setViewReport(null)}>
-                Close
-              </button>
-              <button className="ir-btn-submit" onClick={() => handleExportPDF(viewReport)}>
-                Download Printable PDF
-              </button>
+              {/* Scrollable document viewport */}
+              <div className="client-doc-scroll-wrap">
+                <article className="client-doc-paper" id="printable-client-report">
+                  {/* Document Header Title */}
+                  <h1 className="client-doc-title">{doc.title}</h1>
+
+                  {/* Metadata block */}
+                  <div className="client-doc-meta-section">
+                    <div className="client-doc-meta-row">
+                      <span className="client-doc-meta-label">Date:</span>
+                      <span className="client-doc-meta-value">{doc.date}</span>
+                    </div>
+                    <div className="client-doc-meta-row">
+                      <span className="client-doc-meta-label">Project Name:</span>
+                      <span className="client-doc-meta-value">{doc.projectName}</span>
+                    </div>
+                    <div className="client-doc-meta-row">
+                      <span className="client-doc-meta-label">Location:</span>
+                      <span className="client-doc-meta-value">{doc.location}</span>
+                    </div>
+                  </div>
+
+                  {/* Manpower section: ONLY IF MANPOWER EXISTS */}
+                  {doc.manpower && (
+                    <section className="client-doc-section">
+                      <h2 className="client-doc-section-heading">Manpower</h2>
+                      {doc.manpower.total && (
+                        <div className="client-doc-manpower-total">
+                          <span className="client-doc-meta-label">Total:</span> {doc.manpower.total}
+                        </div>
+                      )}
+                      {doc.manpower.breakdown && doc.manpower.breakdown.length > 0 && (
+                        <div className="client-doc-manpower-list">
+                          {doc.manpower.breakdown.map((item, idx) => (
+                            <div key={idx} className="client-doc-manpower-item">{item}</div>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+                  )}
+
+                  {/* Work Progress section */}
+                  <section className="client-doc-section">
+                    <h2 className="client-doc-section-heading">Work Progress</h2>
+                    <div className="client-doc-list">
+                      {doc.workProgress.map((item, idx) => (
+                        <div key={idx} className="client-doc-list-item">{item}</div>
+                      ))}
+                    </div>
+                  </section>
+
+                  {/* Ongoing Scope of works section */}
+                  <section className="client-doc-section">
+                    <h2 className="client-doc-section-heading">Ongoing Scope of works</h2>
+                    <div className="client-doc-list">
+                      {doc.ongoingScope.map((item, idx) => (
+                        <div key={idx} className="client-doc-list-item">{item}</div>
+                      ))}
+                    </div>
+                  </section>
+
+                  {/* Document Footer Sign-off */}
+                  <footer className="client-doc-footer">
+                    <div className="client-doc-footer-left">
+                      <div><strong>Prepared By:</strong> {viewReport.prepared_by_name || 'Site Engineer'} ({viewReport.prepared_by_role || 'Field Engineer'})</div>
+                      <div><strong>Record ID:</strong> {viewReport.id}</div>
+                    </div>
+                    <div className="client-doc-footer-right">
+                      <div><strong>SitePulse Official Daily Site Record</strong></div>
+                      <div>Status: <strong>{viewReport.status || 'Submitted'}</strong> • Created: {formatDate(viewReport.created_at)}</div>
+                    </div>
+                  </footer>
+                </article>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── Generate Report Modal ── */}
       {showModal && (
