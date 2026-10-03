@@ -76,10 +76,15 @@ const emptyForm: NewProjectForm = {
   end_date: '',
 };
 
-const generateAutoProjectCode = (existingProjects: ProjectRecord[]) => {
+const generateRandomProjectCode = (existingProjects: ProjectRecord[] = []) => {
+  const existingCodes = new Set(existingProjects.map(p => (p.code || '').toUpperCase()));
   const year = new Date().getFullYear();
-  const nextNum = (existingProjects.length + 1).toString().padStart(3, '0');
-  return `PRJ-${year}-${nextNum}`;
+  let code = '';
+  do {
+    const rand = Math.floor(1000 + Math.random() * 9000);
+    code = `PRJ-${year}-${rand}`;
+  } while (existingCodes.has(code));
+  return code;
 };
 
 const Projects: React.FC = () => {
@@ -104,9 +109,9 @@ const Projects: React.FC = () => {
   const [formError, setFormError] = useState<string | null>(null);
 
   const openCreateModal = () => {
-    const autoCode = generateAutoProjectCode(projects);
+    const randomCode = generateRandomProjectCode(projects);
     setForm({
-      code: autoCode,
+      code: randomCode,
       name: '',
       location: '',
       scope: '',
@@ -538,15 +543,22 @@ const Projects: React.FC = () => {
                 />
               </div>
               <div className="pm-form-group">
-                <label>
-                  Project Code <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '500', marginLeft: '4px' }}>(Auto-generated)</span>
-                </label>
+                <label>Project Code</label>
                 <input
                   className="pm-input"
                   value={form.code}
                   readOnly
+                  disabled
                   tabIndex={-1}
-                  style={{ backgroundColor: '#f1f5f9', color: '#475569', fontWeight: 600, cursor: 'not-allowed' }}
+                  style={{
+                    backgroundColor: '#f1f5f9',
+                    color: '#334155',
+                    fontWeight: 700,
+                    letterSpacing: '0.5px',
+                    cursor: 'not-allowed',
+                    border: '1px solid #cbd5e1',
+                    userSelect: 'none'
+                  }}
                 />
               </div>
             </div>

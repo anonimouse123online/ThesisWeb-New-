@@ -14,7 +14,6 @@ import {
   X,
   FileText,
   HardHat,
-  CloudSun,
   Truck,
   Download,
   ArrowLeft,
@@ -66,7 +65,9 @@ const parseClientReport = (
   defaultProjectName?: string,
   defaultLocation?: string
 ): ClientReportParsed => {
-  const summary = (report.summary || '').trim();
+  const summary = (report.summary || '')
+    .replace(/Generate the report now\.?/gi, '')
+    .trim();
   const lowerSummary = summary.toLowerCase();
 
   // If summary already follows the client report structure:
@@ -235,6 +236,26 @@ const parseClientReport = (
     workProgress: wpLines.length ? wpLines : ['Site Inspection: 100% Completed'],
     ongoingScope: scopeLines.length ? scopeLines : ['General Site Operations']
   };
+};
+
+const getReportManpowerCount = (report: ProjectReportItem): number => {
+  if (report.manpower_count && report.manpower_count > 0) {
+    return report.manpower_count;
+  }
+  if (report.summary) {
+    const match = report.summary.match(/Total:\s*(\d+)/i);
+    if (match) {
+      return parseInt(match[1], 10);
+    }
+  }
+  return 0;
+};
+
+const cleanSummaryPreview = (summaryText: string): string => {
+  if (!summaryText) return '';
+  return summaryText
+    .replace(/Generate the report now\.?/gi, '')
+    .trim();
 };
 
 const ProjectReports: React.FC = () => {
@@ -506,7 +527,7 @@ const ProjectReports: React.FC = () => {
                 </span>
               </div>
 
-              <p className="pr-card-summary">{report.summary}</p>
+              <p className="pr-card-summary">{cleanSummaryPreview(report.summary)}</p>
 
               <div className="pr-card-details-grid">
                 <div className="pr-detail-item">
@@ -514,18 +535,14 @@ const ProjectReports: React.FC = () => {
                   <span>{report.prepared_by_name || 'Site Engineer'} ({report.prepared_by_role || 'Field Engineer'})</span>
                 </div>
 
-                <div className="pr-detail-item">
-                  <span className="pr-detail-label">Manpower & Weather</span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                      <HardHat size={13} /> {report.manpower_count} workers
+                {getReportManpowerCount(report) > 0 && (
+                  <div className="pr-detail-item">
+                    <span className="pr-detail-label">Manpower</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <HardHat size={13} /> {getReportManpowerCount(report)} worker{getReportManpowerCount(report) > 1 ? 's' : ''}
                     </span>
-                    •
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                      <CloudSun size={13} /> {report.weather || 'Clear'}
-                    </span>
-                  </span>
-                </div>
+                  </div>
+                )}
 
                 {report.equipment_on_site && (
                   <div className="pr-detail-item">
