@@ -26,7 +26,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
   const [users, setUsers]           = useState<AvailableUser[]>([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [adding, setAdding]         = useState(false);
 
   // ── Fetch available users (not yet in this project) ──
@@ -58,21 +58,25 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
     return acc;
   }, {});
 
-  // ── Add selected user to project ──
+  // ── Add selected users to project ──
   const handleAdd = async () => {
-    if (!selectedId) return;
+    if (selectedIds.length === 0) return;
     setAdding(true);
     try {
-      const res = await fetchWithAuth(
-        `${API_URL}/projects/${projectCode}/members`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: selectedId }),
+      await Promise.all(selectedIds.map(async (userId) => {
+        const res = await fetchWithAuth(
+          `${API_URL}/projects/${projectCode}/members`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId }),
+          }
+        );
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.message || data.error || 'Failed to add member');
         }
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || data.error || 'Failed to add member');
+      }));
       onAdded();
       onClose();
     } catch (err: any) {
@@ -80,6 +84,12 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
     } finally {
       setAdding(false);
     }
+  };
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
   };
 
   return (
@@ -116,10 +126,8 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
                 {members.map((user) => (
                   <button
                     key={user.id}
-                    className={`am-user-row ${selectedId === user.id ? 'am-user-row--selected' : ''}`}
-                    onClick={() =>
-                      setSelectedId((prev) => (prev === user.id ? null : user.id))
-                    }
+                    className={`am-user-row ${selectedIds.includes(user.id) ? 'am-user-row--selected' : ''}`}
+                    onClick={() => toggleSelection(user.id)}
                   >
                     <span className="am-user-name">{user.name}</span>
                     <span className="am-user-email">{user.email}</span>
@@ -139,9 +147,9 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
           <button
             className="am-btn-add"
             onClick={handleAdd}
-            disabled={!selectedId || adding}
+            disabled={selectedIds.length === 0 || adding}
           >
-            {adding ? 'Adding…' : 'Add Member'}
+            {adding ? 'Adding…' : `Add Member${selectedIds.length > 1 ? 's' : ''}`}
           </button>
         </div>
       </div>
