@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback, useEffectEvent } from
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import '../components/ProjectDetails.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
+import { toDateInputValue } from '../utils/dates';
 import ProfileDropdown from '../components/ProfileDropdown';
 import StatusBadge from '../components/StatusBadge';
 import Dropdown from '../components/Dropdown';
@@ -167,23 +168,6 @@ const formatTimeline = (start: string, end: string) => {
     return `${(dt.getMonth() + 1).toString().padStart(2, '0')}/${dt.getDate().toString().padStart(2, '0')}/${String(dt.getFullYear()).slice(2)}`;
   };
   return `${fmt(start)} – ${fmt(end)}`;
-};
-
-export const toDateInputValue = (d?: string | null) => {
-  if (!d) return undefined;
-  if (/^\d{4}-\d{2}-\d{2}/.test(d)) {
-    return d.slice(0, 10);
-  }
-  try {
-    const dt = new Date(d);
-    if (isNaN(dt.getTime())) return undefined;
-    const year = dt.getFullYear();
-    const month = String(dt.getMonth() + 1).padStart(2, '0');
-    const day = String(dt.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  } catch {
-    return undefined;
-  }
 };
 
 // ─── Generate Invite Code Modal ───────────────────────────────────────────────
@@ -406,14 +390,14 @@ const ProjectDetails: React.FC = () => {
     return r;
   };
 
-  const isProjectOwner = (u: TeamMember) => {
+  const isProjectOwner = useCallback((u: TeamMember) => {
     const r = (u.role || '').toLowerCase();
     return r === 'owner' || (Boolean(project?.owner_id) && String(u.id) === String(project?.owner_id));
-  };
+  }, [project?.owner_id]);
 
   const siteTeamMembers = useMemo(
     () => teamMembers.filter(u => !isProjectOwner(u)),
-    [teamMembers, project?.owner_id]
+    [teamMembers, isProjectOwner]
   );
 
   const engineerMembers = useMemo(
