@@ -1,8 +1,9 @@
+import { getErrorMessage } from '../utils/errors';
 import React, { useState, useEffect } from "react";
 import "../components/Resourcemanagement.css";
 import { API_BASE_URL, fetchWithAuth } from "../utils/api";
 import StatusBadge from "../components/StatusBadge";
-import { showToast } from "../components/Toast";
+import { showToast } from "../utils/toast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -104,8 +105,8 @@ const ResourceManagement: React.FC = () => {
       if (!res.ok) throw new Error("Failed to fetch resources");
       const json = await res.json();
       setResources(json.data);
-    } catch (err: any) {
-      setError(err.message || "Something went wrong");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '') || "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -168,8 +169,8 @@ const ResourceManagement: React.FC = () => {
       setForm(emptyForm);
       setShowModal(false);
       showToast("Resource added successfully!", "success");
-    } catch (err: any) {
-      showToast(err.message || "Failed to add resource", "error");
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err, '') || "Failed to add resource", "error");
     }
   };
 
@@ -215,8 +216,8 @@ const ResourceManagement: React.FC = () => {
       setShowEditModal(false);
       setEditingResource(null);
       showToast("Resource updated successfully!", "success");
-    } catch (err: any) {
-      showToast(err.message || "Failed to update resource", "error");
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err, '') || "Failed to update resource", "error");
     }
   };
 
@@ -229,8 +230,8 @@ const ResourceManagement: React.FC = () => {
       if (!res.ok) throw new Error("Failed to delete resource");
       setResources(prev => prev.filter(r => r.id !== id));
       showToast("Resource deleted successfully!", "success");
-    } catch (err: any) {
-      showToast(err.message || "Failed to delete resource", "error");
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err, '') || "Failed to delete resource", "error");
     }
   };
 

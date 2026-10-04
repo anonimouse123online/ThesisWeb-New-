@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import '../components/Settings.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
-import { showToast } from '../components/Toast';
+import { showToast } from '../utils/toast';
 import ProfileDropdown from '../components/ProfileDropdown';
-import { User, Lock, Bell, Settings2, Check, KeyRound, Download } from 'lucide-react';
+import AuditTrail from './AuditTrail';
+import { User, Lock, Bell, Settings2, Check, KeyRound, Download, ShieldCheck } from 'lucide-react';
 
 const API_URL = API_BASE_URL;
 
-type TabKey = 'profile' | 'security' | 'notifications' | 'system';
+type TabKey = 'profile' | 'security' | 'notifications' | 'system' | 'audit';
 
 interface UserProfile {
   id: string;
@@ -43,7 +44,15 @@ interface SystemHealth {
 const Settings: React.FC = () => {
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab]     = useState<TabKey>('profile');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const activeTab: TabKey = requestedTab === 'security' || requestedTab === 'notifications' || requestedTab === 'system' || requestedTab === 'audit'
+    ? requestedTab : 'profile';
+  const setActiveTab = (tab: TabKey) => setSearchParams(previous => {
+    const next = new URLSearchParams(previous);
+    next.set('tab', tab);
+    return next;
+  }, { replace: true });
   const [, setLoading]                = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
@@ -69,13 +78,13 @@ const Settings: React.FC = () => {
   const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
 
   // Fetch Current Profile
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     // Preload from localStorage if available
     const stored = localStorage.getItem('user');
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
-        if (parsed.name && !fullName) setFullName(parsed.name);
+        if (parsed.name) setFullName(previous => previous || parsed.name);
       } catch { /* ignore */ }
     }
 
@@ -96,26 +105,26 @@ const Settings: React.FC = () => {
         setWeatherUnit(u.preferences.weather_unit || 'celsius');
         setCurrency(u.preferences.currency || 'PHP');
       }
-    } catch (err: any) {
-      showToast(err.message, 'error');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Unable to load your profile.', 'error');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Fetch System Health
-  const fetchHealth = async () => {
+  const fetchHealth = useCallback(async () => {
     try {
       const res = await fetchWithAuth(`${API_URL}/auth/system-health`);
       const json = await res.json();
       if (res.ok) setSystemHealth(json.data);
     } catch { /* ignore */ }
-  };
+  }, []);
 
   useEffect(() => {
     fetchProfile();
     fetchHealth();
-  }, []);
+  }, [fetchProfile, fetchHealth]);
 
   // Save Profile Changes
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -155,8 +164,8 @@ const Settings: React.FC = () => {
         localStorage.setItem('user', JSON.stringify(parsed));
       }
       fetchProfile();
-    } catch (err: any) {
-      showToast(err.message, 'error');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Unable to save your profile.', 'error');
     } finally {
       setSavingProfile(false);
     }
@@ -196,8 +205,8 @@ const Settings: React.FC = () => {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-    } catch (err: any) {
-      showToast(err.message, 'error');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Unable to update your password.', 'error');
     } finally {
       setSavingPassword(false);
     }
@@ -275,10 +284,16 @@ const Settings: React.FC = () => {
         >
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Settings2 size={15} /> Workspace &amp; Health</span>
         </button>
+        <button
+          className={`st-tab-btn ${activeTab === 'audit' ? 'st-tab-btn--active' : ''}`}
+          onClick={() => setActiveTab('audit')}
+        >
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><ShieldCheck size={15} /> Audit Trail</span>
+        </button>
       </div>
 
       {/* ── Main Content Grid ── */}
-      <div className="st-panel-grid">
+      {activeTab === 'audit' ? <AuditTrail /> : <div className="st-panel-grid">
 
         {/* ── LEFT PANEL: Active Tab Form ── */}
         <div>
@@ -588,7 +603,7 @@ const Settings: React.FC = () => {
           </div>
         </div>
 
-      </div>
+      </div>}
     </main>
   );
 };

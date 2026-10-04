@@ -1,8 +1,9 @@
+import { getErrorMessage } from '../utils/errors';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../components/CreateTask.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
-import { showToast } from '../components/Toast';
+import { showToast } from '../utils/toast';
 import { Package, Truck, Building2, X, AlertTriangle, Info } from 'lucide-react';
 import Dropdown from '../components/Dropdown';
 
@@ -40,6 +41,26 @@ interface AllocatedMaterial {
   unitPrice?: string;
 }
 
+interface ProjectResource {
+  id: string | number;
+  name: string;
+  category?: AllocatedMaterial['category'] | null;
+  supplier?: string | null;
+  quantity: string | number;
+  unit?: string | null;
+  minThreshold?: string | number | null;
+  unitPrice?: string | number | null;
+}
+
+interface ProjectMemberResponse {
+  id: string;
+  name?: string;
+  full_name?: string;
+  email: string;
+  role?: string;
+  system_role?: string;
+}
+
 const CreateTask: React.FC = () => {
   const navigate = useNavigate();
 
@@ -66,7 +87,7 @@ const CreateTask: React.FC = () => {
     [users]
   );
   const [loadingOptions, setLoadingOptions] = useState(true);
-  const [projectResources, setProjectResources] = useState<any[]>([]);
+  const [projectResources, setProjectResources] = useState<ProjectResource[]>([]);
 
   const [formData, setFormData] = useState({
     taskName: '',
@@ -114,11 +135,11 @@ const CreateTask: React.FC = () => {
           const pJson = await pRes.json();
           const pList = pJson.data || pJson || [];
           setProjects(pList);
-          if (pList.length > 0 && !formData.projectId) {
-            setFormData(prev => ({ ...prev, projectId: pList[0].id }));
+          if (pList.length > 0) {
+            setFormData(prev => prev.projectId ? prev : { ...prev, projectId: pList[0].id });
           }
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Failed to load options', err);
       } finally {
         setLoadingOptions(false);
@@ -152,7 +173,7 @@ const CreateTask: React.FC = () => {
       .then(res => (res.ok ? res.json() : null))
       .then(mJson => {
         if (mJson && Array.isArray(mJson.data)) {
-          const members: UserOption[] = mJson.data.map((m: any) => ({
+          const members: UserOption[] = mJson.data.map((m: ProjectMemberResponse) => ({
             id: m.id,
             full_name: m.name || m.full_name || m.email,
             email: m.email || '',
@@ -274,8 +295,8 @@ const CreateTask: React.FC = () => {
 
       showToast('Task created and published successfully!', 'success');
       navigate('/tasks');
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setSubmitting(false);
     }
@@ -438,12 +459,12 @@ const CreateTask: React.FC = () => {
                         value={matItemInput.name}
                         onChange={e => {
                           const val = e.target.value;
-                          const match = projectResources.find((r: any) => (r.name || '').toLowerCase() === val.toLowerCase());
+                          const match = projectResources.find((r) => (r.name || '').toLowerCase() === val.toLowerCase());
                           if (match) {
                             setMatItemInput(prev => ({
                               ...prev,
                               name: val,
-                              category: (match.category as any) || prev.category,
+                              category: match.category || prev.category,
                               supplier: match.supplier || prev.supplier,
                               unit: match.unit || prev.unit,
                               minThreshold: match.minThreshold !== undefined ? String(match.minThreshold) : prev.minThreshold,
@@ -461,7 +482,7 @@ const CreateTask: React.FC = () => {
                         }}
                       />
                       <datalist id="ct-project-stock-options">
-                        {projectResources.map((res: any) => (
+                        {projectResources.map((res) => (
                           <option key={res.id} value={res.name}>
                             {res.category} ({res.quantity} {res.unit} in stock — {res.supplier || 'General'})
                           </option>

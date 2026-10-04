@@ -1,3 +1,4 @@
+import { getErrorMessage } from '../utils/errors';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
@@ -38,6 +39,7 @@ interface ProjectItem {
   status: 'Approved' | 'Delayed' | 'At risk' | 'In Review' | 'Ongoing' | string;
   prog?: string;
   progress_pct?: number;
+  progress?: number;
   completed_tasks?: number;
   total_tasks?: number;
 }
@@ -203,8 +205,8 @@ const Dashboard: React.FC = () => {
           rfis:         rfisRes.data ?? [],
           notes:        notes.data ?? [],
         });
-      } catch (err: any) {
-        setError(err.message || "Something went wrong");
+      } catch (err: unknown) {
+        setError(getErrorMessage(err, '') || "Something went wrong");
       } finally {
         setLoading(false);
       }
@@ -395,8 +397,8 @@ const Dashboard: React.FC = () => {
                       let pct = 0;
                       if (typeof p.progress_pct === 'number' && !isNaN(p.progress_pct)) {
                         pct = p.progress_pct;
-                      } else if (typeof (p as any).progress === 'number' && !isNaN((p as any).progress)) {
-                        pct = (p as any).progress;
+                      } else if (typeof p.progress === 'number' && !isNaN(p.progress)) {
+                        pct = p.progress;
                       } else if (p.total_tasks && p.total_tasks > 0) {
                         pct = Math.round(((p.completed_tasks || 0) / p.total_tasks) * 100);
                       } else if (p.prog && !isNaN(Number(String(p.prog).replace('%', '')))) {

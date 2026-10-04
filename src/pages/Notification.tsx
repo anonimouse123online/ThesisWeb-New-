@@ -2,6 +2,7 @@ import React, {
   useEffect,
   useState,
   useMemo,
+  useCallback,
 } from 'react';
 
 import { fetchWithAuth } from '../utils/api';
@@ -126,7 +127,7 @@ const Notification: React.FC = () => {
   // FETCH NOTIFICATIONS
   // ============================================================
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     try {
       setFetching(true);
       setError('');
@@ -148,43 +149,14 @@ const Notification: React.FC = () => {
     } finally {
       setFetching(false);
     }
-  };
-
-
-  // ============================================================
-  // FETCH PROJECTS
-  // ============================================================
-
-  const fetchProjects = async () => {
-    try {
-      const response = await fetchWithAuth('/projects');
-      if (response.ok) {
-        const json = await response.json();
-        const list: ProjectItem[] = Array.isArray(json.data)
-          ? json.data
-          : Array.isArray(json)
-          ? json
-          : [];
-
-        setProjects(list);
-
-        if (list.length > 0 && !selectedProject) {
-          const firstCode = list[0].code;
-          setSelectedProject(firstCode);
-          fetchProjectMembers(firstCode);
-        }
-      }
-    } catch (err) {
-      console.warn('Fetch projects error:', err);
-    }
-  };
+  }, []);
 
 
   // ============================================================
   // FETCH MEMBERS OF A SPECIFIC PROJECT
   // ============================================================
 
-  const fetchProjectMembers = async (projectCode: string) => {
+  const fetchProjectMembers = useCallback(async (projectCode: string) => {
     if (!projectCode) {
       setProjectMembers([]);
       setSelectedMember('');
@@ -216,8 +188,33 @@ const Notification: React.FC = () => {
     } finally {
       setFetchingMembers(false);
     }
-  };
+  }, []);
+  // ============================================================
+  // FETCH PROJECTS
+  // ============================================================
+  const fetchProjects = useCallback(async () => {
+    try {
+      const response = await fetchWithAuth('/projects');
+      if (response.ok) {
+        const json = await response.json();
+        const list: ProjectItem[] = Array.isArray(json.data)
+          ? json.data
+          : Array.isArray(json)
+          ? json
+          : [];
 
+        setProjects(list);
+
+        if (list.length > 0) {
+          const firstCode = list[0].code;
+          setSelectedProject(firstCode);
+          fetchProjectMembers(firstCode);
+        }
+      }
+    } catch (err) {
+      console.warn('Fetch projects error:', err);
+    }
+  }, [fetchProjectMembers]);
 
   // ============================================================
   // INITIAL LOAD
@@ -226,7 +223,7 @@ const Notification: React.FC = () => {
   useEffect(() => {
     fetchNotifications();
     fetchProjects();
-  }, []);
+  }, [fetchNotifications, fetchProjects]);
 
 
   // ============================================================

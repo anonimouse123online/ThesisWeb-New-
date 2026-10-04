@@ -1,3 +1,4 @@
+import { getErrorMessage } from '../utils/errors';
 import React, { useState, useEffect } from 'react';
 import '../components/add-member.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
@@ -41,8 +42,8 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
         const data = await res.json();
         if (!res.ok) throw new Error(data.message || data.error || 'Failed to load users');
         setUsers(data.data ?? []);
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err: unknown) {
+        setError(getErrorMessage(err));
       } finally {
         setLoading(false);
       }
@@ -75,8 +76,8 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
       if (!res.ok) throw new Error(data.message || data.error || 'Failed to add member');
       onAdded();
       onClose();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setAdding(false);
     }

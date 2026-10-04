@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { getErrorMessage } from '../utils/errors';
+import React, { useState, useEffect, useCallback, useEffectEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import '../components/ProjectReports.css';
 import StatusBadge from '../components/StatusBadge';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
-import { showToast } from '../components/Toast';
+import { showToast } from '../utils/toast';
 import ProfileDropdown from '../components/ProfileDropdown';
 import {
   ClipboardList,
@@ -282,27 +283,29 @@ const ProjectReports: React.FC = () => {
   const [weather, setWeather]                   = useState('');
   const [submitting, setSubmitting]             = useState(false);
 
-  const fetchReports = async () => {
+  const fetchReports = useCallback(async (searchTerm: string) => {
     setLoading(true);
     try {
-      let queryParams = new URLSearchParams();
+      const queryParams = new URLSearchParams();
       if (selectedType !== 'All') queryParams.append('type', selectedType);
-      if (search.trim()) queryParams.append('search', search.trim());
+      if (searchTerm.trim()) queryParams.append('search', searchTerm.trim());
 
       const res = await fetchWithAuth(`${API_URL}/projects/${projectCode}/reports?${queryParams.toString()}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || 'Failed to fetch reports');
       setReports(json.data || []);
-    } catch (err: any) {
-      showToast(err.message, 'error');
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err), 'error');
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectCode, selectedType]);
 
+  // Keep the draft search separate from the route/type refresh triggers.
+  const readSearch = useEffectEvent(() => search);
   useEffect(() => {
     if (projectCode) {
-      fetchReports();
+      fetchReports(readSearch());
       fetchWithAuth(`${API_URL}/projects/${projectCode}`)
         .then((res) => res.json())
         .then((json) => {
@@ -315,7 +318,7 @@ const ProjectReports: React.FC = () => {
         })
         .catch(() => {});
     }
-  }, [projectCode, selectedType]);
+  }, [projectCode, fetchReports]);
 
   const handleCreateReport = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -354,9 +357,9 @@ const ProjectReports: React.FC = () => {
       setEquipmentOnSite('');
       setWeather('');
       setManpowerCount(0);
-      fetchReports();
-    } catch (err: any) {
-      showToast(err.message, 'error');
+      fetchReports(search);
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -474,10 +477,10 @@ const ProjectReports: React.FC = () => {
             placeholder="Search report titles or activity notes..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') fetchReports(); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') fetchReports(search); }}
           />
           {search && (
-            <button className="pr-search-clear" onClick={() => { setSearch(''); fetchReports(); }} aria-label="Clear search">
+            <button className="pr-search-clear" onClick={() => { setSearch(''); fetchReports(search); }} aria-label="Clear search">
               <X size={14} />
             </button>
           )}

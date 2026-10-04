@@ -124,6 +124,260 @@
   color: #64748b;
 }
 
+/* ── Compact Projects Overview (other tables retain their layout) ── */
+.main-content.pm-overview {
+  padding: 24px clamp(16px, 1.8vw, 24px);
+}
+
+.pm-overview .pm-card {
+  padding: 16px;
+  min-width: 0;
+}
+
+.pm-overview .pm-card-header {
+  margin-bottom: 10px;
+  gap: 10px;
+}
+
+.pm-overview .pm-card-header > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pm-overview .pd-search-input {
+  max-width: 100%;
+}
+
+.pm-project-table-scroll {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.pm-project-table {
+  table-layout: fixed;
+}
+
+.pm-project-table .pm-col-code { width: 12.5%; }
+.pm-project-table .pm-col-name { width: 17%; }
+.pm-project-table .pm-col-client { width: 11%; }
+.pm-project-table .pm-col-timeline { width: 8%; }
+.pm-project-table .pm-col-budget { width: 7%; }
+.pm-project-table .pm-col-progress { width: 9%; }
+.pm-project-table .pm-col-resources { width: 8%; }
+.pm-project-table .pm-col-status { width: 9.5%; }
+.pm-project-table .pm-col-issues { width: 6%; }
+.pm-project-table .pm-col-actions { width: 12%; }
+
+.pm-project-table th {
+  padding: 8px;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+}
+
+.pm-project-table td {
+  padding: 12px 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.pm-project-table .pm-project-code {
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pm-project-name,
+.pm-project-client {
+  overflow-wrap: anywhere;
+}
+
+.pm-project-location {
+  margin-top: 2px;
+  font-size: 11px;
+}
+
+.pm-timeline,
+.pm-progress-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.pm-project-budget,
+.pm-project-resources {
+  white-space: nowrap;
+}
+
+.pm-project-progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px;
+}
+
+.pm-progress-track {
+  width: 100%;
+  max-width: 64px;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #e2e8f0;
+}
+
+.pm-progress-fill {
+  height: 100%;
+  background: #ea580c;
+  border-radius: inherit;
+}
+
+.pm-progress-stats {
+  font-weight: 600;
+}
+
+.pm-project-table .pm-project-status {
+  padding: 4px 6px;
+  font-size: 10.5px;
+}
+
+.pm-project-table .pm-workspace-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  max-width: 100%;
+  padding: 7px 8px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.pm-workspace-btn svg {
+  flex-shrink: 0;
+}
+
+@media (min-width: 1024px) and (max-width: 1399px) {
+  .pm-project-table th,
+  .pm-project-table td {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  .pm-project-table th { font-size: 9.5px; }
+  .pm-project-table td { font-size: 11.5px; }
+  .pm-project-table .pm-project-code { font-size: 10.5px; }
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+  .pm-project-table th,
+  .pm-project-table td {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  .pm-project-table th { font-size: 8.5px; }
+  .pm-project-table td { font-size: 10px; }
+  .pm-project-table .pm-project-code,
+  .pm-project-location,
+  .pm-timeline,
+  .pm-progress-stats { font-size: 9.5px; }
+
+  .pm-project-table .pm-project-status {
+    padding: 4px;
+    font-size: 9px;
+  }
+
+  .pm-project-table .pm-workspace-btn {
+    padding: 6px 5px;
+    gap: 2px;
+    font-size: 9.5px;
+  }
+
+  .pm-workspace-btn svg { width: 11px; }
+}
+
+@media (max-width: 1023px) {
+  .pm-project-table-scroll {
+    overflow-x: auto;
+  }
+
+  .pm-project-table {
+    min-width: 680px;
+  }
+}
+
+@media (max-width: 767px) {
+  .pm-project-table {
+    min-width: 860px;
+  }
+}
+
+@media (max-width: 640px) {
+  .main-content.pm-overview {
+    margin-left: 0;
+    width: 100%;
+    padding: 16px;
+  }
+
+  .pm-overview .pm-header {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+}
+
+/* ── Project Issue Alerts ── */
+.pm-issue-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 24px;
+  padding: 3px 5px;
+  border: 1px solid;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.pm-issue-badge svg {
+  flex-shrink: 0;
+}
+
+.pm-issue-badge--warning {
+  color: #c2410c;
+  background: #fff7ed;
+  border-color: #fdba74;
+}
+
+.pm-issue-badge--clear {
+  color: #047857;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.pm-issue-badge--neutral {
+  color: #475569;
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.pm-issue-badge:hover {
+  text-decoration: underline;
+}
+
+.pm-issue-badge:focus-visible {
+  outline: 2px solid #ea580c;
+  outline-offset: 3px;
+}
+
 /* ── Status Pills ── */
 .proj-pill {
   display: inline-flex;

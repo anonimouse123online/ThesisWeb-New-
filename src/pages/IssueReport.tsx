@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { getErrorMessage } from '../utils/errors';
+import React, { useState, useEffect, useCallback, useEffectEvent } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import '../components/IssueReport.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
-import { showToast } from '../components/Toast';
+import { showToast } from '../utils/toast';
 import ProfileDropdown from '../components/ProfileDropdown';
 import StatusBadge from '../components/StatusBadge';
 import Dropdown from '../components/Dropdown';
+import { isActiveIssue, parseProjectIssues } from '../utils/projectIssues';
 import {
   AlertCircle,
   Clock,
@@ -60,12 +62,23 @@ interface TeamMember {
 const IssueReport: React.FC = () => {
   const { projectCode } = useParams<{ projectCode: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedStatus = searchParams.get('status');
+  const statusFilter = requestedStatus === 'active' ? 'Active'
+    : ['Open', 'In Progress', 'Resolved'].includes(requestedStatus || '') ? requestedStatus! : 'All';
+  const setStatusFilter = (status: string) => {
+    setSearchParams(previous => {
+      const next = new URLSearchParams(previous);
+      if (status === 'All') next.delete('status');
+      else next.set('status', status === 'Active' ? 'active' : status);
+      return next;
+    });
+  };
 
   const [issues, setIssues]               = useState<Issue[]>([]);
   const [teamMembers, setTeamMembers]     = useState<TeamMember[]>([]);
   const [loading, setLoading]             = useState(true);
   const [search, setSearch]               = useState('');
-  const [statusFilter, setStatusFilter]   = useState<string>('All');
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
   const [priorityFilter, setPriorityFilter] = useState<string>('All');
   const [showModal, setShowModal]         = useState(false);
@@ -80,39 +93,42 @@ const IssueReport: React.FC = () => {
   const [submitting, setSubmitting]   = useState(false);
 
   // Fetch issues
-  const fetchIssues = async () => {
+  const fetchIssues = useCallback(async (searchTerm: string) => {
     setLoading(true);
     try {
-      let queryParams = new URLSearchParams();
-      if (statusFilter !== 'All') queryParams.append('status', statusFilter);
+      const queryParams = new URLSearchParams();
+      if (statusFilter !== 'All' && statusFilter !== 'Active') queryParams.append('status', statusFilter);
       if (categoryFilter !== 'All') queryParams.append('category', categoryFilter);
       if (priorityFilter !== 'All') queryParams.append('priority', priorityFilter);
-      if (search.trim()) queryParams.append('search', search.trim());
+      if (searchTerm.trim()) queryParams.append('search', searchTerm.trim());
 
       const res = await fetchWithAuth(`${API_URL}/projects/${projectCode}/issues?${queryParams.toString()}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || 'Failed to fetch issues');
-      setIssues(json.data || []);
-    } catch (err: any) {
-      showToast(err.message, 'error');
+      const records = parseProjectIssues<Issue>(json);
+      setIssues(statusFilter === 'Active' ? records.filter(isActiveIssue) : records);
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err), 'error');
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectCode, statusFilter, categoryFilter, priorityFilter]);
 
   // Fetch project team members for assignee dropdown
-  const fetchMembers = async () => {
+  const fetchMembers = useCallback(async () => {
     try {
       const res = await fetchWithAuth(`${API_URL}/projects/${projectCode}/members`);
       const json = await res.json();
       if (res.ok) setTeamMembers(json.data || []);
     } catch { /* ignore */ }
-  };
+  }, [projectCode]);
 
+  // Search is a draft submitted on Enter, not a trigger for automatic fetching.
+  const readSearch = useEffectEvent(() => search);
   useEffect(() => {
-    fetchIssues();
+    fetchIssues(readSearch());
     fetchMembers();
-  }, [projectCode, statusFilter, categoryFilter, priorityFilter]);
+  }, [fetchIssues, fetchMembers]);
 
   const handleStatusChange = async (issueId: string, newStatus: string) => {
     try {
@@ -125,9 +141,9 @@ const IssueReport: React.FC = () => {
       if (!res.ok) throw new Error(json.message || 'Failed to update status');
 
       showToast(`Issue status updated to ${newStatus}.`, 'success');
-      fetchIssues();
-    } catch (err: any) {
-      showToast(err.message, 'error');
+      fetchIssues(search);
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err), 'error');
     }
   };
 
@@ -161,15 +177,17 @@ const IssueReport: React.FC = () => {
       setTitle('');
       setDescription('');
       setLocation('');
-      fetchIssues();
-    } catch (err: any) {
-      showToast(err.message, 'error');
+      fetchIssues(search);
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err), 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
   // Stats calculation
+  const visibleIssues = statusFilter === 'Active' ? issues.filter(isActiveIssue) : issues;
+  const activeCount = issues.filter(isActiveIssue).length;
   const totalCount    = issues.length;
   const openCount     = issues.filter(i => i.status === 'Open').length;
   const inProgCount   = issues.filter(i => i.status === 'In Progress').length;
@@ -283,10 +301,10 @@ const IssueReport: React.FC = () => {
               placeholder="Search by issue title, location, or notes..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') fetchIssues(); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') fetchIssues(search); }}
             />
             {search && (
-              <button className="ir-search-clear" onClick={() => { setSearch(''); fetchIssues(); }} aria-label="Clear search">
+              <button className="ir-search-clear" onClick={() => { setSearch(''); fetchIssues(search); }} aria-label="Clear search">
                 <X size={14} />
               </button>
             )}
@@ -310,7 +328,7 @@ const IssueReport: React.FC = () => {
 
         {/* Status Filter Pills */}
         <div className="ir-toolbar-filters">
-          {['All', 'Open', 'In Progress', 'Resolved'].map((st) => (
+          {['All', 'Active', 'Open', 'In Progress', 'Resolved'].map((st) => (
             <button
               key={st}
               className={`ir-filter-pill ${statusFilter === st ? 'ir-filter-pill--active' : ''}`}
@@ -318,7 +336,7 @@ const IssueReport: React.FC = () => {
             >
               <span>{st}</span>
               <span className="ir-pill-count">
-                {st === 'All' ? totalCount : st === 'Open' ? openCount : st === 'In Progress' ? inProgCount : resolvedCount}
+                {st === 'All' ? totalCount : st === 'Active' ? activeCount : st === 'Open' ? openCount : st === 'In Progress' ? inProgCount : resolvedCount}
               </span>
             </button>
           ))}
@@ -328,7 +346,7 @@ const IssueReport: React.FC = () => {
       {/* ── Content Grid ── */}
       {loading ? (
         <p style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>Loading issues log…</p>
-      ) : issues.length === 0 ? (
+      ) : visibleIssues.length === 0 ? (
         <div style={{
           background: '#fff', borderRadius: '16px', border: '1.5px dashed #cbd5e1',
           padding: '48px 24px', textAlign: 'center', margin: '20px 0',
@@ -341,7 +359,7 @@ const IssueReport: React.FC = () => {
         </div>
       ) : (
         <div className="ir-grid">
-          {issues.map((issue) => {
+          {visibleIssues.map((issue) => {
             const prioClass = `prio-${issue.priority.toLowerCase()}`;
 
             return (

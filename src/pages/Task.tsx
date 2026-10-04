@@ -1,7 +1,8 @@
-import React, { Fragment, useState, useEffect, useMemo } from "react";
+import React, { Fragment, useState, useEffect, useMemo, useCallback } from "react";
 import AssignTaskModal from "../pages/Assigntaskmodal";
 import { API_BASE_URL, fetchWithAuth } from "../utils/api";
-import { showToast } from "../components/Toast";
+import { getErrorMessage } from "../utils/errors";
+import { showToast } from "../utils/toast";
 import { X, Rocket, CheckCircle2, Circle } from "lucide-react";
 import Dropdown from "../components/Dropdown";
 import StatusBadge from "../components/StatusBadge";
@@ -12,7 +13,7 @@ const BACKEND_URL = API_BASE_URL;
 type Priority = "High" | "Medium" | "Low";
 type Status = "in-progress" | "completed" | "blocked" | "Pending" | "pending" | "delayed" | "Delayed" | "Ongoing" | "ongoing" | "In Progress" | "Completed";
 
-const getTaskAutoStatus = (task: { status?: string; due_date?: string; subtasks?: SubTask[] | any; progress_pct?: number }): 'Completed' | 'Delayed' | 'Ongoing' | 'Pending' => {
+const getTaskAutoStatus = (task: { status?: string; due_date?: string; subtasks?: SubTask[]; progress_pct?: number }): 'Completed' | 'Delayed' | 'Ongoing' | 'Pending' => {
   const subtasks: SubTask[] = Array.isArray(task.subtasks) ? task.subtasks : [];
   const doneCount = subtasks.filter(s => s.completed).length;
   const pct = subtasks.length > 0
@@ -39,7 +40,7 @@ const getTaskAutoStatus = (task: { status?: string; due_date?: string; subtasks?
   return 'Pending';
 };
 
-function AutoStatusBadge({ task }: { task: { status?: string; due_date?: string; subtasks?: SubTask[] | any; progress_pct?: number } }) {
+function AutoStatusBadge({ task }: { task: { status?: string; due_date?: string; subtasks?: SubTask[]; progress_pct?: number } }) {
   const autoStatus = getTaskAutoStatus(task);
   return <StatusBadge status={autoStatus} />;
 }
@@ -414,7 +415,9 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
         if (!res.ok) throw new Error("Failed to fetch users.");
         const { data } = await res.json();
         setUsers(data);
-      } catch { } finally { setUsersLoading(false); }
+      } catch {
+        // Leave the user selector empty when users cannot be loaded.
+      } finally { setUsersLoading(false); }
     })();
 
     (async () => {
@@ -423,7 +426,9 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
         if (!res.ok) throw new Error("Failed to fetch projects.");
         const { data } = await res.json();
         setProjects(data);
-      } catch { } finally { setProjectsLoading(false); }
+      } catch {
+        // Leave the project selector empty when projects cannot be loaded.
+      } finally { setProjectsLoading(false); }
     })();
   }, []);
 
@@ -485,7 +490,7 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
       showToast("Task created successfully!", "success");
       onCreated(taskWithMeta);
       onClose();
-    } catch (err: any) { setError(err.message); } finally { setLoading(false); }
+    } catch (err: unknown) { setError(getErrorMessage(err)); } finally { setLoading(false); }
   };
 
   return (
@@ -703,13 +708,13 @@ export default function Tasks() {
         if (!res.ok) throw new Error("Failed to fetch projects.");
         const { data } = await res.json();
         setProjects(data);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Failed to load projects for filter:", err);
       }
     })();
   }, []);
 
-  const fetchTasks = async () => {
+  const fetchTasks = useCallback(async () => {
     setLoading(true);
     setFetchError(null);
     try {
@@ -721,16 +726,16 @@ export default function Tasks() {
       const json = await res.json();
       const list = Array.isArray(json) ? json : Array.isArray(json.data) ? json.data : [];
       setTasks(list);
-    } catch (err: any) {
-      setFetchError(err.message);
+    } catch (err: unknown) {
+      setFetchError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
-  };
+  }, [filterProjectId]);
 
   useEffect(() => {
     fetchTasks();
-  }, [filterProjectId]);
+  }, [fetchTasks]);
 
 
 
@@ -814,7 +819,12 @@ export default function Tasks() {
   const grouped    = groupByPhase(tasks);
 
   const toggleExpand = (id: number | string) =>
-    setExpandedIds((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const handleOpenAssign = (task: Task, e: React.MouseEvent) => {
     e.stopPropagation();

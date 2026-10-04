@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { getErrorMessage } from '../utils/errors';
+import React, { useState, useEffect, useMemo, useCallback, useEffectEvent } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import '../components/ProjectDetails.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import ProfileDropdown from '../components/ProfileDropdown';
 import StatusBadge from '../components/StatusBadge';
 import Dropdown from '../components/Dropdown';
-import { showToast } from '../components/Toast';
+import { showToast } from '../utils/toast';
 import {
   LayoutDashboard,
   ClipboardList,
@@ -205,8 +206,8 @@ const GenerateCodeModal: React.FC<{ project: Project; onClose: () => void }> = (
       if (!res.ok) throw new Error(data.message || 'Failed to generate code');
       setCodeValue(data.code || '');
       setGenerated(true);
-    } catch (err: any) {
-      showToast(err.message, 'error');
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err), 'error');
     } finally {
       setGenerating(false);
     }
@@ -296,7 +297,7 @@ const GenerateCodeModal: React.FC<{ project: Project; onClose: () => void }> = (
   );
 };
 
-const getTaskAutoStatus = (task: { status?: string; due_date?: string; subtasks?: SubTask[] | any; progress_pct?: number }): 'Completed' | 'Delayed' | 'Ongoing' | 'Pending' => {
+const getTaskAutoStatus = (task: { status?: string; due_date?: string; subtasks?: SubTask[]; progress_pct?: number }): 'Completed' | 'Delayed' | 'Ongoing' | 'Pending' => {
   const subtasks: SubTask[] = Array.isArray(task.subtasks) ? task.subtasks : [];
   const doneCount = subtasks.filter(s => s.completed).length;
   const pct = subtasks.length > 0
@@ -323,7 +324,7 @@ const getTaskAutoStatus = (task: { status?: string; due_date?: string; subtasks?
   return 'Pending';
 };
 
-function PDAutoStatusBadge({ task }: { task: { status?: string; due_date?: string; subtasks?: SubTask[] | any; progress_pct?: number } }) {
+function PDAutoStatusBadge({ task }: { task: { status?: string; due_date?: string; subtasks?: SubTask[]; progress_pct?: number } }) {
   const autoStatus = getTaskAutoStatus(task);
   return <StatusBadge status={autoStatus} />;
 }
@@ -479,8 +480,8 @@ const ProjectDetails: React.FC = () => {
             setError('Project not found');
           }
         }
-      } catch (err: any) {
-        setError(err.message || 'Error loading project');
+      } catch (err: unknown) {
+        setError(getErrorMessage(err, '') || 'Error loading project');
       } finally {
         setLoading(false);
       }
@@ -490,13 +491,14 @@ const ProjectDetails: React.FC = () => {
   }, [projectId]);
 
   // 2. Fetch Tasks, Resources, and Members for this Project
-  const fetchProjectData = async () => {
-    if (!project) return;
+  const projectCode = project?.code;
+  const fetchProjectData = useCallback(async (projectName: string) => {
+    if (projectCode === undefined) return;
 
     // Fetch Tasks
     setTasksLoading(true);
     try {
-      const tRes = await fetchWithAuth(`${API_URL}/tasks?project_id=${project.code}`);
+      const tRes = await fetchWithAuth(`${API_URL}/tasks?project_id=${projectCode}`);
       if (tRes.ok) {
         const tJson = await tRes.json();
         setTasks(tJson.tasks || tJson.data || []);
@@ -508,7 +510,7 @@ const ProjectDetails: React.FC = () => {
     // Fetch Resources
     setResourcesLoading(true);
     try {
-      const rRes = await fetchWithAuth(`${API_URL}/resources?project=${encodeURIComponent(project.name)}`);
+      const rRes = await fetchWithAuth(`${API_URL}/resources?project=${encodeURIComponent(projectName)}`);
       if (rRes.ok) {
         const rJson = await rRes.json();
         setResources(rJson.data || []);
@@ -519,7 +521,7 @@ const ProjectDetails: React.FC = () => {
 
     // Fetch Team Members
     try {
-      const mRes = await fetchWithAuth(`${API_URL}/projects/${project.code}/members`);
+      const mRes = await fetchWithAuth(`${API_URL}/projects/${projectCode}/members`);
       if (mRes.ok) {
         const mJson = await mRes.json();
         setTeamMembers(mJson.data || []);
@@ -527,13 +529,13 @@ const ProjectDetails: React.FC = () => {
     } catch { /* ignore */ }
 
 
-  };
+  }, [projectCode]);
 
+  // Read the current resource query name without refreshing on status edits.
+  const readProjectName = useEffectEvent(() => project?.name ?? '');
   useEffect(() => {
-    if (project) {
-      fetchProjectData();
-    }
-  }, [project?.code]);
+    fetchProjectData(readProjectName());
+  }, [fetchProjectData]);
 
   // 3. Project Status Activation Handler
   const handleActivateProject = async () => {
@@ -549,8 +551,8 @@ const ProjectDetails: React.FC = () => {
       if (!res.ok) throw new Error(data.message || 'Failed to activate project');
       setProject(prev => prev ? { ...prev, status: 'Ongoing' } : prev);
       showToast('Project is now Ongoing!', 'success');
-    } catch (err: any) {
-      showToast(err.message, 'error');
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err), 'error');
     } finally {
       setActivating(false);
     }
@@ -595,9 +597,9 @@ const ProjectDetails: React.FC = () => {
       });
       if (!res.ok) throw new Error('Failed to add subtask.');
       showToast('Subtask added to task!', 'success');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to add subtask', err);
-      showToast(err.message || 'Failed to add subtask', 'error');
+      showToast(getErrorMessage(err, '') || 'Failed to add subtask', 'error');
     } finally {
       setSubmittingSubtask(prev => ({ ...prev, [taskId]: false }));
     }
@@ -630,7 +632,7 @@ const ProjectDetails: React.FC = () => {
       });
       if (!res.ok) throw new Error('Failed to delete subtask');
       showToast('Subtask removed', 'info');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to delete subtask', err);
       showToast('Failed to remove subtask', 'error');
     }
@@ -788,9 +790,9 @@ const ProjectDetails: React.FC = () => {
         subtasks: [],
       });
       setModalSubtaskInput('');
-      fetchProjectData();
-    } catch (err: any) {
-      showToast(err.message, 'error');
+      fetchProjectData(project.name);
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err), 'error');
     } finally {
       setAddingTask(false);
     }
@@ -848,9 +850,9 @@ const ProjectDetails: React.FC = () => {
         unitPrice: '',
         taskId: '',
       });
-      fetchProjectData();
-    } catch (err: any) {
-      showToast(err.message, 'error');
+      fetchProjectData(project.name);
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err), 'error');
     } finally {
       setAddingResource(false);
     }
@@ -892,9 +894,9 @@ const ProjectDetails: React.FC = () => {
         );
       }
 
-      fetchProjectData();
-    } catch (err: any) {
-      showToast(err.message, 'error');
+      fetchProjectData(project?.name ?? '');
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err), 'error');
     }
   };
 
@@ -913,8 +915,6 @@ const ProjectDetails: React.FC = () => {
 
   // Overall Project Progress computation (from tasks and subtasks)
   let totalTaskScore = 0;
-  let totalSubtasksCount = 0;
-  let completedSubtasksCount = 0;
 
   tasks.forEach(t => {
     const isCompleted = (t.status || '').toLowerCase().includes('completed');
@@ -922,15 +922,13 @@ const ProjectDetails: React.FC = () => {
     const subs: SubTask[] = Array.isArray(t.subtasks) ? t.subtasks : [];
 
     if (subs.length > 0) {
-      totalSubtasksCount += subs.length;
       const done = subs.filter(s => s.completed).length;
-      completedSubtasksCount += done;
       totalTaskScore += done / subs.length;
     } else {
       if (isCompleted) {
         totalTaskScore += 1;
       } else if (isOngoing) {
-        const pPct = (t as any).progress_pct;
+        const pPct = t.progress_pct;
         totalTaskScore += typeof pPct === 'number' && pPct > 0 ? pPct / 100 : 0.5;
       } else {
         totalTaskScore += 0;

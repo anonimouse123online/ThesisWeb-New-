@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { getErrorMessage } from '../utils/errors';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import '../components/Documents.css';
 import UploadDocumentModal from '../pages/upload-document';
@@ -7,7 +8,7 @@ import * as XLSX from 'xlsx';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import { downloadDocument, getDocumentBlob } from '../utils/documentStore';
 import type { DocumentBlobResult } from '../utils/documentStore';
-import { showToast } from '../components/Toast';
+import { showToast } from '../utils/toast';
 import Dropdown from '../components/Dropdown';
 import ProfileDropdown from '../components/ProfileDropdown';
 import {
@@ -37,7 +38,7 @@ const API_URL = API_BASE_URL;
 interface Document {
   id: string;
   name: string;
-  type: 'DWG' | 'PDF' | 'XLS' | 'DOC';
+  type: 'DWG' | 'PDF' | 'XLS' | 'XLSX' | 'DOC' | 'DOCX';
   uploaded_at: string;
   category: 'Design & Engineering' | 'Project Management' | 'Site Reference';
   file_path?: string;
@@ -81,13 +82,13 @@ const Documents: React.FC = () => {
   const isDocType = (doc: Document | null): boolean => {
     if (!doc) return false;
     const n = (doc.name || '').toLowerCase();
-    return doc.type === 'DOC' || (doc as any).type === 'DOCX' || n.endsWith('.docx') || n.endsWith('.doc') || n.endsWith('.rtf');
+    return doc.type === 'DOC' || doc.type === 'DOCX' || n.endsWith('.docx') || n.endsWith('.doc') || n.endsWith('.rtf');
   };
 
   const isXlsType = (doc: Document | null): boolean => {
     if (!doc) return false;
     const n = (doc.name || '').toLowerCase();
-    return doc.type === 'XLS' || (doc as any).type === 'XLSX' || n.endsWith('.xlsx') || n.endsWith('.xls') || n.endsWith('.csv');
+    return doc.type === 'XLS' || doc.type === 'XLSX' || n.endsWith('.xlsx') || n.endsWith('.xls') || n.endsWith('.csv');
   };
 
   const isDwgType = (doc: Document | null): boolean => {
@@ -117,7 +118,7 @@ const Documents: React.FC = () => {
   }, [projectCode]);
 
   // ── Fetch documents ──
-  const fetchDocuments = async () => {
+  const fetchDocuments = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -125,16 +126,16 @@ const Documents: React.FC = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || data.error || 'Failed to load documents');
       setDocuments(data.data ?? []);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectCode]);
 
   useEffect(() => {
     fetchDocuments();
-  }, [projectCode]);
+  }, [fetchDocuments]);
 
   // ── Delete document ──
   const handleDelete = async (docId: string, docName: string) => {
@@ -150,8 +151,8 @@ const Documents: React.FC = () => {
       if (previewDoc?.id === docId) {
         handleClosePreview();
       }
-    } catch (err: any) {
-      showToast(err.message, 'error');
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err), 'error');
     }
   };
 
@@ -161,7 +162,7 @@ const Documents: React.FC = () => {
       showToast(`Downloading "${doc.name}" (${doc.type})...`, 'info');
       const filename = await downloadDocument(doc, projectCode);
       showToast(`"${filename}" downloaded to your device!`, 'success');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Download error:', err);
       showToast('Failed to download document.', 'error');
     }
@@ -186,10 +187,10 @@ const Documents: React.FC = () => {
           const wb = XLSX.read(ab, { type: 'array' });
           const sheets: { [name: string]: { headers: string[]; rows: string[][] } } = {};
           for (const sName of wb.SheetNames) {
-            const raw: any[][] = XLSX.utils.sheet_to_json(wb.Sheets[sName], { header: 1, defval: '' });
+            const raw = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sName], { header: 1, defval: '' });
             if (raw.length > 0) {
-              const headers = (raw[0] || []).map((c: any) => String(c ?? ''));
-              const rows = raw.slice(1).map((r: any[]) => r.map((c: any) => String(c ?? '')));
+              const headers = (raw[0] || []).map((c) => String(c ?? ''));
+              const rows = raw.slice(1).map((r) => r.map((c) => String(c ?? '')));
               sheets[sName] = { headers, rows };
             }
           }
@@ -201,16 +202,16 @@ const Documents: React.FC = () => {
           console.warn('[DOCS] XLSX parse error:', excelErr);
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Preview error:', err);
-      setPreviewError(err.message || 'Unable to load preview for this file.');
+      setPreviewError(getErrorMessage(err, '') || 'Unable to load preview for this file.');
     } finally {
       setPreviewLoading(false);
     }
   };
 
   // ── Close Document Preview ──
-  const handleClosePreview = () => {
+  const handleClosePreview = useCallback(() => {
     if (previewData?.url && !previewData.isServerUrl) {
       try {
         URL.revokeObjectURL(previewData.url);
@@ -221,7 +222,7 @@ const Documents: React.FC = () => {
     setPreviewError(null);
     setExcelSheets({});
     setActiveSheetName('');
-  };
+  }, [previewData]);
 
   // Keyboard shortcut: close preview on Escape
   useEffect(() => {
@@ -232,7 +233,7 @@ const Documents: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [previewDoc, previewData]);
+  }, [previewDoc, handleClosePreview]);
 
   // ── Statistics calculation ──
   const totalCount = documents.length;
