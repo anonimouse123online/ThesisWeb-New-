@@ -1,5 +1,5 @@
 import { getErrorMessage } from '../utils/errors';
-import React, { useState, useEffect, useCallback, useEffectEvent } from 'react';
+import React, { useState, useEffect, useCallback, useEffectEvent, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import '../components/IssueReport.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
@@ -7,7 +7,11 @@ import { showToast } from '../utils/toast';
 import ProfileDropdown from '../components/ProfileDropdown';
 import StatusBadge from '../components/StatusBadge';
 import Dropdown from '../components/Dropdown';
-import { isActiveIssue, parseProjectIssues } from '../utils/projectIssues';
+import { isActiveIssue, type Issue } from '../utils/projectIssues';
+import { fetchIssueStatistics, parseIssueRecords, projectIssuesPath, resolveProjectIssue, type IssueStatistics } from '../utils/issuesApi';
+import { useAuth } from '../hooks/useAuth';
+import ResolveIssueModal from '../components/ResolveIssueModal';
+import IssueResolutionDetails from '../components/IssueResolutionDetails';
 import {
   AlertCircle,
   Clock,
@@ -36,23 +40,6 @@ const CATEGORIES = [
 
 const PRIORITIES = ['Critical', 'High', 'Medium', 'Low'] as const;
 
-interface Issue {
-  id: string;
-  project_code: string;
-  title: string;
-  category: string;
-  priority: 'Critical' | 'High' | 'Medium' | 'Low';
-  location?: string;
-  description: string;
-  status: 'Open' | 'In Progress' | 'Resolved';
-  resolution_notes?: string;
-  reporter_name?: string;
-  assignee_name?: string;
-  assigned_to?: string;
-  created_at: string;
-  resolved_at?: string;
-}
-
 interface TeamMember {
   id: string;
   name: string;
@@ -62,6 +49,8 @@ interface TeamMember {
 const IssueReport: React.FC = () => {
   const { projectCode } = useParams<{ projectCode: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const canManageIssues = user?.role?.trim().toLowerCase() === 'admin';
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedStatus = searchParams.get('status');
   const statusFilter = requestedStatus === 'active' ? 'Active'
@@ -78,10 +67,18 @@ const IssueReport: React.FC = () => {
   const [issues, setIssues]               = useState<Issue[]>([]);
   const [teamMembers, setTeamMembers]     = useState<TeamMember[]>([]);
   const [loading, setLoading]             = useState(true);
+  const [issueLoadError, setIssueLoadError] = useState('');
   const [search, setSearch]               = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
   const [priorityFilter, setPriorityFilter] = useState<string>('All');
   const [showModal, setShowModal]         = useState(false);
+  const [resolutionTarget, setResolutionTarget] = useState<{ issue: Issue; projectCode: string } | null>(null);
+  const [expandedResolutions, setExpandedResolutions] = useState<string[]>([]);
+  const [statistics, setStatistics] = useState<IssueStatistics | null>(null);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const issueRequest = useRef<AbortController | null>(null);
+  const statisticsRequest = useRef<AbortController | null>(null);
+  const statusPending = useRef(false);
 
   // Form State
   const [title, setTitle]             = useState('');
@@ -94,7 +91,12 @@ const IssueReport: React.FC = () => {
 
   // Fetch issues
   const fetchIssues = useCallback(async (searchTerm: string) => {
+    if (!projectCode) return;
+    issueRequest.current?.abort();
+    const controller = new AbortController();
+    issueRequest.current = controller;
     setLoading(true);
+    setIssueLoadError('');
     try {
       const queryParams = new URLSearchParams();
       if (statusFilter !== 'All' && statusFilter !== 'Active') queryParams.append('status', statusFilter);
@@ -102,17 +104,36 @@ const IssueReport: React.FC = () => {
       if (priorityFilter !== 'All') queryParams.append('priority', priorityFilter);
       if (searchTerm.trim()) queryParams.append('search', searchTerm.trim());
 
-      const res = await fetchWithAuth(`${API_URL}/projects/${projectCode}/issues?${queryParams.toString()}`);
+      const res = await fetchWithAuth(`${projectIssuesPath(projectCode)}?${queryParams.toString()}`, { signal: controller.signal, cache: 'no-store' });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || 'Failed to fetch issues');
-      const records = parseProjectIssues<Issue>(json);
+      const records = parseIssueRecords(json);
+      if (controller.signal.aborted) return;
       setIssues(statusFilter === 'Active' ? records.filter(isActiveIssue) : records);
     } catch (err: unknown) {
-      showToast(getErrorMessage(err), 'error');
+      if (controller.signal.aborted) return;
+      setIssues([]);
+      const message = getErrorMessage(err, 'Unable to refresh issues. Please try again.');
+      setIssueLoadError(message);
+      showToast(message, 'error');
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }, [projectCode, statusFilter, categoryFilter, priorityFilter]);
+
+  const fetchStatistics = useCallback(async () => {
+    if (!projectCode) return;
+    statisticsRequest.current?.abort();
+    const controller = new AbortController();
+    statisticsRequest.current = controller;
+    setStatistics(null);
+    try {
+      const next = await fetchIssueStatistics(projectCode, fetchWithAuth, controller.signal);
+      if (!controller.signal.aborted) setStatistics(next);
+    } catch (error: unknown) {
+      if (!controller.signal.aborted) showToast(getErrorMessage(error, 'Unable to refresh issue counts.'), 'error');
+    }
+  }, [projectCode]);
 
   // Fetch project team members for assignee dropdown
   const fetchMembers = useCallback(async () => {
@@ -130,9 +151,25 @@ const IssueReport: React.FC = () => {
     fetchMembers();
   }, [fetchIssues, fetchMembers]);
 
-  const handleStatusChange = async (issueId: string, newStatus: string) => {
+  useEffect(() => {
+    fetchStatistics();
+    return () => {
+      issueRequest.current?.abort();
+      statisticsRequest.current?.abort();
+    };
+  }, [fetchStatistics]);
+
+  const handleStatusChange = async (issue: Issue, newStatus: string) => {
+    if (!projectCode || !canManageIssues || issue.status === 'Resolved' || statusPending.current) return;
+    if (newStatus === 'Resolved') {
+      setResolutionTarget({ issue, projectCode });
+      return;
+    }
+    if (newStatus !== 'Open' && newStatus !== 'In Progress') return;
+    statusPending.current = true;
+    setUpdatingStatus(true);
     try {
-      const res = await fetchWithAuth(`${API_URL}/projects/${projectCode}/issues/${issueId}`, {
+      const res = await fetchWithAuth(`${projectIssuesPath(projectCode)}/${encodeURIComponent(issue.id)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
@@ -141,10 +178,23 @@ const IssueReport: React.FC = () => {
       if (!res.ok) throw new Error(json.message || 'Failed to update status');
 
       showToast(`Issue status updated to ${newStatus}.`, 'success');
-      fetchIssues(search);
+      await Promise.all([fetchIssues(search), fetchStatistics()]);
     } catch (err: unknown) {
       showToast(getErrorMessage(err), 'error');
+    } finally {
+      statusPending.current = false;
+      setUpdatingStatus(false);
     }
+  };
+
+  const confirmResolution = async (feedback: Parameters<typeof resolveProjectIssue>[2]) => {
+    if (!resolutionTarget || resolutionTarget.projectCode !== projectCode || !canManageIssues) {
+      throw new Error('You do not have permission to resolve this issue.');
+    }
+    await resolveProjectIssue(resolutionTarget.projectCode, resolutionTarget.issue.id, feedback);
+    setResolutionTarget(null);
+    showToast('Issue resolved successfully.', 'success');
+    await Promise.all([fetchIssues(search), fetchStatistics()]);
   };
 
   const handleCreateIssue = async (e: React.FormEvent) => {
@@ -177,7 +227,7 @@ const IssueReport: React.FC = () => {
       setTitle('');
       setDescription('');
       setLocation('');
-      fetchIssues(search);
+      await Promise.all([fetchIssues(search), fetchStatistics()]);
     } catch (err: unknown) {
       showToast(getErrorMessage(err), 'error');
     } finally {
@@ -187,12 +237,12 @@ const IssueReport: React.FC = () => {
 
   // Stats calculation
   const visibleIssues = statusFilter === 'Active' ? issues.filter(isActiveIssue) : issues;
-  const activeCount = issues.filter(isActiveIssue).length;
-  const totalCount    = issues.length;
-  const openCount     = issues.filter(i => i.status === 'Open').length;
-  const inProgCount   = issues.filter(i => i.status === 'In Progress').length;
-  const resolvedCount = issues.filter(i => i.status === 'Resolved').length;
-  const criticalCount = issues.filter(i => i.priority === 'Critical' || i.priority === 'High').length;
+  const activeCount = statistics?.active ?? '—';
+  const totalCount = statistics?.total ?? '—';
+  const openCount = statistics?.open ?? '—';
+  const inProgCount = statistics?.inProgress ?? '—';
+  const resolvedCount = statistics?.resolved ?? '—';
+  const criticalCount = statistics?.critical ?? '—';
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -304,7 +354,7 @@ const IssueReport: React.FC = () => {
               onKeyDown={(e) => { if (e.key === 'Enter') fetchIssues(search); }}
             />
             {search && (
-              <button className="ir-search-clear" onClick={() => { setSearch(''); fetchIssues(search); }} aria-label="Clear search">
+              <button className="ir-search-clear" onClick={() => { setSearch(''); fetchIssues(''); }} aria-label="Clear search">
                 <X size={14} />
               </button>
             )}
@@ -346,6 +396,13 @@ const IssueReport: React.FC = () => {
       {/* ── Content Grid ── */}
       {loading ? (
         <p style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>Loading issues log…</p>
+      ) : issueLoadError ? (
+        <div className="ir-card">
+          <p role="alert">{issueLoadError}</p>
+          <button type="button" className="ir-resolution-view" onClick={() => {
+            void Promise.all([fetchIssues(search), fetchStatistics()]);
+          }}>Retry</button>
+        </div>
       ) : visibleIssues.length === 0 ? (
         <div style={{
           background: '#fff', borderRadius: '16px', border: '1.5px dashed #cbd5e1',
@@ -398,23 +455,45 @@ const IssueReport: React.FC = () => {
                   </div>
 
                   <div className="ir-card-footer">
-                    <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Update Status:</span>
-                    <select
-                      className="ir-status-select"
-                      value={issue.status}
-                      onChange={(e) => handleStatusChange(issue.id, e.target.value)}
-                    >
-                      <option value="Open">Open</option>
-                      <option value="In Progress">In Progress</option>
-                      <option value="Resolved">Resolved</option>
-                    </select>
+                    {issue.status === 'Resolved' ? <>
+                      <span className="ir-resolution-complete">Resolved <CheckCircle2 size={14} /></span>
+                      <button type="button" className="ir-resolution-view" aria-expanded={expandedResolutions.includes(issue.id)}
+                        aria-controls={`ir-resolution-${issue.id}`} onClick={() => setExpandedResolutions(previous => previous.includes(issue.id)
+                          ? previous.filter(id => id !== issue.id) : [...previous, issue.id])}>
+                        {expandedResolutions.includes(issue.id) ? 'Hide Resolution' : 'View Resolution'}
+                      </button>
+                    </> : canManageIssues ? <>
+                      <label htmlFor={`ir-status-${issue.id}`} style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Update Status:</label>
+                      <select
+                        id={`ir-status-${issue.id}`}
+                        aria-label={`Update status for ${issue.title}`}
+                        className="ir-status-select"
+                        value={issue.status}
+                        disabled={updatingStatus}
+                        onChange={(e) => handleStatusChange(issue, e.target.value)}
+                      >
+                        <option value="Open">Open</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Resolved">Resolved</option>
+                      </select>
+                    </> : <StatusBadge status={issue.status} />}
                   </div>
+                  {issue.status === 'Resolved' && expandedResolutions.includes(issue.id) &&
+                    <IssueResolutionDetails issue={issue} id={`ir-resolution-${issue.id}`} />}
                 </div>
               </div>
             );
           })}
         </div>
       )}
+
+      {resolutionTarget && resolutionTarget.projectCode === projectCode && <ResolveIssueModal
+        key={`${resolutionTarget.projectCode}-${resolutionTarget.issue.id}`}
+        issue={resolutionTarget.issue}
+        resolvedBy={user?.name || user?.email || 'Current user'}
+        onClose={() => setResolutionTarget(null)}
+        onConfirm={confirmResolution}
+      />}
 
       {/* ── Report Issue Modal ── */}
       {showModal && (

@@ -3,15 +3,15 @@ import "../components/Assigntaskmodal.css";
 import StatusBadge from "../components/StatusBadge";
 import { API_BASE_URL, fetchWithAuth } from "../utils/api";
 import { getErrorMessage } from "../utils/errors";
+import { formatTaskPhases, type TaskPhaseFields } from "../utils/taskPhases";
 
 const BACKEND_URL = API_BASE_URL;
 
 /* ── Types ── */
-export interface TaskInfo {
+export interface TaskInfo extends TaskPhaseFields {
   id: string;
   name: string;
   description: string;
-  phase: string;
   priority: "High" | "Medium" | "Low";
 }
 
@@ -221,7 +221,7 @@ export default function AssignTaskModal({
             <p className="atm-task-card__name">{task.name}</p>
             <p className="atm-task-card__desc">{task.description}</p>
             <div className="atm-task-card__meta">
-              <span><strong>Phase:</strong> {task.phase}</span>
+              <span><strong>Construction Phase Category:</strong> {formatTaskPhases(task)}</span>
               <span>
                 <strong>Current priority:</strong>{" "}
                 <span className={`atm-badge atm-badge--${task.priority.toLowerCase()}`}>

@@ -8,6 +8,8 @@ import ProfileDropdown from '../components/ProfileDropdown';
 import StatusBadge from '../components/StatusBadge';
 import Dropdown from '../components/Dropdown';
 import { showToast } from '../utils/toast';
+import TaskPhaseChecklist from '../components/TaskPhaseChecklist';
+import { TASK_PHASE_CATEGORIES, formatTaskPhases, getTaskPhases, groupTasksByPhase, legacyTaskPhasePayload, taskPhaseRequiredMessage, type TaskPhaseFields } from '../utils/taskPhases';
 import {
   LayoutDashboard,
   ClipboardList,
@@ -82,10 +84,9 @@ interface AllocatedMaterial {
   unitPrice?: string;
 }
 
-interface TaskItem {
+interface TaskItem extends TaskPhaseFields {
   id: string | number;
   task_name: string;
-  phase: string;
   assignee: string;
   start_date?: string;
   due_date: string;
@@ -118,26 +119,9 @@ interface ResourceItem {
 }
 
 
-const PHASES = [
-  'Foundation',
-  'Structural',
-  'Electrical & Utilities',
-  'Plumbing & MEP',
-  'Finishing',
-];
+const PHASES = TASK_PHASE_CATEGORIES;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function normalizePhase(raw?: string): string {
-  if (!raw) return PHASES[0];
-  const s = raw.toLowerCase().trim();
-  if (s.includes('phase 1') || s.includes('foundation')) return PHASES[0];
-  if (s.includes('phase 2') || s.includes('structur') || s.includes('structure')) return PHASES[1];
-  if (s.includes('phase 3') || s.includes('utilit') || s.includes('electr')) return PHASES[2];
-  if (s.includes('phase 4') || s.includes('plumb') || s.includes('mep')) return PHASES[3];
-  if (s.includes('phase 5') || s.includes('finish')) return PHASES[4];
-  return raw.replace(/^Phase\s*\d+\s*[-–:]\s*/i, '').trim() || raw;
-}
 
 function getInitials(name?: string): string {
   if (!name) return '?';
@@ -409,7 +393,7 @@ const ProjectDetails: React.FC = () => {
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [newTaskForm, setNewTaskForm] = useState({
     taskName: '',
-    phase: PHASES[0],
+    phases: [] as string[],
     assigneeId: '',
     startDate: '',
     dueDate: '',
@@ -722,7 +706,7 @@ const ProjectDetails: React.FC = () => {
     setNewTaskForm(prev => ({
       ...prev,
       taskName: '',
-      phase: phaseName || prev.phase || PHASES[0],
+      phases: phaseName ? getTaskPhases({ phase: phaseName }) : [],
       startDate: '',
       dueDate: '',
       assigneeId: engineerMembers[0]?.id || '',
@@ -754,6 +738,10 @@ const ProjectDetails: React.FC = () => {
     if (!project) return;
     if (!newTaskForm.taskName.trim()) {
       showToast('Task name is required', 'warning');
+      return;
+    }
+    if (!newTaskForm.phases.length) {
+      showToast(taskPhaseRequiredMessage, 'warning');
       return;
     }
 
@@ -800,11 +788,12 @@ const ProjectDetails: React.FC = () => {
     }
 
     try {
+      const phasePayload = legacyTaskPhasePayload(newTaskForm.phases);
       setAddingTask(true);
       const payload = {
         taskName: newTaskForm.taskName.trim(),
         projectId: project.id || project.code,
-        phase: newTaskForm.phase,
+        ...phasePayload,
         assigneeId: newTaskForm.assigneeId || (engineerMembers[0]?.id ?? null),
         startDate: newTaskForm.startDate || (projStart && projStart > todayStr ? projStart : todayStr),
         dueDate: newTaskForm.dueDate || (projEnd || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]),
@@ -839,7 +828,7 @@ const ProjectDetails: React.FC = () => {
       });
       setNewTaskForm({
         taskName: '',
-        phase: PHASES[0],
+        phases: [],
         assigneeId: '',
         startDate: new Date().toISOString().split('T')[0],
         dueDate: '',
@@ -1017,13 +1006,7 @@ const ProjectDetails: React.FC = () => {
   const minStartDate = projectMinDate && projectMinDate > todayStr ? projectMinDate : todayStr;
 
   // Group tasks by Phase
-  const tasksByPhase: Record<string, TaskItem[]> = {};
-  for (const p of PHASES) tasksByPhase[p] = [];
-  for (const t of tasks) {
-    const norm = normalizePhase(t.phase);
-    if (!tasksByPhase[norm]) tasksByPhase[norm] = [];
-    tasksByPhase[norm].push(t);
-  }
+  const tasksByPhase = groupTasksByPhase(tasks);
 
   // Filter resources in Resources tab
   const filteredResources = resources.filter(r => {
@@ -1367,14 +1350,14 @@ const ProjectDetails: React.FC = () => {
           ) : tasks.length === 0 ? (
             <div className="pd-empty-card">
               <p className="pd-empty-title">No tasks created for this project yet</p>
-              <p className="pd-empty-sub">Add tasks to organize daily construction activities across Foundation, Structural, and MEP phases.</p>
+              <p className="pd-empty-sub">Add tasks to organize daily construction activities across Site Development, Structural, and MEP categories.</p>
               <button className="pd-btn-primary" onClick={() => handleOpenAddTaskModal()} style={{ marginTop: '12px' }}>
                 + Create First Task
               </button>
             </div>
           ) : (
             <div className="pd-tasks-phase-list">
-              {PHASES.map(phaseName => {
+              {Object.keys(tasksByPhase).map(phaseName => {
                 const phaseTasks = (tasksByPhase[phaseName] || []).filter(t => {
                   const matchSearch = !taskSearch || t.task_name.toLowerCase().includes(taskSearch.toLowerCase()) || (t.assignee && t.assignee.toLowerCase().includes(taskSearch.toLowerCase()));
                   const normStatus = getNormalizedStatus(t.status).toLowerCase();
@@ -1442,6 +1425,7 @@ const ProjectDetails: React.FC = () => {
                                       <span className="pd-task-name" onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}>
                                         {task.task_name}
                                       </span>
+                                      <span className="task-phase-summary">{formatTaskPhases(task)}</span>
                                       {subtasks.length > 0 && (
                                         <span className="pd-subtask-pill" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                                           <Check size={11} strokeWidth={3} /> {subtasksDone}/{subtasks.length} steps
@@ -1946,13 +1930,10 @@ const ProjectDetails: React.FC = () => {
 
               <div className="pm-form-row pm-form-row--2">
                 <div className="pm-form-group">
-                  <label>Construction Phase <span className="pm-required">*</span></label>
-                  <Dropdown
-                    fullWidth
-                    options={PHASES.map(p => ({ value: p, label: p }))}
-                    value={newTaskForm.phase}
-                    onChange={val => setNewTaskForm(prev => ({ ...prev, phase: val }))}
-                    placeholder="Select phase"
+                  <TaskPhaseChecklist
+                    value={newTaskForm.phases}
+                    onChange={phases => setNewTaskForm(prev => ({ ...prev, phases }))}
+                    disabled={addingTask}
                   />
                 </div>
                 <div className="pm-form-group">
@@ -2440,7 +2421,7 @@ const ProjectDetails: React.FC = () => {
                       { value: '', label: '-- General Project Inventory (No specific task) --' },
                       ...tasks.map(t => ({
                         value: String(t.id),
-                        label: `${t.task_name} (${t.phase})`
+                        label: `${t.task_name} (${formatTaskPhases(t)})`
                       }))
                     ]}
                     value={resourceForm.taskId}

@@ -1,0 +1,69 @@
+.task-phase-checklist {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+  width: 100%;
+}
+
+.task-phase-checklist legend {
+  padding: 0;
+  margin-bottom: 6px;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.task-phase-hint {
+  font-size: 11.5px;
+  color: #64748b;
+  line-height: 1.5;
+  margin: 0 0 8px;
+}
+
+.task-phase-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.task-phase-checklist .task-phase-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.task-phase-option:hover { border-color: #fb923c; }
+.task-phase-option span { min-width: 0; overflow-wrap: anywhere; }
+.task-phase-checklist .task-phase-option--checked { background: #fff7ed; border-color: #fdba74; color: #9a3412; }
+.task-phase-checklist input[type="checkbox"] {
+  appearance: auto;
+  width: 15px;
+  height: 15px;
+  min-width: 15px;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+  border-radius: 3px;
+  accent-color: #ea580c;
+  cursor: pointer;
+}
+.task-phase-checklist input[type="checkbox"]:focus-visible { outline: 2px solid #ea580c; outline-offset: 3px; }
+.task-phase-checklist:disabled .task-phase-option { opacity: 0.6; cursor: not-allowed; }
+.task-phase-checklist:disabled input { cursor: not-allowed; }
+
+.task-phase-summary { display: block; margin-top: 4px; font-size: 11px; font-weight: 500; line-height: 1.5; color: #64748b; white-space: normal; overflow-wrap: anywhere; }
+
+@media (max-width: 600px) {
+  .task-phase-options { grid-template-columns: 1fr; }
+}

@@ -6,16 +6,10 @@ import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import { showToast } from '../utils/toast';
 import { Package, Truck, Building2, X, AlertTriangle, Info } from 'lucide-react';
 import Dropdown from '../components/Dropdown';
+import TaskPhaseChecklist from '../components/TaskPhaseChecklist';
+import { legacyTaskPhasePayload, taskPhaseRequiredMessage } from '../utils/taskPhases';
 
 const API_URL = API_BASE_URL;
-
-const PHASES = [
-  'Phase 1 - Foundation',
-  'Phase 2 - Structural',
-  'Phase 3 - Electrical & Utilities',
-  'Phase 4 - Plumbing & MEP',
-  'Phase 5 - Finishing',
-];
 
 interface ProjectOption {
   id: string;
@@ -111,7 +105,7 @@ const CreateTask: React.FC = () => {
   const [formData, setFormData] = useState({
     taskName: '',
     projectId: '',
-    phase: 'Phase 1 - Foundation',
+    phases: [] as string[],
     assigneeId: '',
     startDate: '',
     dueDate: '',
@@ -312,8 +306,8 @@ const CreateTask: React.FC = () => {
       setError('Please select a target project.');
       return;
     }
-    if (!formData.phase) {
-      setError('Project phase is required.');
+    if (!formData.phases.length) {
+      setError(taskPhaseRequiredMessage);
       return;
     }
     if (!formData.assigneeId) {
@@ -365,10 +359,12 @@ const CreateTask: React.FC = () => {
     setError(null);
 
     try {
+      const { phases, ...taskFields } = formData;
+      const phasePayload = legacyTaskPhasePayload(phases);
       const res = await fetchWithAuth(`${API_URL}/tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, allocatedMaterials, subtasks }),
+        body: JSON.stringify({ ...taskFields, ...phasePayload, allocatedMaterials, subtasks }),
       });
 
       const data = await res.json();
@@ -430,15 +426,12 @@ const CreateTask: React.FC = () => {
               />
             </div>
 
-            {/* Project Phase */}
+            {/* Construction phase categories */}
             <div className="form-group">
-              <label>Project Phase *</label>
-              <Dropdown
-                fullWidth
-                options={PHASES.map((ph) => ({ value: ph, label: ph }))}
-                value={formData.phase}
-                onChange={(val) => setFormData((prev) => ({ ...prev, phase: val }))}
-                placeholder="Select a phase"
+              <TaskPhaseChecklist
+                value={formData.phases}
+                onChange={phases => setFormData(prev => ({ ...prev, phases }))}
+                disabled={submitting}
               />
             </div>
 

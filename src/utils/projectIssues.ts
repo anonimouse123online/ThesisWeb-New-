@@ -1,3 +1,34 @@
+export interface IssueEvidence {
+  id?: string;
+  name: string;
+  url: string;
+  mime_type?: string;
+}
+
+export interface Issue {
+  id: string;
+  project_code: string;
+  title: string;
+  category: string;
+  priority: 'Critical' | 'High' | 'Medium' | 'Low';
+  severity?: string;
+  location?: string;
+  description: string;
+  status: 'Open' | 'In Progress' | 'Resolved';
+  resolution_notes?: string | null;
+  resolution_summary?: string | null;
+  resolution_steps?: string[] | null;
+  final_remarks?: string | null;
+  resolved_by?: string | { id?: string; name?: string } | null;
+  resolved_by_name?: string | null;
+  resolution_evidence?: IssueEvidence[] | null;
+  reporter_name?: string;
+  assignee_name?: string;
+  assigned_to?: string;
+  created_at: string;
+  resolved_at?: string | null;
+}
+
 /** Only these issue workflow states require attention. General reports do not. */
 export function isActiveIssue(issue: { status?: string | null }): boolean {
   const status = issue.status?.trim().toLowerCase().replace(/[_-]+/g, ' ');
