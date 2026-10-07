@@ -55,7 +55,7 @@ interface Project {
   start_date: string;
   end_date: string;
   budget: string;
-  status: 'Planning' | 'Ongoing' | 'Completed';
+  status: 'Planning' | 'Ongoing' | 'Completed' | 'Pending' | string;
   phase: string;
   scope: string;
   progress_pct?: number;
@@ -1017,7 +1017,7 @@ const ProjectDetails: React.FC = () => {
           </div>
 
           <div className="pd-hero-actions">
-            {project.status === 'Planning' && (
+            {(project.status === 'Planning' || project.status === 'Pending' || project.status?.toLowerCase() === 'planning' || project.status?.toLowerCase() === 'pending') && (
               <button className="pd-btn-activate" onClick={handleActivateProject} disabled={activating} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                 {activating ? 'Activating…' : <><Play size={13} fill="currentColor" /> Activate Construction</>}
               </button>
