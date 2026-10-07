@@ -11,6 +11,9 @@ import {
 
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../utils/api';
+import { loginAdmin } from '../utils/authService';
+import { collectLoginSecurityContext, createLoginSecurityContext, type LoginSecurityContext } from '../utils/loginSecurity';
+import LoginLocationPrompt from '../components/LoginLocationPrompt';
 import '../components/login.css';
 
 const LoginPage: React.FC = () => {
@@ -29,6 +32,40 @@ const LoginPage: React.FC = () => {
 
   const [loading, setLoading] =
     useState(false);
+
+  const [loginMessage, setLoginMessage] = useState('Signing in...');
+  const loginInFlight = React.useRef(false);
+  const loginActive = React.useRef(true);
+  const [showLocationPrompt, setShowLocationPrompt] = useState(false);
+  const locationDecision = React.useRef<((context: LoginSecurityContext) => void) | null>(null);
+
+  React.useEffect(() => {
+    loginActive.current = true;
+    return () => {
+      loginActive.current = false;
+      locationDecision.current?.(createLoginSecurityContext());
+      locationDecision.current = null;
+    };
+  }, []);
+
+  const requestLoginLocation = () => {
+    if (!loginActive.current) return Promise.resolve(createLoginSecurityContext());
+    return new Promise<LoginSecurityContext>(resolve => {
+      locationDecision.current = resolve;
+      setShowLocationPrompt(true);
+    });
+  };
+
+  const completeLocationRequest = (context: LoginSecurityContext) => {
+    locationDecision.current?.(context);
+    locationDecision.current = null;
+    if (loginActive.current) setShowLocationPrompt(false);
+  };
+
+  const enableLoginLocation = async () => {
+    setShowLocationPrompt(false);
+    completeLocationRequest(await collectLoginSecurityContext());
+  };
 
   const navigate =
     useNavigate();
@@ -124,172 +161,40 @@ const LoginPage: React.FC = () => {
   // LOGIN
   // ============================================================
 
-  const handleLogin = async (
-    e: React.FormEvent
-  ) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-
+    if (loginInFlight.current) return;
+    loginInFlight.current = true;
     setError('');
     setLoading(true);
 
     try {
-      console.log(
-        'Attempting login...'
-      );
+      const data = await loginAdmin(email, password, stage => {
+        if (!loginActive.current) return;
+        setLoginMessage(stage === 'location'
+          ? 'Turn on location services and allow location access in your browser for login security. You can deny permission and continue.'
+          : stage === 'finalizing' ? 'Completing secure sign-in...' : 'Verifying credentials...');
+      }, undefined, requestLoginLocation);
 
-      const response =
-        await fetch(
-          `${BACKEND_URL}/auth/login`,
-          {
-            method: 'POST',
+      if (!loginActive.current) return;
 
-            headers: {
-              'Content-Type':
-                'application/json',
-            },
-
-            body: JSON.stringify({
-              email:
-                email
-                  .trim()
-                  .toLowerCase(),
-
-              password,
-            }),
-          }
-        );
-
-
-      const data =
-        await response.json();
-
-
-      console.log(
-        'LOGIN STATUS:',
-        response.status
-      );
-
-      console.log(
-        'LOGIN RESPONSE:',
-        data
-      );
-
-      console.log(
-        'LOGIN ROLE:',
-        data.user?.role
-      );
-
-      console.log(
-        'TOKEN RECEIVED:',
-        data.token
-          ? 'YES'
-          : 'NO'
-      );
-
-
-      if (!response.ok) {
-        setError(
-          data.error ||
-          data.message ||
-          'Login failed. Please try again.'
-        );
-
-        return;
-      }
-
-
-      if (
-        !data.token ||
-        !data.user
-      ) {
-        setError(
-          'Invalid login response from server.'
-        );
-
-        return;
-      }
-
-
-      // ========================================================
-      // ONLY ADMIN CAN ACCESS WEB
-      // ========================================================
-
-      const userRole =
-        data.user.role
-          ?.trim()
-          .toLowerCase();
-
-
-      if (
-        userRole !== 'admin'
-      ) {
-        setError(
-          'Access Restricted: Only Administrators can log in to the web management portal. Site Engineers and field personnel must use the SitePulse mobile app.'
-        );
-
-        return;
-      }
-
-
-      // ========================================================
-      // SAVE AUTH
-      // ========================================================
-
-      localStorage.setItem(
-        'token',
-        data.token
-      );
-
-      localStorage.setItem(
-        'user',
-        JSON.stringify(
-          data.user
-        )
-      );
-
-
+      // Keep the existing session keys and remember-email behavior.
+      // A provisional login attempt is never persisted.
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
       if (rememberMe) {
-        localStorage.setItem(
-          'remember_me',
-          'true'
-        );
-
-        localStorage.setItem(
-          'remembered_email',
-          email
-            .trim()
-            .toLowerCase()
-        );
+        localStorage.setItem('remember_me', 'true');
+        localStorage.setItem('remembered_email', email.trim().toLowerCase());
       } else {
-        localStorage.removeItem(
-          'remember_me'
-        );
-
-        localStorage.removeItem(
-          'remembered_email'
-        );
+        localStorage.removeItem('remember_me');
+        localStorage.removeItem('remembered_email');
       }
-
-
-      navigate(
-        '/dashboard',
-        {
-          replace: true,
-        }
-      );
-
-    } catch (err) {
-      console.error(
-        'Login failed:',
-        err
-      );
-
-      setError(
-        'Cannot connect to server. Check your connection.'
-      );
-
+      navigate('/dashboard', { replace: true });
+    } catch (error) {
+      if (loginActive.current) setError(error instanceof Error ? error.message : 'Unable to sign in. Please try again.');
     } finally {
-      setLoading(false);
+      loginInFlight.current = false;
+      if (loginActive.current) setLoading(false);
     }
   };
 
@@ -432,11 +337,6 @@ const LoginPage: React.FC = () => {
           response.status
         );
 
-        console.log(
-          'FORGOT PASSWORD RESPONSE:',
-          data
-        );
-
 
         if (!response.ok) {
           setResetError(
@@ -544,11 +444,6 @@ const LoginPage: React.FC = () => {
         console.log(
           'VERIFY OTP STATUS:',
           response.status
-        );
-
-        console.log(
-          'VERIFY OTP RESPONSE:',
-          data
         );
 
 
@@ -670,11 +565,6 @@ const LoginPage: React.FC = () => {
           response.status
         );
 
-        console.log(
-          'RESET PASSWORD RESPONSE:',
-          data
-        );
-
 
         if (!response.ok) {
           setResetError(
@@ -730,6 +620,7 @@ const LoginPage: React.FC = () => {
 
   return (
     <>
+      {showLocationPrompt && <LoginLocationPrompt onEnable={() => { void enableLoginLocation(); }} onSkip={() => completeLocationRequest(createLoginSecurityContext('DENIED'))} />}
       <div className="login-wrapper">
 
         {/* ====================================================
@@ -880,6 +771,8 @@ const LoginPage: React.FC = () => {
                 </p>
               )}
 
+
+              {loading && <p role="status" style={{ color: '#64748b', fontSize: '12px', marginBottom: '8px' }}>{loginMessage}</p>}
 
               {/* REMEMBER + FORGOT PASSWORD */}
 

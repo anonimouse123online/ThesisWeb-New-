@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import { getErrorMessage } from '../utils/errors';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AddMemberModal from './add-member';
 import '../components/manage-team.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import ProfileDropdown from '../components/ProfileDropdown';
 import StatusBadge from '../components/StatusBadge';
-import { showToast } from '../components/Toast';
+import { showToast } from '../utils/toast';
 import { ArrowLeft, ArrowRight, X, UserPlus, Check, CheckCircle2, Clock, Crown, ShieldCheck } from 'lucide-react';
 
 const API_URL = API_BASE_URL;
@@ -56,7 +57,7 @@ const ManageTeam: React.FC = () => {
     }
   } catch { /* ignore */ }
 
-  const fetchRoster = async () => {
+  const fetchRoster = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -82,16 +83,16 @@ const ManageTeam: React.FC = () => {
         const availData = await availRes.json();
         setAvailableMembers(availData.data ?? []);
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to load team data.');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '') || 'Failed to load team data.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectCode]);
 
   useEffect(() => {
     if (projectCode) fetchRoster();
-  }, [projectCode]);
+  }, [projectCode, fetchRoster]);
 
   // Remove member from project
   const handleRemove = async (memberId: string) => {
@@ -104,8 +105,8 @@ const ManageTeam: React.FC = () => {
       if (!res.ok) throw new Error('Failed to remove member');
       showToast('Member removed from project.', 'info');
       fetchRoster();
-    } catch (err: any) {
-      showToast(err.message || 'Error removing member.', 'error');
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err, '') || 'Error removing member.', 'error');
     } finally {
       setRemovingId(null);
     }
@@ -125,8 +126,8 @@ const ManageTeam: React.FC = () => {
 
       showToast(`${user.name} added to project!`, 'success');
       await fetchRoster();
-    } catch (err: any) {
-      showToast(err.message || 'Error adding member.', 'error');
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err, '') || 'Error adding member.', 'error');
     } finally {
       setAddingId(null);
     }
@@ -147,8 +148,8 @@ const ManageTeam: React.FC = () => {
       } else {
         throw new Error(data.message || 'Failed to generate invite code');
       }
-    } catch (err: any) {
-      showToast(err.message || 'Could not generate code', 'error');
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err, '') || 'Could not generate code', 'error');
     } finally {
       setInviteLoading(false);
     }

@@ -1,11 +1,15 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { getErrorMessage } from '../utils/errors';
+import React, { useState, useEffect, useMemo, useCallback, useEffectEvent } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import '../components/ProjectDetails.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
+import { toDateInputValue } from '../utils/dates';
 import ProfileDropdown from '../components/ProfileDropdown';
 import StatusBadge from '../components/StatusBadge';
 import Dropdown from '../components/Dropdown';
-import { showToast } from '../components/Toast';
+import { showToast } from '../utils/toast';
+import TaskPhaseChecklist from '../components/TaskPhaseChecklist';
+import { TASK_PHASE_CATEGORIES, formatTaskPhases, getTaskPhases, groupTasksByPhase, legacyTaskPhasePayload, taskPhaseRequiredMessage, type TaskPhaseFields } from '../utils/taskPhases';
 import {
   LayoutDashboard,
   ClipboardList,
@@ -80,10 +84,9 @@ interface AllocatedMaterial {
   unitPrice?: string;
 }
 
-interface TaskItem {
+interface TaskItem extends TaskPhaseFields {
   id: string | number;
   task_name: string;
-  phase: string;
   assignee: string;
   start_date?: string;
   due_date: string;
@@ -116,26 +119,9 @@ interface ResourceItem {
 }
 
 
-const PHASES = [
-  'Foundation',
-  'Structural',
-  'Electrical & Utilities',
-  'Plumbing & MEP',
-  'Finishing',
-];
+const PHASES = TASK_PHASE_CATEGORIES;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function normalizePhase(raw?: string): string {
-  if (!raw) return PHASES[0];
-  const s = raw.toLowerCase().trim();
-  if (s.includes('phase 1') || s.includes('foundation')) return PHASES[0];
-  if (s.includes('phase 2') || s.includes('structur') || s.includes('structure')) return PHASES[1];
-  if (s.includes('phase 3') || s.includes('utilit') || s.includes('electr')) return PHASES[2];
-  if (s.includes('phase 4') || s.includes('plumb') || s.includes('mep')) return PHASES[3];
-  if (s.includes('phase 5') || s.includes('finish')) return PHASES[4];
-  return raw.replace(/^Phase\s*\d+\s*[-–:]\s*/i, '').trim() || raw;
-}
 
 function getInitials(name?: string): string {
   if (!name) return '?';
@@ -166,23 +152,6 @@ const formatTimeline = (start: string, end: string) => {
     return `${(dt.getMonth() + 1).toString().padStart(2, '0')}/${dt.getDate().toString().padStart(2, '0')}/${String(dt.getFullYear()).slice(2)}`;
   };
   return `${fmt(start)} – ${fmt(end)}`;
-};
-
-export const toDateInputValue = (d?: string | null) => {
-  if (!d) return undefined;
-  if (/^\d{4}-\d{2}-\d{2}/.test(d)) {
-    return d.slice(0, 10);
-  }
-  try {
-    const dt = new Date(d);
-    if (isNaN(dt.getTime())) return undefined;
-    const year = dt.getFullYear();
-    const month = String(dt.getMonth() + 1).padStart(2, '0');
-    const day = String(dt.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  } catch {
-    return undefined;
-  }
 };
 
 // ─── Generate Invite Code Modal ───────────────────────────────────────────────
@@ -223,8 +192,8 @@ const GenerateCodeModal: React.FC<{ project: Project; onClose: () => void }> = (
       if (!res.ok) throw new Error(data.message || 'Failed to generate code');
       setCodeValue(data.code || '');
       setGenerated(true);
-    } catch (err: any) {
-      showToast(err.message, 'error');
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err), 'error');
     } finally {
       setGenerating(false);
     }
@@ -314,7 +283,7 @@ const GenerateCodeModal: React.FC<{ project: Project; onClose: () => void }> = (
   );
 };
 
-const getTaskAutoStatus = (task: { status?: string; due_date?: string; subtasks?: SubTask[] | any; progress_pct?: number }): 'Completed' | 'Delayed' | 'Ongoing' | 'Pending' => {
+const getTaskAutoStatus = (task: { status?: string; due_date?: string; subtasks?: SubTask[]; progress_pct?: number }): 'Completed' | 'Delayed' | 'Ongoing' | 'Pending' => {
   const subtasks: SubTask[] = Array.isArray(task.subtasks) ? task.subtasks : [];
   const doneCount = subtasks.filter(s => s.completed).length;
   const pct = subtasks.length > 0
@@ -341,7 +310,7 @@ const getTaskAutoStatus = (task: { status?: string; due_date?: string; subtasks?
   return 'Pending';
 };
 
-function PDAutoStatusBadge({ task }: { task: { status?: string; due_date?: string; subtasks?: SubTask[] | any; progress_pct?: number } }) {
+function PDAutoStatusBadge({ task }: { task: { status?: string; due_date?: string; subtasks?: SubTask[]; progress_pct?: number } }) {
   const autoStatus = getTaskAutoStatus(task);
   return <StatusBadge status={autoStatus} />;
 }
@@ -405,14 +374,14 @@ const ProjectDetails: React.FC = () => {
     return r;
   };
 
-  const isProjectOwner = (u: TeamMember) => {
+  const isProjectOwner = useCallback((u: TeamMember) => {
     const r = (u.role || '').toLowerCase();
     return r === 'owner' || (Boolean(project?.owner_id) && String(u.id) === String(project?.owner_id));
-  };
+  }, [project?.owner_id]);
 
   const siteTeamMembers = useMemo(
     () => teamMembers.filter(u => !isProjectOwner(u)),
-    [teamMembers, project?.owner_id]
+    [teamMembers, isProjectOwner]
   );
 
   const engineerMembers = useMemo(
@@ -424,7 +393,7 @@ const ProjectDetails: React.FC = () => {
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [newTaskForm, setNewTaskForm] = useState({
     taskName: '',
-    phase: PHASES[0],
+    phases: [] as string[],
     assigneeId: '',
     startDate: '',
     dueDate: '',
@@ -507,8 +476,8 @@ const ProjectDetails: React.FC = () => {
             setError('Project not found');
           }
         }
-      } catch (err: any) {
-        setError(err.message || 'Error loading project');
+      } catch (err: unknown) {
+        setError(getErrorMessage(err, '') || 'Error loading project');
       } finally {
         setLoading(false);
       }
@@ -518,13 +487,14 @@ const ProjectDetails: React.FC = () => {
   }, [projectId]);
 
   // 2. Fetch Tasks, Resources, and Members for this Project
-  const fetchProjectData = async () => {
-    if (!project) return;
+  const projectCode = project?.code;
+  const fetchProjectData = useCallback(async (projectName: string) => {
+    if (projectCode === undefined) return;
 
     // Fetch Tasks
     setTasksLoading(true);
     try {
-      const tRes = await fetchWithAuth(`${API_URL}/tasks?project_id=${project.code}`);
+      const tRes = await fetchWithAuth(`${API_URL}/tasks?project_id=${projectCode}`);
       if (tRes.ok) {
         const tJson = await tRes.json();
         setTasks(tJson.tasks || tJson.data || []);
@@ -536,7 +506,7 @@ const ProjectDetails: React.FC = () => {
     // Fetch Resources
     setResourcesLoading(true);
     try {
-      const rRes = await fetchWithAuth(`${API_URL}/resources?project=${encodeURIComponent(project.name)}`);
+      const rRes = await fetchWithAuth(`${API_URL}/resources?project=${encodeURIComponent(projectName)}`);
       if (rRes.ok) {
         const rJson = await rRes.json();
         setResources(rJson.data || []);
@@ -547,7 +517,7 @@ const ProjectDetails: React.FC = () => {
 
     // Fetch Team Members
     try {
-      const mRes = await fetchWithAuth(`${API_URL}/projects/${project.code}/members`);
+      const mRes = await fetchWithAuth(`${API_URL}/projects/${projectCode}/members`);
       if (mRes.ok) {
         const mJson = await mRes.json();
         setTeamMembers(mJson.data || []);
@@ -555,13 +525,13 @@ const ProjectDetails: React.FC = () => {
     } catch { /* ignore */ }
 
 
-  };
+  }, [projectCode]);
 
+  // Read the current resource query name without refreshing on status edits.
+  const readProjectName = useEffectEvent(() => project?.name ?? '');
   useEffect(() => {
-    if (project) {
-      fetchProjectData();
-    }
-  }, [project?.code]);
+    fetchProjectData(readProjectName());
+  }, [fetchProjectData]);
 
   // 3. Project Status Activation Handler
   const handleActivateProject = async () => {
@@ -577,8 +547,8 @@ const ProjectDetails: React.FC = () => {
       if (!res.ok) throw new Error(data.message || 'Failed to activate project');
       setProject(prev => prev ? { ...prev, status: 'Ongoing' } : prev);
       showToast('Project is now Ongoing!', 'success');
-    } catch (err: any) {
-      showToast(err.message, 'error');
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err), 'error');
     } finally {
       setActivating(false);
     }
@@ -623,9 +593,9 @@ const ProjectDetails: React.FC = () => {
       });
       if (!res.ok) throw new Error('Failed to add subtask.');
       showToast('Subtask added to task!', 'success');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to add subtask', err);
-      showToast(err.message || 'Failed to add subtask', 'error');
+      showToast(getErrorMessage(err, '') || 'Failed to add subtask', 'error');
     } finally {
       setSubmittingSubtask(prev => ({ ...prev, [taskId]: false }));
     }
@@ -658,7 +628,7 @@ const ProjectDetails: React.FC = () => {
       });
       if (!res.ok) throw new Error('Failed to delete subtask');
       showToast('Subtask removed', 'info');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to delete subtask', err);
       showToast('Failed to remove subtask', 'error');
     }
@@ -736,7 +706,7 @@ const ProjectDetails: React.FC = () => {
     setNewTaskForm(prev => ({
       ...prev,
       taskName: '',
-      phase: phaseName || prev.phase || PHASES[0],
+      phases: phaseName ? getTaskPhases({ phase: phaseName }) : [],
       startDate: '',
       dueDate: '',
       assigneeId: engineerMembers[0]?.id || '',
@@ -768,6 +738,10 @@ const ProjectDetails: React.FC = () => {
     if (!project) return;
     if (!newTaskForm.taskName.trim()) {
       showToast('Task name is required', 'warning');
+      return;
+    }
+    if (!newTaskForm.phases.length) {
+      showToast(taskPhaseRequiredMessage, 'warning');
       return;
     }
 
@@ -814,11 +788,12 @@ const ProjectDetails: React.FC = () => {
     }
 
     try {
+      const phasePayload = legacyTaskPhasePayload(newTaskForm.phases);
       setAddingTask(true);
       const payload = {
         taskName: newTaskForm.taskName.trim(),
         projectId: project.id || project.code,
-        phase: newTaskForm.phase,
+        ...phasePayload,
         assigneeId: newTaskForm.assigneeId || (engineerMembers[0]?.id ?? null),
         startDate: newTaskForm.startDate || (projStart && projStart > todayStr ? projStart : todayStr),
         dueDate: newTaskForm.dueDate || (projEnd || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]),
@@ -853,7 +828,7 @@ const ProjectDetails: React.FC = () => {
       });
       setNewTaskForm({
         taskName: '',
-        phase: PHASES[0],
+        phases: [],
         assigneeId: '',
         startDate: new Date().toISOString().split('T')[0],
         dueDate: '',
@@ -864,9 +839,9 @@ const ProjectDetails: React.FC = () => {
         subtasks: [],
       });
       setModalSubtaskInput('');
-      fetchProjectData();
-    } catch (err: any) {
-      showToast(err.message, 'error');
+      fetchProjectData(project.name);
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err), 'error');
     } finally {
       setAddingTask(false);
     }
@@ -924,9 +899,9 @@ const ProjectDetails: React.FC = () => {
         unitPrice: '',
         taskId: '',
       });
-      fetchProjectData();
-    } catch (err: any) {
-      showToast(err.message, 'error');
+      fetchProjectData(project.name);
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err), 'error');
     } finally {
       setAddingResource(false);
     }
@@ -968,9 +943,9 @@ const ProjectDetails: React.FC = () => {
         );
       }
 
-      fetchProjectData();
-    } catch (err: any) {
-      showToast(err.message, 'error');
+      fetchProjectData(project?.name ?? '');
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err), 'error');
     }
   };
 
@@ -989,8 +964,6 @@ const ProjectDetails: React.FC = () => {
 
   // Overall Project Progress computation (from tasks and subtasks)
   let totalTaskScore = 0;
-  let totalSubtasksCount = 0;
-  let completedSubtasksCount = 0;
 
   tasks.forEach(t => {
     const isCompleted = (t.status || '').toLowerCase().includes('completed');
@@ -998,15 +971,13 @@ const ProjectDetails: React.FC = () => {
     const subs: SubTask[] = Array.isArray(t.subtasks) ? t.subtasks : [];
 
     if (subs.length > 0) {
-      totalSubtasksCount += subs.length;
       const done = subs.filter(s => s.completed).length;
-      completedSubtasksCount += done;
       totalTaskScore += done / subs.length;
     } else {
       if (isCompleted) {
         totalTaskScore += 1;
       } else if (isOngoing) {
-        const pPct = (t as any).progress_pct;
+        const pPct = t.progress_pct;
         totalTaskScore += typeof pPct === 'number' && pPct > 0 ? pPct / 100 : 0.5;
       } else {
         totalTaskScore += 0;
@@ -1035,13 +1006,7 @@ const ProjectDetails: React.FC = () => {
   const minStartDate = projectMinDate && projectMinDate > todayStr ? projectMinDate : todayStr;
 
   // Group tasks by Phase
-  const tasksByPhase: Record<string, TaskItem[]> = {};
-  for (const p of PHASES) tasksByPhase[p] = [];
-  for (const t of tasks) {
-    const norm = normalizePhase(t.phase);
-    if (!tasksByPhase[norm]) tasksByPhase[norm] = [];
-    tasksByPhase[norm].push(t);
-  }
+  const tasksByPhase = groupTasksByPhase(tasks);
 
   // Filter resources in Resources tab
   const filteredResources = resources.filter(r => {
@@ -1385,14 +1350,14 @@ const ProjectDetails: React.FC = () => {
           ) : tasks.length === 0 ? (
             <div className="pd-empty-card">
               <p className="pd-empty-title">No tasks created for this project yet</p>
-              <p className="pd-empty-sub">Add tasks to organize daily construction activities across Foundation, Structural, and MEP phases.</p>
+              <p className="pd-empty-sub">Add tasks to organize daily construction activities across Site Development, Structural, and MEP categories.</p>
               <button className="pd-btn-primary" onClick={() => handleOpenAddTaskModal()} style={{ marginTop: '12px' }}>
                 + Create First Task
               </button>
             </div>
           ) : (
             <div className="pd-tasks-phase-list">
-              {PHASES.map(phaseName => {
+              {Object.keys(tasksByPhase).map(phaseName => {
                 const phaseTasks = (tasksByPhase[phaseName] || []).filter(t => {
                   const matchSearch = !taskSearch || t.task_name.toLowerCase().includes(taskSearch.toLowerCase()) || (t.assignee && t.assignee.toLowerCase().includes(taskSearch.toLowerCase()));
                   const normStatus = getNormalizedStatus(t.status).toLowerCase();
@@ -1460,6 +1425,7 @@ const ProjectDetails: React.FC = () => {
                                       <span className="pd-task-name" onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}>
                                         {task.task_name}
                                       </span>
+                                      <span className="task-phase-summary">{formatTaskPhases(task)}</span>
                                       {subtasks.length > 0 && (
                                         <span className="pd-subtask-pill" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                                           <Check size={11} strokeWidth={3} /> {subtasksDone}/{subtasks.length} steps
@@ -1964,13 +1930,10 @@ const ProjectDetails: React.FC = () => {
 
               <div className="pm-form-row pm-form-row--2">
                 <div className="pm-form-group">
-                  <label>Construction Phase <span className="pm-required">*</span></label>
-                  <Dropdown
-                    fullWidth
-                    options={PHASES.map(p => ({ value: p, label: p }))}
-                    value={newTaskForm.phase}
-                    onChange={val => setNewTaskForm(prev => ({ ...prev, phase: val }))}
-                    placeholder="Select phase"
+                  <TaskPhaseChecklist
+                    value={newTaskForm.phases}
+                    onChange={phases => setNewTaskForm(prev => ({ ...prev, phases }))}
+                    disabled={addingTask}
                   />
                 </div>
                 <div className="pm-form-group">
@@ -2458,7 +2421,7 @@ const ProjectDetails: React.FC = () => {
                       { value: '', label: '-- General Project Inventory (No specific task) --' },
                       ...tasks.map(t => ({
                         value: String(t.id),
-                        label: `${t.task_name} (${t.phase})`
+                        label: `${t.task_name} (${formatTaskPhases(t)})`
                       }))
                     ]}
                     value={resourceForm.taskId}

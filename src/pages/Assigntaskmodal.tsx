@@ -2,15 +2,16 @@ import { useState, useEffect } from "react";
 import "../components/Assigntaskmodal.css";
 import StatusBadge from "../components/StatusBadge";
 import { API_BASE_URL, fetchWithAuth } from "../utils/api";
+import { getErrorMessage } from "../utils/errors";
+import { formatTaskPhases, type TaskPhaseFields } from "../utils/taskPhases";
 
 const BACKEND_URL = API_BASE_URL;
 
 /* ── Types ── */
-export interface TaskInfo {
+export interface TaskInfo extends TaskPhaseFields {
   id: string;
   name: string;
   description: string;
-  phase: string;
   priority: "High" | "Medium" | "Low";
 }
 
@@ -20,6 +21,14 @@ export interface Engineer {
   role: string;
   status: "available" | "busy";
   currentTasks: number;
+}
+
+interface EngineerResponse {
+  id: string | number;
+  full_name?: string | null;
+  email: string;
+  role: string;
+  current_tasks?: string | number | null;
 }
 
 export interface TechDocument {
@@ -91,11 +100,11 @@ export default function AssignTaskModal({
           },
         });
         if (!res.ok) throw new Error("Failed to fetch users.");
-        const { data } = await res.json();
+        const { data }: { data: EngineerResponse[] } = await res.json();
 
         const mapped: Engineer[] = data
-          .filter((u: any) => u.role && u.role.toLowerCase().includes('engineer'))
-          .map((u: any) => ({
+          .filter((u) => u.role && u.role.toLowerCase().includes('engineer'))
+          .map((u) => ({
             id:           String(u.id),
             name:         u.full_name ?? u.email,
             role:         u.role,
@@ -116,7 +125,8 @@ export default function AssignTaskModal({
   const toggleDoc = (id: string) => {
     setSelectedDocs((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -172,8 +182,8 @@ export default function AssignTaskModal({
 
       onSuccess?.(); // refresh parent task list if provided
       onClose();     // close modal
-    } catch (err: any) {
-      setSubmitError(err.message ?? "Something went wrong.");
+    } catch (err: unknown) {
+      setSubmitError(getErrorMessage(err, "Something went wrong."));
     } finally {
       setSubmitting(false);
     }
@@ -211,7 +221,7 @@ export default function AssignTaskModal({
             <p className="atm-task-card__name">{task.name}</p>
             <p className="atm-task-card__desc">{task.description}</p>
             <div className="atm-task-card__meta">
-              <span><strong>Phase:</strong> {task.phase}</span>
+              <span><strong>Construction Phase Category:</strong> {formatTaskPhases(task)}</span>
               <span>
                 <strong>Current priority:</strong>{" "}
                 <span className={`atm-badge atm-badge--${task.priority.toLowerCase()}`}>

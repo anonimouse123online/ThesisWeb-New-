@@ -12,30 +12,53 @@ interface ProfileDropdownProps {
   className?: string;
 }
 
+interface StoredProfile {
+  name?: string;
+  role?: string;
+  email?: string;
+}
+
+function initialProfile(
+  propName?: string,
+  propRole?: string,
+  previous?: { userName: string; userRole: string; userEmail: string },
+) {
+  const profile = {
+    userName: previous?.userName ?? (propName || 'User'),
+    userRole: previous?.userRole ?? (propRole || 'Member'),
+    userEmail: previous?.userEmail ?? '',
+    propName,
+    propRole,
+  };
+  try {
+    const stored = localStorage.getItem('user');
+    if (stored) {
+      const parsed = JSON.parse(stored) as StoredProfile;
+      if (!propName) profile.userName = parsed.name || parsed.email?.split('@')[0] || 'User';
+      if (!propRole) profile.userRole = parsed.role || 'Member';
+      profile.userEmail = parsed.email || '';
+    }
+  } catch { /* Keep the existing defaults for unreadable profile data. */ }
+  return profile;
+}
+
 export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
   userName: propName,
   userRole: propRole,
   className = '',
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [userName, setUserName] = useState(propName || 'User');
-  const [userRole, setUserRole] = useState(propRole || 'Member');
-  const [userEmail, setUserEmail] = useState('');
+  const [profile, setProfile] = useState(() => initialProfile(propName, propRole));
+  if (profile.propName !== propName || profile.propRole !== propRole) {
+    // Preserve the existing storage fallback when the supplied profile changes.
+    setProfile(initialProfile(propName, propRole, profile));
+  }
+  const { userName, userRole, userEmail } = profile;
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
-  // Load from localStorage first
+  // Silently refresh the lazily initialized profile from the backend.
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('user');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (!propName) setUserName(parsed.name || parsed.email?.split('@')[0] || 'User');
-        if (!propRole) setUserRole(parsed.role || 'Member');
-        setUserEmail(parsed.email || '');
-      }
-    } catch { /* ignore */ }
-
     // Silently refresh current profile from backend /auth/me
     const refreshProfile = async () => {
       try {
@@ -43,9 +66,12 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
         if (res.ok) {
           const json = await res.json();
           if (json.data) {
-            setUserName(json.data.name || 'User');
-            setUserRole(json.data.role || 'Member');
-            setUserEmail(json.data.email || '');
+            setProfile(previous => ({
+              ...previous,
+              userName: json.data.name || 'User',
+              userRole: json.data.role || 'Member',
+              userEmail: json.data.email || '',
+            }));
             localStorage.setItem('user', JSON.stringify({
               id: json.data.id,
               name: json.data.name,

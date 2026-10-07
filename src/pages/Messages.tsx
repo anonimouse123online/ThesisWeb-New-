@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useEffect } from 'react';
+import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import { Search, Send, Users, User, Plus, X, Check, Paperclip, FileText, Download, ArrowLeft, MoreVertical, Folder } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
@@ -51,6 +51,45 @@ export interface UserContact {
   shared_projects?: string[];
 }
 
+interface ConversationResponse {
+  conversation_id: string | number;
+  is_group: boolean | number;
+  group_name?: string;
+  full_name?: string;
+  name?: string;
+  email?: string;
+  dm_user?: { full_name?: string; email?: string };
+  member_count?: number;
+  last_message?: string;
+  last_message_time?: string;
+  unread_count?: number;
+}
+
+interface MessageResponse {
+  id: string;
+  sender_id: string;
+  sender_name?: string;
+  message_text?: string;
+  created_at: string;
+  is_mine: boolean;
+  message_type?: string;
+  attachments?: {
+    mimeType?: string;
+    filePath?: string;
+    originalName?: string;
+    fileName?: string;
+    fileSize?: string | number;
+  }[];
+}
+
+interface ServerToClientEvents {
+  new_message: (message: { conversation_id: string | number }) => void;
+}
+
+interface ClientToServerEvents {
+  join_conversation: (conversationId: string) => void;
+}
+
 const MAX_BYTES = 10 * 1024 * 1024;
 
 const fmtSize = (bytes: number) => {
@@ -101,11 +140,11 @@ const Messages: React.FC = () => {
   
   const threadEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const socketRef = useRef<Socket | null>(null);
+  const socketRef = useRef<Socket<ServerToClientEvents, ClientToServerEvents> | null>(null);
 
   const token = localStorage.getItem('token') || '';
 
-  const fetchConversations = async () => {
+  const fetchConversations = useCallback(async () => {
     try {
       const res = await fetch('http://localhost:5001/messages/conversations', {
         headers: { Authorization: `Bearer ${token}` }
@@ -113,7 +152,7 @@ const Messages: React.FC = () => {
       if (!res.ok) return;
       const data = await res.json();
       if (data.success) {
-        const formatted = data.conversations.map((c: any) => {
+        const formatted = data.conversations.map((c: ConversationResponse) => {
           const isGroup = Boolean(c.is_group);
           const name = isGroup
             ? (c.group_name || 'Group Chat')
@@ -142,9 +181,9 @@ const Messages: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
-  };
+  }, [token]);
 
-  const fetchMessages = async (convId: string) => {
+  const fetchMessages = useCallback(async (convId: string) => {
     try {
       const res = await fetch(`http://localhost:5001/messages/conversations/${convId}`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -152,7 +191,7 @@ const Messages: React.FC = () => {
       if (!res.ok) return;
       const data = await res.json();
       if (data.success) {
-        const formatted = data.messages.map((m: any) => {
+        const formatted = data.messages.map((m: MessageResponse) => {
           let attachment: Attachment | undefined = undefined;
           if (m.attachments && m.attachments.length > 0) {
             const att = m.attachments[0];
@@ -184,7 +223,7 @@ const Messages: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
     fetchConversations();
@@ -194,7 +233,7 @@ const Messages: React.FC = () => {
       auth: { token }
     });
     
-    socketRef.current.on('new_message', (msg: any) => {
+    socketRef.current.on('new_message', (msg) => {
       // Re-fetch conversations to update latest message
       fetchConversations();
       
@@ -207,7 +246,7 @@ const Messages: React.FC = () => {
     return () => {
       socketRef.current?.disconnect();
     };
-  }, [activeId, token]);
+  }, [activeId, token, fetchConversations, fetchMessages]);
 
   useEffect(() => {
     if (activeId) {
@@ -216,7 +255,7 @@ const Messages: React.FC = () => {
     } else {
       setMessages([]);
     }
-  }, [activeId, token]);
+  }, [activeId, token, fetchMessages]);
 
   const active = conversations.find((c) => c.id === activeId);
 
@@ -259,7 +298,7 @@ const Messages: React.FC = () => {
     setEmailRecipient('');
   };
 
-  const handleReport = (_msgId: string) => {
+  const handleReport = () => {
     if (window.confirm('Are you sure you want to report this message?')) {
       alert('Message has been reported to the administration.');
     }
@@ -521,7 +560,7 @@ const Messages: React.FC = () => {
                               <button onClick={() => { setForwardModalMsg(m); setActiveDropdownId(null); }}>Forward</button>
                               <button onClick={() => { setEmailModalMsg(m); setEmailRecipient(''); setActiveDropdownId(null); }}>Forward as email</button>
                               <button onClick={() => { setReplyingTo(m); setActiveDropdownId(null); }}>Reply</button>
-                              <button className="text-red" onClick={() => { handleReport(m.id); setActiveDropdownId(null); }}>Report</button>
+                              <button className="text-red" onClick={() => { handleReport(); setActiveDropdownId(null); }}>Report</button>
                             </div>
                           )}
                         </div>
@@ -548,7 +587,7 @@ const Messages: React.FC = () => {
                               <button onClick={() => { setForwardModalMsg(m); setActiveDropdownId(null); }}>Forward</button>
                               <button onClick={() => { setEmailModalMsg(m); setEmailRecipient(''); setActiveDropdownId(null); }}>Forward as email</button>
                               <button onClick={() => { setReplyingTo(m); setActiveDropdownId(null); }}>Reply</button>
-                              <button className="text-red" onClick={() => { handleReport(m.id); setActiveDropdownId(null); }}>Report</button>
+                              <button className="text-red" onClick={() => { handleReport(); setActiveDropdownId(null); }}>Report</button>
                             </div>
                           )}
                         </div>

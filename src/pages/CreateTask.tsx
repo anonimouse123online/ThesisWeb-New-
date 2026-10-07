@@ -1,20 +1,15 @@
+import { getErrorMessage } from '../utils/errors';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../components/CreateTask.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
-import { showToast } from '../components/Toast';
+import { showToast } from '../utils/toast';
 import { Package, Truck, Building2, X, AlertTriangle, Info } from 'lucide-react';
 import Dropdown from '../components/Dropdown';
+import TaskPhaseChecklist from '../components/TaskPhaseChecklist';
+import { legacyTaskPhasePayload, taskPhaseRequiredMessage } from '../utils/taskPhases';
 
 const API_URL = API_BASE_URL;
-
-const PHASES = [
-  'Phase 1 - Foundation',
-  'Phase 2 - Structural',
-  'Phase 3 - Electrical & Utilities',
-  'Phase 4 - Plumbing & MEP',
-  'Phase 5 - Finishing',
-];
 
 interface ProjectOption {
   id: string;
@@ -59,6 +54,26 @@ interface AllocatedMaterial {
   unitPrice?: string;
 }
 
+interface ProjectResource {
+  id: string | number;
+  name: string;
+  category?: AllocatedMaterial['category'] | null;
+  supplier?: string | null;
+  quantity: string | number;
+  unit?: string | null;
+  minThreshold?: string | number | null;
+  unitPrice?: string | number | null;
+}
+
+interface ProjectMemberResponse {
+  id: string;
+  name?: string;
+  full_name?: string;
+  email: string;
+  role?: string;
+  system_role?: string;
+}
+
 const CreateTask: React.FC = () => {
   const navigate = useNavigate();
 
@@ -85,12 +100,12 @@ const CreateTask: React.FC = () => {
     [users]
   );
   const [loadingOptions, setLoadingOptions] = useState(true);
-  const [projectResources, setProjectResources] = useState<any[]>([]);
+  const [projectResources, setProjectResources] = useState<ProjectResource[]>([]);
 
   const [formData, setFormData] = useState({
     taskName: '',
     projectId: '',
-    phase: 'Phase 1 - Foundation',
+    phases: [] as string[],
     assigneeId: '',
     startDate: '',
     dueDate: '',
@@ -144,11 +159,11 @@ const CreateTask: React.FC = () => {
           const pJson = await pRes.json();
           const pList = pJson.data || pJson || [];
           setProjects(pList);
-          if (pList.length > 0 && !formData.projectId) {
-            setFormData(prev => ({ ...prev, projectId: pList[0].id }));
+          if (pList.length > 0) {
+            setFormData(prev => prev.projectId ? prev : { ...prev, projectId: pList[0].id });
           }
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Failed to load options', err);
       } finally {
         setLoadingOptions(false);
@@ -209,7 +224,7 @@ const CreateTask: React.FC = () => {
       .then(res => (res.ok ? res.json() : null))
       .then(mJson => {
         if (mJson && Array.isArray(mJson.data)) {
-          const members: UserOption[] = mJson.data.map((m: any) => ({
+          const members: UserOption[] = mJson.data.map((m: ProjectMemberResponse) => ({
             id: m.id,
             full_name: m.name || m.full_name || m.email,
             email: m.email || '',
@@ -291,8 +306,8 @@ const CreateTask: React.FC = () => {
       setError('Please select a target project.');
       return;
     }
-    if (!formData.phase) {
-      setError('Project phase is required.');
+    if (!formData.phases.length) {
+      setError(taskPhaseRequiredMessage);
       return;
     }
     if (!formData.assigneeId) {
@@ -344,10 +359,12 @@ const CreateTask: React.FC = () => {
     setError(null);
 
     try {
+      const { phases, ...taskFields } = formData;
+      const phasePayload = legacyTaskPhasePayload(phases);
       const res = await fetchWithAuth(`${API_URL}/tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, allocatedMaterials, subtasks }),
+        body: JSON.stringify({ ...taskFields, ...phasePayload, allocatedMaterials, subtasks }),
       });
 
       const data = await res.json();
@@ -355,8 +372,8 @@ const CreateTask: React.FC = () => {
 
       showToast('Task created and published successfully!', 'success');
       navigate('/tasks');
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setSubmitting(false);
     }
@@ -409,15 +426,12 @@ const CreateTask: React.FC = () => {
               />
             </div>
 
-            {/* Project Phase */}
+            {/* Construction phase categories */}
             <div className="form-group">
-              <label>Project Phase *</label>
-              <Dropdown
-                fullWidth
-                options={PHASES.map((ph) => ({ value: ph, label: ph }))}
-                value={formData.phase}
-                onChange={(val) => setFormData((prev) => ({ ...prev, phase: val }))}
-                placeholder="Select a phase"
+              <TaskPhaseChecklist
+                value={formData.phases}
+                onChange={phases => setFormData(prev => ({ ...prev, phases }))}
+                disabled={submitting}
               />
             </div>
 
@@ -550,12 +564,12 @@ const CreateTask: React.FC = () => {
                         value={matItemInput.name}
                         onChange={e => {
                           const val = e.target.value;
-                          const match = projectResources.find((r: any) => (r.name || '').toLowerCase() === val.toLowerCase());
+                          const match = projectResources.find((r) => (r.name || '').toLowerCase() === val.toLowerCase());
                           if (match) {
                             setMatItemInput(prev => ({
                               ...prev,
                               name: val,
-                              category: (match.category as any) || prev.category,
+                              category: match.category || prev.category,
                               supplier: match.supplier || prev.supplier,
                               unit: match.unit || prev.unit,
                               minThreshold: match.minThreshold !== undefined ? String(match.minThreshold) : prev.minThreshold,
@@ -573,7 +587,7 @@ const CreateTask: React.FC = () => {
                         }}
                       />
                       <datalist id="ct-project-stock-options">
-                        {projectResources.map((res: any) => (
+                        {projectResources.map((res) => (
                           <option key={res.id} value={res.name}>
                             {res.category} ({res.quantity} {res.unit} in stock — {res.supplier || 'General'})
                           </option>

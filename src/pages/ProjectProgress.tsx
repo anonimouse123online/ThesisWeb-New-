@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { getErrorMessage } from '../utils/errors';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import '../components/ProjectProgress.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
-import { showToast } from '../components/Toast';
+import { showToast } from '../utils/toast';
 import ProfileDropdown from '../components/ProfileDropdown';
 import { TrendingUp, Building2, HardHat, FileEdit, Check, Pin, CloudSun, ArrowLeft } from 'lucide-react';
 
@@ -56,7 +57,7 @@ const ProjectProgress: React.FC = () => {
   const [formManpower, setFormManpower] = useState<number>(0);
   const [formWeather, setFormWeather] = useState('');
 
-  const fetchProgressData = async () => {
+  const fetchProgressData = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetchWithAuth(`${API_URL}/projects/${projectCode}/progress`);
@@ -72,16 +73,16 @@ const ProjectProgress: React.FC = () => {
       setFormPct(data.project?.progress_pct ?? 50);
       setTaskBreakdown(data.taskBreakdown || []);
       setLogs(data.logs || []);
-    } catch (err: any) {
-      showToast(err.message, 'error');
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err), 'error');
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectCode]);
 
   useEffect(() => {
     fetchProgressData();
-  }, [projectCode]);
+  }, [fetchProgressData]);
 
   const handleLogSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,8 +113,8 @@ const ProjectProgress: React.FC = () => {
       setFormSummary('');
       setFormWork('');
       fetchProgressData();
-    } catch (err: any) {
-      showToast(err.message, 'error');
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -322,7 +323,7 @@ const ProjectProgress: React.FC = () => {
               {PHASES.map((p, idx) => {
                 // Calculate percentage based on active phase
                 const cleanCurrent = (currentPhase || '').replace(/^Phase\s*\d+\s*[-–:]\s*/i, '');
-                const currentIdx = PHASES.indexOf(cleanCurrent as any);
+                const currentIdx = PHASES.findIndex(phase => phase === cleanCurrent);
                 let phasePct = 0;
                 if (idx < currentIdx) phasePct = 100;
                 else if (idx === currentIdx) phasePct = overallProgress;

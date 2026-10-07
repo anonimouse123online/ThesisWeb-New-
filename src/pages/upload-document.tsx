@@ -1,3 +1,4 @@
+import { getErrorMessage } from '../utils/errors';
 import React, { useState, useRef } from 'react';
 import '../components/upload-document.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
@@ -44,9 +45,8 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
 
   // Auto-detect Document Type from file extension
   const detectDocType = (fileName: string): DocType => {
-    const ext = fileName.split('.').pop()?.toUpperCase() as DocType;
-    if (DOC_TYPES.includes(ext as any)) return ext;
-    return 'PDF';
+    const ext = fileName.split('.').pop()?.toUpperCase();
+    return DOC_TYPES.find(type => type === ext) ?? 'PDF';
   };
 
   // ── Handle multiple files ──
@@ -111,7 +111,7 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
     if (upper.includes('WORD') || upper.includes('DOCUMENT') || upper === 'DOCX' || upper === 'DOC') return 'DOC';
     if (upper.includes('SHEET') || upper.includes('EXCEL') || upper.includes('CSV') || upper === 'XLSX' || upper === 'XLS') return 'XLS';
     if (['JPG', 'PNG', 'JPEG'].some(x => upper.includes(x))) return 'PDF';
-    if (['DWG', 'PDF', 'XLS', 'DOC'].includes(upper)) return upper as any;
+    if (upper === 'DWG' || upper === 'PDF' || upper === 'XLS' || upper === 'DOC') return upper;
     return 'PDF';
   };
 
@@ -197,8 +197,8 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
 
       onUploaded();
       onClose();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setUploading(false);
     }

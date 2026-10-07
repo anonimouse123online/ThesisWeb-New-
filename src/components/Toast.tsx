@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import './Toast.css';
 import { CheckCircle2, AlertCircle, AlertTriangle, Info, X } from 'lucide-react';
 
-export type ToastType = 'success' | 'error' | 'warning' | 'info';
+import { registerToastHandler, type ToastType } from '../utils/toast';
+
+export type { ToastType } from '../utils/toast';
 
 interface ToastProps {
   message: string;
@@ -57,22 +59,14 @@ interface ToastItem {
 }
 
 let toastId = 0;
-let addToastFn: ((message: string, type?: ToastType) => void) | null = null;
-
-/** Call this from anywhere to show a toast */
-export function showToast(message: string, type: ToastType = 'info') {
-  if (addToastFn) addToastFn(message, type);
-}
-
 export const ToastContainer: React.FC = () => {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   useEffect(() => {
-    addToastFn = (message: string, type: ToastType = 'info') => {
+    return registerToastHandler((message: string, type: ToastType = 'info') => {
       const id = ++toastId;
       setToasts(prev => [...prev, { id, message, type }]);
-    };
-    return () => { addToastFn = null; };
+    });
   }, []);
 
   const removeToast = (id: number) => {

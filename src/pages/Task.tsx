@@ -1,18 +1,21 @@
-import React, { Fragment, useState, useEffect, useMemo } from "react";
+import React, { Fragment, useState, useEffect, useMemo, useCallback } from "react";
 import AssignTaskModal from "../pages/Assigntaskmodal";
 import { API_BASE_URL, fetchWithAuth } from "../utils/api";
-import { showToast } from "../components/Toast";
+import { getErrorMessage } from "../utils/errors";
+import { showToast } from "../utils/toast";
 import { X, Rocket, CheckCircle2, Circle } from "lucide-react";
 import Dropdown from "../components/Dropdown";
 import StatusBadge from "../components/StatusBadge";
 import "../components/Task.css";
+import TaskPhaseChecklist from "../components/TaskPhaseChecklist";
+import { formatTaskPhases, getTaskPhases, groupTasksByPhase, legacyTaskPhasePayload, taskPhaseRequiredMessage, type TaskPhaseFields } from "../utils/taskPhases";
 
 const BACKEND_URL = API_BASE_URL;
 
 type Priority = "High" | "Medium" | "Low";
 type Status = "in-progress" | "completed" | "blocked" | "Pending" | "pending" | "delayed" | "Delayed" | "Ongoing" | "ongoing" | "In Progress" | "Completed";
 
-const getTaskAutoStatus = (task: { status?: string; due_date?: string; subtasks?: SubTask[] | any; progress_pct?: number }): 'Completed' | 'Delayed' | 'Ongoing' | 'Pending' => {
+const getTaskAutoStatus = (task: { status?: string; due_date?: string; subtasks?: SubTask[]; progress_pct?: number }): 'Completed' | 'Delayed' | 'Ongoing' | 'Pending' => {
   const subtasks: SubTask[] = Array.isArray(task.subtasks) ? task.subtasks : [];
   const doneCount = subtasks.filter(s => s.completed).length;
   const pct = subtasks.length > 0
@@ -39,7 +42,7 @@ const getTaskAutoStatus = (task: { status?: string; due_date?: string; subtasks?
   return 'Pending';
 };
 
-function AutoStatusBadge({ task }: { task: { status?: string; due_date?: string; subtasks?: SubTask[] | any; progress_pct?: number } }) {
+function AutoStatusBadge({ task }: { task: { status?: string; due_date?: string; subtasks?: SubTask[]; progress_pct?: number } }) {
   const autoStatus = getTaskAutoStatus(task);
   return <StatusBadge status={autoStatus} />;
 }
@@ -50,10 +53,9 @@ export interface SubTask {
   completed: boolean;
 }
 
-interface Task {
+interface Task extends TaskPhaseFields {
   id: number | string;
   task_name: string;
-  phase: string;
   assignee: string;
   start_date?: string;
   due_date: string;
@@ -84,43 +86,6 @@ interface Project {
   name: string;
   start_date?: string;
   end_date?: string;
-}
-
-const PHASES = [
-  "Foundation",
-  "Structural",
-  "Electrical & Utilities",
-  "Plumbing & MEP",
-  "Finishing",
-];
-
-function normalizePhase(raw?: string): string {
-  if (!raw) return PHASES[0];
-  const s = raw.toLowerCase().trim();
-  if (s.includes("phase 1") || s.includes("foundation")) return PHASES[0];
-  if (s.includes("phase 2") || s.includes("structur") || s.includes("structure")) return PHASES[1];
-  if (s.includes("phase 3") || s.includes("utilit") || s.includes("electr")) return PHASES[2];
-  if (s.includes("phase 4") || s.includes("plumb") || s.includes("mep")) return PHASES[3];
-  if (s.includes("phase 5") || s.includes("finish")) return PHASES[4];
-  return raw.replace(/^Phase\s*\d+\s*[-–:]\s*/i, '').trim() || raw;
-}
-
-function groupByPhase(tasks: Task[]): Record<string, Task[]> {
-  const result: Record<string, Task[]> = {};
-  
-  // Initialize standard construction phases in order
-  for (const p of PHASES) {
-    result[p] = [];
-  }
-
-  // Populate tasks into normalized canonical phases
-  for (const task of tasks) {
-    const canonical = normalizePhase(task.phase);
-    if (!result[canonical]) result[canonical] = [];
-    result[canonical].push(task);
-  }
-
-  return result;
 }
 
 function getInitials(name: string): string {
@@ -363,7 +328,7 @@ interface CreateTaskFormProps {
 }
 
 const EMPTY_FORM = {
-  taskName: "", phase: "", assigneeId: "", projectId: "",
+  taskName: "", phases: [] as string[], assigneeId: "", projectId: "",
   startDate: "",
   dueDate: "",
   priority: "Medium" as Priority, manpowerNeeded: "",
@@ -373,7 +338,7 @@ const EMPTY_FORM = {
 function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: CreateTaskFormProps) {
   const [form, setForm] = useState({
     ...EMPTY_FORM,
-    phase: initialPhase || "Foundation",
+    phases: initialPhase ? getTaskPhases({ phase: initialPhase }) : [],
     projectId: initialProjectId || "",
   });
   const [loading, setLoading]                 = useState(false);
@@ -452,7 +417,7 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
 
   useEffect(() => {
     if (initialPhase) {
-      setForm((prev) => ({ ...prev, phase: initialPhase }));
+      setForm((prev) => ({ ...prev, phases: getTaskPhases({ phase: initialPhase }) }));
     }
   }, [initialPhase]);
 
@@ -469,7 +434,9 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
         if (!res.ok) throw new Error("Failed to fetch users.");
         const { data } = await res.json();
         setUsers(data);
-      } catch { } finally { setUsersLoading(false); }
+      } catch {
+        // Leave the user selector empty when users cannot be loaded.
+      } finally { setUsersLoading(false); }
     })();
 
     (async () => {
@@ -478,7 +445,9 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
         if (!res.ok) throw new Error("Failed to fetch projects.");
         const { data } = await res.json();
         setProjects(data);
-      } catch { } finally { setProjectsLoading(false); }
+      } catch {
+        // Leave the project selector empty when projects cannot be loaded.
+      } finally { setProjectsLoading(false); }
     })();
   }, []);
 
@@ -491,7 +460,7 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.taskName.trim())          { setError("Task name is required."); return; }
-    if (!form.phase)                    { setError("Phase is required."); return; }
+    if (!form.phases.length)            { setError(taskPhaseRequiredMessage); return; }
     if (!form.projectId)                { setError("Please select a project."); return; }
     if (!form.assigneeId)               { setError("Please select an assignee engineer."); return; }
     if (!form.priority)                 { setError("Priority is required."); return; }
@@ -522,12 +491,13 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
     setError(null);
 
     try {
+      const phasePayload = legacyTaskPhasePayload(form.phases);
       const res = await fetchWithAuth(`${BACKEND_URL}/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           taskName:          form.taskName.trim(),
-          phase:             form.phase,
+          ...phasePayload,
           assigneeId:        form.assigneeId,
           projectId:         form.projectId,
           startDate:         form.startDate,
@@ -555,7 +525,7 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
       showToast("Task created successfully!", "success");
       onCreated(taskWithMeta);
       onClose();
-    } catch (err: any) { setError(err.message); } finally { setLoading(false); }
+    } catch (err: unknown) { setError(getErrorMessage(err)); } finally { setLoading(false); }
   };
 
   return (
@@ -586,13 +556,10 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
 
           <div className="ct-row">
             <div className="ct-field">
-              <label className="ct-label">Phase <span className="ct-required">*</span></label>
-              <Dropdown
-                fullWidth
-                options={PHASES.map((p) => ({ value: p, label: p }))}
-                value={form.phase}
-                onChange={(val) => setForm((prev) => ({ ...prev, phase: val }))}
-                placeholder="Select a phase"
+              <TaskPhaseChecklist
+                value={form.phases}
+                onChange={phases => setForm(prev => ({ ...prev, phases }))}
+                disabled={loading}
               />
             </div>
 
@@ -807,7 +774,7 @@ export default function Tasks() {
   const [fetchError, setFetchError]           = useState<string | null>(null);
   const [expandedIds, setExpandedIds]         = useState<Set<number | string>>(new Set());
   const [showCreate, setShowCreate]           = useState(false);
-  const [createTaskPhase, setCreateTaskPhase] = useState<string>("Foundation");
+  const [createTaskPhase, setCreateTaskPhase] = useState<string>("");
   const [assignTask, setAssignTask]           = useState<import("../pages/Assigntaskmodal").TaskInfo | null>(null);
   const [projects, setProjects]               = useState<Project[]>([]);
   const [filterProjectId, setFilterProjectId] = useState<string>("");
@@ -819,13 +786,13 @@ export default function Tasks() {
         if (!res.ok) throw new Error("Failed to fetch projects.");
         const { data } = await res.json();
         setProjects(data);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Failed to load projects for filter:", err);
       }
     })();
   }, []);
 
-  const fetchTasks = async () => {
+  const fetchTasks = useCallback(async () => {
     setLoading(true);
     setFetchError(null);
     try {
@@ -837,16 +804,16 @@ export default function Tasks() {
       const json = await res.json();
       const list = Array.isArray(json) ? json : Array.isArray(json.data) ? json.data : [];
       setTasks(list);
-    } catch (err: any) {
-      setFetchError(err.message);
+    } catch (err: unknown) {
+      setFetchError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
-  };
+  }, [filterProjectId]);
 
   useEffect(() => {
     fetchTasks();
-  }, [filterProjectId]);
+  }, [fetchTasks]);
 
 
 
@@ -927,10 +894,15 @@ export default function Tasks() {
   const completed  = tasks.filter((t) => t.status?.toLowerCase() === "completed").length;
   const ongoing    = tasks.filter((t) => ["in-progress","ongoing","in progress"].includes(t.status?.toLowerCase())).length;
   const delayed    = tasks.filter((t) => t.status?.toLowerCase() === "delayed").length;
-  const grouped    = groupByPhase(tasks);
+  const grouped    = groupTasksByPhase(tasks);
 
   const toggleExpand = (id: number | string) =>
-    setExpandedIds((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const handleOpenAssign = (task: Task, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -939,6 +911,7 @@ export default function Tasks() {
       name: task.task_name,
       description: task.site_instructions ?? "",
       phase: task.phase,
+      phases: task.phases,
       priority: task.priority,
     });
   };
@@ -1004,7 +977,7 @@ export default function Tasks() {
         <button
           className="tasks-create-btn"
           onClick={() => {
-            setCreateTaskPhase("Foundation");
+            setCreateTaskPhase("");
             setShowCreate(true);
           }}
         >
@@ -1038,7 +1011,7 @@ export default function Tasks() {
       {fetchError && <div className="tasks-fetch-error">{fetchError}</div>}
 
       {!loading && !fetchError && (
-        PHASES.map((phase) => {
+        Object.keys(grouped).map((phase) => {
           const phaseTasks = grouped[phase] || [];
           const filterStatus = phaseFilters[phase] || 'All';
           const displayedTasks = filterStatus === 'All'
@@ -1125,7 +1098,9 @@ export default function Tasks() {
                           <td className="tasks-td tasks-td--toggle">
                             <span className={`tasks-chevron${expandedIds.has(task.id) ? " tasks-chevron--open" : ""}`}>›</span>
                           </td>
-                          <td className="tasks-td tasks-td--name">{task.task_name}</td>
+                          <td className="tasks-td tasks-td--name">{task.task_name}
+                            <span className="task-phase-summary">{formatTaskPhases(task)}</span>
+                          </td>
                           <td className="tasks-td tasks-td--code">{task.code ?? `PRJ-${String(task.id).slice(0, 8)}`}</td>
                           <td className="tasks-td tasks-td--project">
                             {task.project_code

@@ -1,7 +1,8 @@
+import { getErrorMessage } from '../utils/errors';
 import React, { useState, useEffect } from "react";
 import "../components/UserManagement.css";
 import { API_BASE_URL, fetchWithAuth } from "../utils/api";
-import { showToast } from "../components/Toast";
+import { showToast } from "../utils/toast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -68,8 +69,8 @@ const UserManagement: React.FC = () => {
       if (!res.ok) throw new Error("Failed to fetch users");
       const json = await res.json();
       setUsers(json.data ?? []);
-    } catch (err: any) {
-      setError(err.message || "Something went wrong");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '') || "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -93,8 +94,8 @@ const UserManagement: React.FC = () => {
         prev.map(u => (u.id === userId ? { ...u, role: data.role } : u))
       );
       showToast("User role updated successfully!", "success");
-    } catch (err: any) {
-      showToast(err.message, "error");
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err), "error");
     } finally {
       setUpdatingRole(null);
     }
@@ -116,8 +117,8 @@ const UserManagement: React.FC = () => {
       }
       setUsers(prev => prev.filter(u => u.id !== userId));
       showToast(`${userName || 'User'} removed from your project team.`, "success");
-    } catch (err: any) {
-      showToast(err.message, "error");
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err), "error");
     }
   };
 

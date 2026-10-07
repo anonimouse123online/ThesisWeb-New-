@@ -252,6 +252,13 @@ export default function App() {
         />
 
 
+        <Route
+          path="/audit-trail"
+          element={<Navigate to="/settings?tab=audit" replace />}
+        />
+
+        <Route path="/audit-trail/security-logs" element={<Navigate to="/settings?tab=audit" replace />} />
+
         {/* 404 */}
 
         <Route

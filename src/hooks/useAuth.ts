@@ -9,31 +9,33 @@ interface UserInfo {
 }
 
 export function useAuth() {
-  const [user, setUser] = useState<UserInfo | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [session, setSession] = useState(() => {
+    const storedToken = localStorage.getItem('token');
+    const storedUser = localStorage.getItem('user');
+    if (storedToken && storedUser) {
+      try {
+        return { user: JSON.parse(storedUser) as UserInfo | null, token: storedToken, corrupted: false };
+      } catch {
+        return { user: null, token: null, corrupted: true };
+      }
+    }
+    return { user: null, token: null, corrupted: false };
+  });
+  const { user, token } = session;
   const navigate = useNavigate();
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-
-    if (storedToken && storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-        setToken(storedToken);
-      } catch {
-        // Corrupted data — clear it
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-      }
+    if (session.corrupted) {
+      // Keep storage writes outside the state initializer.
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
     }
-  }, []);
+  }, [session.corrupted]);
 
   const logout = useCallback(() => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    setUser(null);
-    setToken(null);
+    setSession({ user: null, token: null, corrupted: false });
     navigate('/login');
   }, [navigate]);
 

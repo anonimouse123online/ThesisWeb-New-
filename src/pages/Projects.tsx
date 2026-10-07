@@ -1,3 +1,4 @@
+import { getErrorMessage } from '../utils/errors';
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import '../components/Projects.css';
@@ -5,8 +6,9 @@ import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import Dropdown from '../components/Dropdown';
 import ProfileDropdown from '../components/ProfileDropdown';
 import StatusBadge from '../components/StatusBadge';
-import { showToast } from '../components/Toast';
-import { ArrowRight, AlertTriangle, Building2, Package, Plus } from 'lucide-react';
+import ProjectIssueBadge from '../components/ProjectIssueBadge';
+import { showToast } from '../utils/toast';
+import { ArrowRight, AlertTriangle, Building2, Plus } from 'lucide-react';
 
 const BACKEND_URL = API_BASE_URL;
 
@@ -25,6 +27,7 @@ interface ProjectRecord {
   task_count?: number;
   completed_task_count?: number;
   resource_count?: number;
+  active_issue_count?: number | string | null;
 }
 
 interface TaskRecord {
@@ -174,8 +177,8 @@ const Projects: React.FC = () => {
         const rData = await rRes.value.json();
         setResources(rData.data || []);
       }
-    } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred.');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '') || 'An unexpected error occurred.');
     } finally {
       setLoading(false);
     }
@@ -218,8 +221,8 @@ const Projects: React.FC = () => {
       setShowModal(false);
       setForm(emptyForm);
       showToast('Project created successfully!', 'success');
-    } catch (err: any) {
-      setFormError(err.message);
+    } catch (err: unknown) {
+      setFormError(getErrorMessage(err));
     } finally {
       setSubmitting(false);
     }
@@ -231,7 +234,12 @@ const Projects: React.FC = () => {
       const dt = new Date(d);
       return `${(dt.getMonth() + 1).toString().padStart(2, '0')}/${dt.getDate().toString().padStart(2, '0')}/${String(dt.getFullYear()).slice(2)}`;
     };
-    return `${fmt(start)} - ${fmt(end)}`;
+    return (
+      <span className="pm-timeline">
+        <time dateTime={start}>{fmt(start)}</time>
+        <time dateTime={end}>{fmt(end)}</time>
+      </span>
+    );
   };
 
   const formatBudget = (b: string | number) => {
@@ -299,7 +307,7 @@ const Projects: React.FC = () => {
   };
 
   return (
-    <main className="main-content">
+    <main className={`main-content ${activeView === 'projects' ? 'pm-overview' : ''}`}>
       {/* ── Header ── */}
       <header className="pm-header">
         <div>
@@ -367,7 +375,20 @@ const Projects: React.FC = () => {
           filteredProjects.length === 0 ? (
             <p className="pm-state-msg">No projects match the selected filters.</p>
           ) : (
-            <table className="pm-table">
+            <div className="pm-project-table-scroll">
+            <table className="pm-table pm-project-table">
+              <colgroup>
+                <col className="pm-col-code" />
+                <col className="pm-col-name" />
+                <col className="pm-col-client" />
+                <col className="pm-col-timeline" />
+                <col className="pm-col-budget" />
+                <col className="pm-col-progress" />
+                <col className="pm-col-resources" />
+                <col className="pm-col-status" />
+                <col className="pm-col-issues" />
+                <col className="pm-col-actions" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Project Code</th>
@@ -375,9 +396,10 @@ const Projects: React.FC = () => {
                   <th>Client</th>
                   <th>Timeline</th>
                   <th>Budget</th>
-                  <th>Task Progress</th>
+                  <th>Progress</th>
                   <th>Resources</th>
                   <th>Status</th>
+                  <th>Issues</th>
                   <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
@@ -391,14 +413,14 @@ const Projects: React.FC = () => {
 
                   return (
                     <tr key={prj.code}>
-                      <td className="pm-td-bold">
-                        <span className="pd-code-badge">{prj.code}</span>
+                      <td className="pm-project-code">
+                        <span title={prj.code}>{prj.code}</span>
                       </td>
-                      <td>
-                        <div style={{ fontWeight: 700, color: '#0f172a' }}>{prj.name}</div>
-                        <div className="pm-td-muted" style={{ fontSize: '12px' }}>{prj.location}</div>
+                      <td className="pm-project-name">
+                        <div className="pm-td-bold">{prj.name}</div>
+                        <div className="pm-td-muted pm-project-location">{prj.location}</div>
                       </td>
-                      <td>{prj.client}</td>
+                      <td className="pm-project-client">{prj.client}</td>
                       <td className="pm-td-muted">{formatTimeline(prj.start_date, prj.end_date)}</td>
                       <td>
                         <strong title={invCost > 0 ? `Original Budget: ${formatBudget(initialBudget)} | Inventory Cost: -${formatBudget(invCost)} | Remaining: ${formatBudget(remainingBudget)}` : undefined}>
@@ -406,28 +428,26 @@ const Projects: React.FC = () => {
                         </strong>
                       </td>
                       <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <div className="pd-progress-track" style={{ width: '80px', marginBottom: 0 }}>
-                            <div className="pd-progress-fill" style={{ width: `${pct}%`, background: '#ea580c' }} />
+                        <div className="pm-project-progress">
+                          <div className="pm-progress-track" role="progressbar" aria-label={`${prj.name} task progress`} aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+                            <div className="pm-progress-fill" style={{ width: `${pct}%` }} />
                           </div>
-                          <span style={{ fontSize: '12px', fontWeight: 600, color: '#475569' }}>
-                            {done}/{total} ({pct}%)
+                          <span className="pm-progress-stats">
+                            <span>{done}/{total}</span>
+                            <span className="pm-td-muted">{pct}%</span>
                           </span>
                         </div>
                       </td>
+                      <td className="pm-project-resources">{resCount} items</td>
+                      <td><StatusBadge status={prj.status} showDot={false} className="pm-project-status" /></td>
                       <td>
-                        <span style={{ fontSize: '12px', background: '#f1f5f9', padding: '4px 8px', borderRadius: '12px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                          <Package size={13} style={{ color: '#64748b' }} />
-                          <span>{resCount} items</span>
-                        </span>
+                        <ProjectIssueBadge projectCode={prj.code} activeIssueCount={prj.active_issue_count} />
                       </td>
-                      <td><StatusBadge status={prj.status} /></td>
-                      <td style={{ textAlign: 'right' }}>
+                      <td className="pm-project-actions">
                         <button
-                          className="pm-view-btn"
+                          className="pm-view-btn pm-workspace-btn"
                           onClick={() => navigate(`/projects/${prj.code}`)}
                           title="Open Project Workspace"
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                         >
                           Workspace <ArrowRight size={13} />
                         </button>
@@ -437,6 +457,7 @@ const Projects: React.FC = () => {
                 })}
               </tbody>
             </table>
+            </div>
           )
         )}
 
