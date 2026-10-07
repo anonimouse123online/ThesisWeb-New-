@@ -3,13 +3,16 @@ import React, { useState, useEffect, useMemo, useCallback, useEffectEvent } from
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import '../components/ProjectDetails.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
+import { formatCurrency } from '../utils/currency';
 import { toDateInputValue } from '../utils/dates';
 import ProfileDropdown from '../components/ProfileDropdown';
 import StatusBadge from '../components/StatusBadge';
+import { TaskWorkStatusBadge, SubtaskWorkSummary } from '../components/TaskWorkStatus';
+import { getWorkStatus, getTaskProgress, isWorkCompleted, type SubTask, type WorkStatusFields } from '../utils/taskWorkStatus';
 import Dropdown from '../components/Dropdown';
 import { showToast } from '../utils/toast';
 import TaskPhaseChecklist from '../components/TaskPhaseChecklist';
-import { TASK_PHASE_CATEGORIES, formatTaskPhases, getTaskPhases, groupTasksByPhase, legacyTaskPhasePayload, taskPhaseRequiredMessage, type TaskPhaseFields } from '../utils/taskPhases';
+import { TASK_PHASE_CATEGORIES, formatTaskPhases, getTaskPhases, groupTasksByPhase, taskPhasePayload, taskPhaseRequiredMessage, type TaskPhaseFields } from '../utils/taskPhases';
 import {
   LayoutDashboard,
   ClipboardList,
@@ -67,12 +70,6 @@ interface TeamMember {
   system_role?: string;
 }
 
-interface SubTask {
-  id: string;
-  title: string;
-  completed: boolean;
-}
-
 interface AllocatedMaterial {
   id: string;
   name: string;
@@ -84,7 +81,7 @@ interface AllocatedMaterial {
   unitPrice?: string;
 }
 
-interface TaskItem extends TaskPhaseFields {
+interface TaskItem extends TaskPhaseFields, WorkStatusFields {
   id: string | number;
   task_name: string;
   assignee: string;
@@ -96,7 +93,6 @@ interface TaskItem extends TaskPhaseFields {
   materials_required: string;
   site_instructions: string;
   subtasks?: SubTask[];
-  progress_pct?: number;
   images?: string[];
   project_id?: string;
   project_code?: string;
@@ -134,16 +130,6 @@ function avatarColor(name: string): string {
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
   return colors[Math.abs(hash) % colors.length];
 }
-
-const formatBudget = (b: string | number) => {
-  const n = parseFloat(String(b));
-  if (isNaN(n)) return b;
-  return '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-};
-
-const formatCurrency = (n: number) => {
-  return '₱' + (n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-};
 
 const formatTimeline = (start: string, end: string) => {
   if (!start || !end) return '—';
@@ -281,47 +267,6 @@ const GenerateCodeModal: React.FC<{ project: Project; onClose: () => void }> = (
       </div>
     </div>
   );
-};
-
-const getTaskAutoStatus = (task: { status?: string; due_date?: string; subtasks?: SubTask[]; progress_pct?: number }): 'Completed' | 'Delayed' | 'Ongoing' | 'Pending' => {
-  const subtasks: SubTask[] = Array.isArray(task.subtasks) ? task.subtasks : [];
-  const doneCount = subtasks.filter(s => s.completed).length;
-  const pct = subtasks.length > 0
-    ? Math.round((doneCount / subtasks.length) * 100)
-    : (typeof task.progress_pct === 'number' ? task.progress_pct : 0);
-
-  if (pct === 100 || (task.status || '').toLowerCase().includes('complete') || (task.status || '').toLowerCase() === 'done') {
-    return 'Completed';
-  }
-
-  if (task.due_date) {
-    const due = new Date(task.due_date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (due < today) {
-      return 'Delayed';
-    }
-  }
-
-  if (pct > 0 || (task.status || '').toLowerCase().includes('progress') || (task.status || '').toLowerCase().includes('ongoing')) {
-    return 'Ongoing';
-  }
-
-  return 'Pending';
-};
-
-function PDAutoStatusBadge({ task }: { task: { status?: string; due_date?: string; subtasks?: SubTask[]; progress_pct?: number } }) {
-  const autoStatus = getTaskAutoStatus(task);
-  return <StatusBadge status={autoStatus} />;
-}
-
-const getNormalizedStatus = (status?: string): string => {
-  if (!status) return 'Pending';
-  const s = status.trim().toLowerCase();
-  if (s === 'ongoing' || s === 'in progress' || s === 'in-progress' || s === 'active') return 'Ongoing';
-  if (s === 'completed' || s === 'done') return 'Completed';
-  if (s === 'delayed' || s === 'late') return 'Delayed';
-  return 'Pending';
 };
 
 // ─── MAIN COMPONENT: ProjectDetails (Unified Project Workspace) ───────────────
@@ -488,20 +433,25 @@ const ProjectDetails: React.FC = () => {
 
   // 2. Fetch Tasks, Resources, and Members for this Project
   const projectCode = project?.code;
-  const fetchProjectData = useCallback(async (projectName: string) => {
+  const fetchProjectTasks = useCallback(async () => {
     if (projectCode === undefined) return;
-
-    // Fetch Tasks
     setTasksLoading(true);
     try {
       const tRes = await fetchWithAuth(`${API_URL}/tasks?project_id=${projectCode}`);
       if (tRes.ok) {
         const tJson = await tRes.json();
-        setTasks(tJson.tasks || tJson.data || []);
+        setTasks(Array.isArray(tJson) ? tJson : tJson.tasks || tJson.data || []);
       }
     } catch { /* ignore */ } finally {
       setTasksLoading(false);
     }
+  }, [projectCode]);
+
+  const fetchProjectData = useCallback(async (projectName: string) => {
+    if (projectCode === undefined) return;
+
+    // Fetch Tasks
+    await fetchProjectTasks();
 
     // Fetch Resources
     setResourcesLoading(true);
@@ -525,7 +475,7 @@ const ProjectDetails: React.FC = () => {
     } catch { /* ignore */ }
 
 
-  }, [projectCode]);
+  }, [projectCode, fetchProjectTasks]);
 
   // Read the current resource query name without refreshing on status edits.
   const readProjectName = useEffectEvent(() => project?.name ?? '');
@@ -570,16 +520,15 @@ const ProjectDetails: React.FC = () => {
 
     const currentSubs: SubTask[] = Array.isArray(task.subtasks) ? task.subtasks : [];
     const updatedSubs = [...currentSubs, newSub];
-    const doneCount = updatedSubs.filter(s => s.completed).length;
+    const doneCount = updatedSubs.filter(isWorkCompleted).length;
     const newPct = Math.round((doneCount / updatedSubs.length) * 100);
-    const autoStatus = getTaskAutoStatus({ ...task, subtasks: updatedSubs, progress_pct: newPct });
 
     setNewSubtaskInputs(prev => ({ ...prev, [taskId]: '' }));
 
     setTasks(prev =>
       prev.map(t =>
         String(t.id) === String(taskId)
-          ? { ...t, subtasks: updatedSubs, progress_pct: newPct, status: autoStatus }
+          ? { ...t, subtasks: updatedSubs, progress_pct: newPct }
           : t
       )
     );
@@ -592,6 +541,7 @@ const ProjectDetails: React.FC = () => {
         body: JSON.stringify({ subtasks: updatedSubs }),
       });
       if (!res.ok) throw new Error('Failed to add subtask.');
+      await fetchProjectTasks();
       showToast('Subtask added to task!', 'success');
     } catch (err: unknown) {
       console.error('Failed to add subtask', err);
@@ -608,14 +558,13 @@ const ProjectDetails: React.FC = () => {
 
     const currentSubs: SubTask[] = Array.isArray(task.subtasks) ? task.subtasks : [];
     const updatedSubs = currentSubs.filter(s => s.id !== subtaskId);
-    const doneCount = updatedSubs.filter(s => s.completed).length;
+    const doneCount = updatedSubs.filter(isWorkCompleted).length;
     const newPct = updatedSubs.length > 0 ? Math.round((doneCount / updatedSubs.length) * 100) : 0;
-    const autoStatus = getTaskAutoStatus({ ...task, subtasks: updatedSubs, progress_pct: newPct });
 
     setTasks(prev =>
       prev.map(t =>
         String(t.id) === String(taskId)
-          ? { ...t, subtasks: updatedSubs, progress_pct: newPct, status: autoStatus }
+          ? { ...t, subtasks: updatedSubs, progress_pct: newPct }
           : t
       )
     );
@@ -627,6 +576,7 @@ const ProjectDetails: React.FC = () => {
         body: JSON.stringify({ subtasks: updatedSubs }),
       });
       if (!res.ok) throw new Error('Failed to delete subtask');
+      await fetchProjectTasks();
       showToast('Subtask removed', 'info');
     } catch (err: unknown) {
       console.error('Failed to delete subtask', err);
@@ -788,7 +738,7 @@ const ProjectDetails: React.FC = () => {
     }
 
     try {
-      const phasePayload = legacyTaskPhasePayload(newTaskForm.phases);
+      const phasePayload = taskPhasePayload(newTaskForm.phases);
       setAddingTask(true);
       const payload = {
         taskName: newTaskForm.taskName.trim(),
@@ -1093,7 +1043,7 @@ const ProjectDetails: React.FC = () => {
               title={totalResourceCost > 0 ? `Original Budget: ${formatCurrency(initialBudget)} | Allocated Inventory Cost: -${formatCurrency(totalResourceCost)} | Remaining Available Budget: ${formatCurrency(remainingBudget)}` : undefined}
             >
               <p className="pd-meta-label">Budget Allocated</p>
-              <p className="pd-meta-value">{formatBudget(remainingBudget)}</p>
+              <p className="pd-meta-value">{formatCurrency(remainingBudget)}</p>
             </div>
           </div>
 
@@ -1360,14 +1310,13 @@ const ProjectDetails: React.FC = () => {
               {Object.keys(tasksByPhase).map(phaseName => {
                 const phaseTasks = (tasksByPhase[phaseName] || []).filter(t => {
                   const matchSearch = !taskSearch || t.task_name.toLowerCase().includes(taskSearch.toLowerCase()) || (t.assignee && t.assignee.toLowerCase().includes(taskSearch.toLowerCase()));
-                  const normStatus = getNormalizedStatus(t.status).toLowerCase();
-                  const matchStatus = taskStatusFilter === 'All' || normStatus === taskStatusFilter.toLowerCase() || (t.status || '').toLowerCase() === taskStatusFilter.toLowerCase();
+                  const matchStatus = taskStatusFilter === 'All' || getWorkStatus(t).toLowerCase() === taskStatusFilter.toLowerCase();
                   return matchSearch && matchStatus;
                 });
 
                 if (phaseTasks.length === 0 && taskSearch) return null;
 
-                const completedInPhase = phaseTasks.filter(t => (t.status || '').toLowerCase().includes('completed')).length;
+                const completedInPhase = phaseTasks.filter(isWorkCompleted).length;
 
                 return (
                   <div key={phaseName} className="pd-phase-group-card">
@@ -1407,7 +1356,7 @@ const ProjectDetails: React.FC = () => {
                             {phaseTasks.map(task => {
                               const isExpanded = expandedTaskId === task.id;
                               const subtasks: SubTask[] = Array.isArray(task.subtasks) ? task.subtasks : [];
-                              const subtasksDone = subtasks.filter(s => s.completed).length;
+                              const subtasksDone = subtasks.filter(isWorkCompleted).length;
 
                               return (
                                 <React.Fragment key={task.id}>
@@ -1450,11 +1399,7 @@ const ProjectDetails: React.FC = () => {
                                     </td>
                                     <td>
                                       {(() => {
-                                        const taskPct = subtasks.length > 0
-                                          ? Math.round((subtasksDone / subtasks.length) * 100)
-                                          : (typeof task.progress_pct === 'number'
-                                              ? task.progress_pct
-                                              : ((task.status || '').toLowerCase().includes('completed') ? 100 : ((task.status || '').toLowerCase().includes('progress') ? 50 : 0)));
+                                        const taskPct = getTaskProgress(task);
                                         return (
                                           <div className="pd-task-progress-cell">
                                             <div className="pd-task-progress-bar-bg">
@@ -1479,7 +1424,7 @@ const ProjectDetails: React.FC = () => {
                                       })()}
                                     </td>
                                     <td className="pd-task-status-cell">
-                                      <PDAutoStatusBadge task={task} />
+                                      <TaskWorkStatusBadge item={task} />
                                     </td>
                                   </tr>
 
@@ -1499,7 +1444,7 @@ const ProjectDetails: React.FC = () => {
                                                 </div>
                                                 {subtasks.length > 0 && (
                                                   <span className="pd-subtasks-progress-badge">
-                                                    {subtasksDone} / {subtasks.length} Done ({task.progress_pct ?? Math.round((subtasksDone / (subtasks.length || 1)) * 100)}%)
+                                                    {subtasksDone} / {subtasks.length} Done ({getTaskProgress(task)}%)
                                                   </span>
                                                 )}
                                               </div>
@@ -1513,24 +1458,20 @@ const ProjectDetails: React.FC = () => {
                                                   {subtasks.map(st => (
                                                     <div key={st.id} className="pd-subtask-row">
                                                       <div className="pd-subtask-item" style={{ cursor: 'default' }}>
-                                                        {st.completed ? (
+                                                        {isWorkCompleted(st) ? (
                                                           <span className="pd-subtask-status-icon pd-subtask-status-icon--done" title="Completed by field engineer">
                                                             <CheckCircle2 size={16} color="#10b981" />
                                                           </span>
                                                         ) : (
-                                                          <span className="pd-subtask-status-icon pd-subtask-status-icon--pending" title="Pending field engineer completion">
+                                                          <span className="pd-subtask-status-icon pd-subtask-status-icon--pending" title={`${getWorkStatus(st)} — awaiting field engineer completion`}>
                                                             <Circle size={15} color="#94a3b8" />
                                                           </span>
                                                         )}
-                                                        <span className={st.completed ? 'pd-subtask-done' : ''}>
+                                                        <span className={isWorkCompleted(st) ? 'pd-subtask-done' : ''}>
                                                           {st.title}
                                                         </span>
                                                       </div>
-                                                      {st.completed ? (
-                                                        <span className="pd-step-done-pill">Done</span>
-                                                      ) : (
-                                                        <span className="pd-step-pending-pill">Pending</span>
-                                                      )}
+                                                      <SubtaskWorkSummary subtask={st} />
                                                       <button
                                                         type="button"
                                                         className="pd-subtask-delete-btn"
@@ -1797,8 +1738,8 @@ const ProjectDetails: React.FC = () => {
                           <strong>{res.quantity}</strong> {res.unit}
                         </td>
                         <td className="pm-td-muted">Min {res.minThreshold} {res.unit}</td>
-                        <td>₱{Number(res.unitPrice).toLocaleString()}</td>
-                        <td><strong>₱{totalVal.toLocaleString()}</strong></td>
+                        <td>{formatCurrency(res.unitPrice)}</td>
+                        <td><strong>{formatCurrency(totalVal)}</strong></td>
                         <td>
                           <StatusBadge status={displayStatus} />
                         </td>
@@ -2094,7 +2035,7 @@ const ProjectDetails: React.FC = () => {
                         </div>
 
                         <div className="pm-mat-field">
-                          <label className="pm-mat-label">Supplier / Vendor</label>
+                          <label className="pm-mat-label">Contractor</label>
                           <input
                             type="text"
                             className="pm-input pm-mat-input"
@@ -2235,7 +2176,7 @@ const ProjectDetails: React.FC = () => {
                               )}
                               {mat.unitPrice && Number(mat.unitPrice) > 0 && (
                                 <span className="pm-allocated-mat-detail" title="Unit Price">
-                                  ₱{Number(mat.unitPrice).toLocaleString()}
+                                  {formatCurrency(mat.unitPrice)}
                                 </span>
                               )}
                               {mat.minThreshold && Number(mat.minThreshold) > 0 && (
@@ -2351,6 +2292,7 @@ const ProjectDetails: React.FC = () => {
                           }}
                         >
                           <span>{idx + 1}. {st.title}</span>
+                          <SubtaskWorkSummary subtask={st} />
                           <button
                             type="button"
                             style={{
@@ -2459,7 +2401,7 @@ const ProjectDetails: React.FC = () => {
 
               <div className="pm-form-row pm-form-row--2">
                 <div className="pm-form-group">
-                  <label>Supplier / Vendor</label>
+                  <label>Contractor</label>
                   <input
                     className="pm-input"
                     value={resourceForm.supplier}

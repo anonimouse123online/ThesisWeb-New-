@@ -30,8 +30,6 @@ interface RawLog {
   equipment_used?: string | null;
   additional_notes?: string | null;
 
-  has_incident?: boolean | null;
-
   created_at?: string | null;
 
   phase?: string | null;
@@ -70,8 +68,6 @@ interface LogEntry {
   materialsDelivered: string;
   equipmentUsed: string;
   additionalNotes: string;
-
-  hasIncident: boolean;
 }
 
 // ============================================================
@@ -426,11 +422,6 @@ const TimeLog: React.FC = () => {
               displayText(
                 r.additional_notes
               ),
-
-            hasIncident:
-              Boolean(
-                r.has_incident
-              ),
           };
         });
 
@@ -509,10 +500,6 @@ const TimeLog: React.FC = () => {
   );
 
   const totalEngineers = engineers.length;
-
-  const safetyIncidents = logs.filter(
-    (log) => log.hasIncident
-  ).length;
 
   const hasActiveFilters =
     searchQuery.trim() !== "" ||
@@ -880,15 +867,6 @@ const TimeLog: React.FC = () => {
             {totalEngineers}
           </span>
         </div>
-
-        <div className="stat-card">
-          <span className="stat-label">
-            Safety Incidents
-          </span>
-          <span className="stat-value">
-            {safetyIncidents}
-          </span>
-        </div>
       </div>
 
       {/* FILTERS */}
@@ -1043,11 +1021,6 @@ const TimeLog: React.FC = () => {
                 const latestLog =
                   projectLogs[0];
 
-                const projectIncidentCount =
-                  projectLogs.filter(
-                    (log) => log.hasIncident
-                  ).length;
-
                 const latestProgress =
                   latestLog?.progressPct;
 
@@ -1154,19 +1127,6 @@ const TimeLog: React.FC = () => {
                             latestProgress !== undefined
                               ? ` • ${latestProgress}%`
                               : ""}
-                          </span>
-                        )}
-
-                        {projectIncidentCount > 0 && (
-                          <span
-                            className="log-tag"
-                            style={{
-                              background: "#fef2f2",
-                              color: "#b91c1c",
-                              borderColor: "#fecaca",
-                            }}
-                          >
-                            {projectIncidentCount} Incident{projectIncidentCount === 1 ? "" : "s"}
                           </span>
                         )}
                       </div>
@@ -1464,27 +1424,6 @@ const TimeLog: React.FC = () => {
                                                     {log.conditions.weather}
                                                   </span>
                                                 )}
-
-                                                <span
-                                                  className="log-tag"
-                                                  style={
-                                                    log.hasIncident
-                                                      ? {
-                                                          background: "#fef2f2",
-                                                          color: "#b91c1c",
-                                                          borderColor: "#fecaca",
-                                                        }
-                                                      : {
-                                                          background: "#f0fdf4",
-                                                          color: "#166534",
-                                                          borderColor: "#bbf7d0",
-                                                        }
-                                                  }
-                                                >
-                                                  {log.hasIncident
-                                                    ? "Incident recorded"
-                                                    : "No incident"}
-                                                </span>
                                               </div>
 
                                               <div className="log-chevron">
@@ -1621,25 +1560,6 @@ const TimeLog: React.FC = () => {
                                                       </span>
                                                       <span className="detail-value">
                                                         {log.conditions.temperature}
-                                                      </span>
-                                                    </div>
-
-                                                    <div className="detail-row">
-                                                      <span className="detail-label">
-                                                        Safety Incident:
-                                                      </span>
-                                                      <span
-                                                        className="detail-value"
-                                                        style={{
-                                                          fontWeight: 700,
-                                                          color: log.hasIncident
-                                                            ? "#b91c1c"
-                                                            : "#166534",
-                                                        }}
-                                                      >
-                                                        {log.hasIncident
-                                                          ? "Yes"
-                                                          : "No"}
                                                       </span>
                                                     </div>
                                                   </div>

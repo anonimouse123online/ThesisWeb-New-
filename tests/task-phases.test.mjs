@@ -5,12 +5,13 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 
-function moduleUrl(path) {
+function moduleUrl(path, stubUseId = false) {
   let { outputText } = ts.transpileModule(readFileSync(path, 'utf8'), {
     compilerOptions: { target: ts.ScriptTarget.ES2023, module: ts.ModuleKind.ESNext, jsx: ts.JsxEmit.ReactJSX },
     fileName: path.pathname,
   });
   outputText = outputText.replace(/^import ['"].*\.css['"];?$/gm, '');
+  if (stubUseId) outputText = outputText.replace(/import \{ useId \} from ['"]react['"];?/, "const useId = () => 'task-phase-test';");
   outputText = outputText.replace(/from ['"]([^'"]+)['"]/g, (_match, dependency) => {
     const url = dependency.startsWith('.') ? moduleUrl(new URL(`${dependency}.ts`, path)) : import.meta.resolve(dependency);
     return `from '${url}'`;
@@ -18,7 +19,7 @@ function moduleUrl(path) {
   return `data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`;
 }
 
-const { TASK_PHASE_CATEGORIES, getTaskPhases, formatTaskPhases, groupTasksByPhase, legacyTaskPhasePayload, taskPhaseRequiredMessage } =
+const { TASK_PHASE_CATEGORIES, getTaskPhases, formatTaskPhases, groupTasksByPhase, taskPhasePayload, taskPhaseRequiredMessage } =
   await import(moduleUrl(new URL('../src/utils/taskPhases.ts', import.meta.url)));
 const { default: TaskPhaseChecklist } = await import(moduleUrl(new URL('../src/components/TaskPhaseChecklist.tsx', import.meta.url)));
 
@@ -46,25 +47,54 @@ test('array categories take precedence over the legacy scalar and preserve disti
   assert.deepEqual(getTaskPhases({ phase: 'Foundation', phases: null }), ['Site Development']);
 });
 
-test('compatible singleton payloads keep the existing scalar API contract', () => {
-  for (const [category, phase] of [
-    ['Site Development', 'Phase 1 - Foundation'], ['Structural', 'Phase 2 - Structural'],
-    ['Electrical & Utilities', 'Phase 3 - Electrical & Utilities'], ['Plumbing & MEP', 'Phase 4 - Plumbing & MEP'],
-    ['Architectural', 'Phase 5 - Finishing'],
-  ]) {
-    assert.deepEqual(legacyTaskPhasePayload([category]), { phase });
-    assert.equal(typeof legacyTaskPhasePayload([category]).phase, 'string');
+test('payloads send single, multiple and all seven categories as an array without a scalar phase', () => {
+  for (const selected of [['Site Development'], ['Site Development', 'Structural'], [...TASK_PHASE_CATEGORIES]]) {
+    const original = [...selected];
+    const payload = taskPhasePayload(selected);
+    assert.deepEqual(JSON.parse(JSON.stringify(payload)), { construction_phase_categories: original });
+    assert.deepEqual(selected, original);
+    assert.notEqual(payload.construction_phase_categories, selected);
+    assert.equal(Object.hasOwn(payload, 'phase'), false);
   }
 });
 
-test('empty selections, multiple categories and unsupported singleton categories never produce a lossy payload', () => {
-  for (const phases of [[], [' ', '']]) assert.throws(() => legacyTaskPhasePayload(phases), { message: taskPhaseRequiredMessage });
-  const multiple = ['Site Development', 'Architectural'];
-  assert.throws(() => legacyTaskPhasePayload(multiple), /Multiple construction phase categories cannot be saved yet/);
-  assert.deepEqual(multiple, ['Site Development', 'Architectural']);
-  for (const phase of ['Construction Phase', 'Turnover Phase', 'Unknown', '__proto__', 'constructor']) {
-    assert.throws(() => legacyTaskPhasePayload([phase]), /selected construction phase category cannot be saved yet/);
+test('empty and invalid selections are still rejected', () => {
+  assert.throws(() => taskPhasePayload([]), { message: taskPhaseRequiredMessage });
+  for (const phase of ['', ' ', 'Unknown', '__proto__', 'constructor']) {
+    assert.throws(() => taskPhasePayload([phase]), /Please select valid construction phase categories/);
   }
+});
+
+test('construction_phase_categories responses retain every selection for checklist initialization', () => {
+  const task = { construction_phase_categories: ['Site Development', 'Structural'], phases: ['Turnover Phase'], phase: 'Foundation' };
+  const unchanged = structuredClone(task);
+  assert.deepEqual(getTaskPhases(task), ['Site Development', 'Structural']);
+  assert.deepEqual(getTaskPhases({ construction_phase_categories: [], phases: ['Structural'] }), []);
+  assert.deepEqual(task, unchanged);
+  const markup = renderToStaticMarkup(createElement(TaskPhaseChecklist, { value: getTaskPhases(task), onChange() {} }));
+  assert.match(markup, /<input(?=[^>]*value="Site Development")(?=[^>]*checked="")[^>]*>/);
+  assert.match(markup, /<input(?=[^>]*value="Structural")(?=[^>]*checked="")[^>]*>/);
+  assert.equal((markup.match(/checked=""/g) || []).length, 2);
+});
+
+test('checkbox change handlers retain earlier selections and uncheck only the requested category', async () => {
+  const { default: Checklist } = await import(moduleUrl(new URL('../src/components/TaskPhaseChecklist.tsx', import.meta.url), true));
+  let selected = [];
+  function checkbox(category) {
+    const tree = Checklist({ value: selected, onChange: next => { selected = next; } });
+    return tree.props.children[2].props.children.find(label => label.key === category).props.children[0];
+  }
+  checkbox('Site Development').props.onChange({ target: { checked: true } });
+  checkbox('Structural').props.onChange({ target: { checked: true } });
+  assert.deepEqual(selected, ['Site Development', 'Structural']);
+  assert.equal(checkbox('Site Development').props.checked, true);
+  assert.equal(checkbox('Structural').props.checked, true);
+  assert.deepEqual(taskPhasePayload(selected), { construction_phase_categories: ['Site Development', 'Structural'] });
+  checkbox('Structural').props.onChange({ target: { checked: false } });
+  assert.deepEqual(selected, ['Site Development']);
+  checkbox('Site Development').props.onChange({ target: { checked: false } });
+  assert.deepEqual(selected, []);
+  assert.throws(() => taskPhasePayload(selected), { message: taskPhaseRequiredMessage });
 });
 
 test('grouping includes a task in each applicable category without duplicating it within a group', () => {

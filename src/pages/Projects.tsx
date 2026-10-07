@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import '../components/Projects.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
+import { formatCurrency } from '../utils/currency';
 import Dropdown from '../components/Dropdown';
 import ProfileDropdown from '../components/ProfileDropdown';
 import StatusBadge from '../components/StatusBadge';
@@ -242,12 +243,6 @@ const Projects: React.FC = () => {
     );
   };
 
-  const formatBudget = (b: string | number) => {
-    const n = parseFloat(String(b));
-    if (isNaN(n)) return b;
-    return '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  };
-
   // Filter options
   const projectOptions = [
     { value: 'All', label: 'All Projects' },
@@ -422,8 +417,8 @@ const Projects: React.FC = () => {
                       <td className="pm-project-client">{prj.client}</td>
                       <td className="pm-td-muted">{formatTimeline(prj.start_date, prj.end_date)}</td>
                       <td>
-                        <strong title={invCost > 0 ? `Original Budget: ${formatBudget(initialBudget)} | Inventory Cost: -${formatBudget(invCost)} | Remaining: ${formatBudget(remainingBudget)}` : undefined}>
-                          {formatBudget(remainingBudget)}
+                        <strong title={invCost > 0 ? `Original Budget: ${formatCurrency(initialBudget)} | Inventory Cost: -${formatCurrency(invCost)} | Remaining: ${formatCurrency(remainingBudget)}` : undefined}>
+                          {formatCurrency(remainingBudget)}
                         </strong>
                       </td>
                       <td>
@@ -549,7 +544,7 @@ const Projects: React.FC = () => {
                       <td className="pm-td-muted">{r.supplier || '—'}</td>
                       <td><strong>{r.quantity}</strong> {r.unit}</td>
                       <td className="pm-td-muted">Min {r.minThreshold} {r.unit}</td>
-                      <td>₱{Number(r.unitPrice).toLocaleString()}</td>
+                      <td>{formatCurrency(r.unitPrice)}</td>
                       <td>
                         <StatusBadge status={r.status || (isLow ? 'Low stock' : 'In stock')} />
                       </td>

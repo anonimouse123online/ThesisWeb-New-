@@ -5,66 +5,28 @@ import { getErrorMessage } from "../utils/errors";
 import { showToast } from "../utils/toast";
 import { X, Rocket, CheckCircle2, Circle } from "lucide-react";
 import Dropdown from "../components/Dropdown";
-import StatusBadge from "../components/StatusBadge";
+import { TaskWorkStatusBadge, SubtaskWorkSummary } from "../components/TaskWorkStatus";
+import { getWorkStatus, getTaskProgress, isWorkCompleted, type SubTask, type WorkStatusFields } from "../utils/taskWorkStatus";
 import "../components/Task.css";
 import TaskPhaseChecklist from "../components/TaskPhaseChecklist";
-import { formatTaskPhases, getTaskPhases, groupTasksByPhase, legacyTaskPhasePayload, taskPhaseRequiredMessage, type TaskPhaseFields } from "../utils/taskPhases";
+import { formatTaskPhases, getTaskPhases, groupTasksByPhase, taskPhasePayload, taskPhaseRequiredMessage, type TaskPhaseFields } from "../utils/taskPhases";
 
 const BACKEND_URL = API_BASE_URL;
 
 type Priority = "High" | "Medium" | "Low";
-type Status = "in-progress" | "completed" | "blocked" | "Pending" | "pending" | "delayed" | "Delayed" | "Ongoing" | "ongoing" | "In Progress" | "Completed";
+export type { SubTask } from "../utils/taskWorkStatus";
 
-const getTaskAutoStatus = (task: { status?: string; due_date?: string; subtasks?: SubTask[]; progress_pct?: number }): 'Completed' | 'Delayed' | 'Ongoing' | 'Pending' => {
-  const subtasks: SubTask[] = Array.isArray(task.subtasks) ? task.subtasks : [];
-  const doneCount = subtasks.filter(s => s.completed).length;
-  const pct = subtasks.length > 0
-    ? Math.round((doneCount / subtasks.length) * 100)
-    : (typeof task.progress_pct === 'number' ? task.progress_pct : 0);
-
-  if (pct === 100 || (task.status || '').toLowerCase().includes('complete') || (task.status || '').toLowerCase() === 'done') {
-    return 'Completed';
-  }
-
-  if (task.due_date) {
-    const due = new Date(task.due_date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (due < today) {
-      return 'Delayed';
-    }
-  }
-
-  if (pct > 0 || (task.status || '').toLowerCase().includes('progress') || (task.status || '').toLowerCase().includes('ongoing')) {
-    return 'Ongoing';
-  }
-
-  return 'Pending';
-};
-
-function AutoStatusBadge({ task }: { task: { status?: string; due_date?: string; subtasks?: SubTask[]; progress_pct?: number } }) {
-  const autoStatus = getTaskAutoStatus(task);
-  return <StatusBadge status={autoStatus} />;
-}
-
-export interface SubTask {
-  id: string;
-  title: string;
-  completed: boolean;
-}
-
-interface Task extends TaskPhaseFields {
+interface Task extends TaskPhaseFields, WorkStatusFields {
   id: number | string;
   task_name: string;
   assignee: string;
   start_date?: string;
   due_date: string;
   priority: Priority;
-  status: Status;
+  status: string;
   manpower_needed: string;
   materials_required: string;
   site_instructions: string;
-  progress_pct?: number;
   phase_milestone_pct?: number;
   subtasks?: SubTask[];
   project_id?: string;
@@ -145,7 +107,7 @@ function TaskDetailPanel({
         .filter(Boolean)
     : [];
   const subtasks: SubTask[] = Array.isArray(task.subtasks) ? task.subtasks : [];
-  const completedCount = subtasks.filter((s) => s.completed).length;
+  const completedCount = subtasks.filter(isWorkCompleted).length;
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -173,14 +135,14 @@ function TaskDetailPanel({
                   <span style={{ fontSize: '11px', color: '#94a3b8' }}>Checked by field engineers on mobile app</span>
                 </div>
                 <span className="tdp-subtasks-badge">
-                  {completedCount} / {subtasks.length} Done ({task.progress_pct ?? 0}%)
+                  {completedCount} / {subtasks.length} Done ({getTaskProgress(task)}%)
                 </span>
               </div>
 
-              {/* Auto Status Badge */}
+              {/* Saved task status */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Task Status:</span>
-                <AutoStatusBadge task={task} />
+                <TaskWorkStatusBadge item={task} />
               </div>
             </div>
 
@@ -190,23 +152,19 @@ function TaskDetailPanel({
                 {subtasks.map((st) => (
                   <div
                     key={st.id}
-                    className={`tdp-subtask-row ${st.completed ? "tdp-subtask-row--done" : ""}`}
+                    className={`tdp-subtask-row ${isWorkCompleted(st) ? "tdp-subtask-row--done" : ""}`}
                   >
-                    {st.completed ? (
+                    {isWorkCompleted(st) ? (
                       <span className="tdp-subtask-status-icon tdp-subtask-status-icon--done" title="Completed by field engineer">
                         <CheckCircle2 size={16} color="#10b981" />
                       </span>
                     ) : (
-                      <span className="tdp-subtask-status-icon tdp-subtask-status-icon--pending" title="Pending field engineer completion">
+                      <span className="tdp-subtask-status-icon tdp-subtask-status-icon--pending" title={`${getWorkStatus(st)} — awaiting field engineer completion`}>
                         <Circle size={15} color="#94a3b8" />
                       </span>
                     )}
                     <span className="tdp-subtask-title">{st.title}</span>
-                    {st.completed ? (
-                      <span className="pd-step-done-pill">Done</span>
-                    ) : (
-                      <span className="pd-step-pending-pill">Pending</span>
-                    )}
+                    <SubtaskWorkSummary subtask={st} />
                     <button
                       type="button"
                       className="tdp-subtask-delete-btn"
@@ -290,13 +248,13 @@ function TaskDetailPanel({
               <span className="tdp-info-value" style={{ color: '#ea580c', fontWeight: 700 }}>
                 {task.phase_milestone_pct != null
                   ? `${task.phase_milestone_pct}% (Synced from Project Progress)`
-                  : `${task.progress_pct ?? 0}% (Execution Target)`}
+                  : `${getTaskProgress(task)}% (Execution Target)`}
               </span>
             </div>
             <div className="tdp-info-item">
               <span className="tdp-info-label">Percent Progress</span>
               <span className="tdp-info-value" style={{ color: '#16a34a', fontWeight: 700 }}>
-                {task.progress_pct ?? 0}%
+                {getTaskProgress(task)}%
               </span>
             </div>
             <div className="tdp-info-item">
@@ -491,7 +449,7 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
     setError(null);
 
     try {
-      const phasePayload = legacyTaskPhasePayload(form.phases);
+      const phasePayload = taskPhasePayload(form.phases);
       const res = await fetchWithAuth(`${BACKEND_URL}/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -735,6 +693,7 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
                     }}
                   >
                     <span>{idx + 1}. {st.title}</span>
+                    <SubtaskWorkSummary subtask={st} />
                     <button
                       type="button"
                       style={{
@@ -802,7 +761,7 @@ export default function Tasks() {
       const res = await fetchWithAuth(url);
       if (!res.ok) throw new Error("Failed to fetch tasks.");
       const json = await res.json();
-      const list = Array.isArray(json) ? json : Array.isArray(json.data) ? json.data : [];
+      const list = Array.isArray(json) ? json : Array.isArray(json.data) ? json.data : Array.isArray(json.tasks) ? json.tasks : [];
       setTasks(list);
     } catch (err: unknown) {
       setFetchError(getErrorMessage(err));
@@ -828,25 +787,25 @@ export default function Tasks() {
       completed: false,
     };
     const updatedSubs = [...(Array.isArray(task.subtasks) ? task.subtasks : []), newSub];
-    const doneCount = updatedSubs.filter((s) => s.completed).length;
+    const doneCount = updatedSubs.filter(isWorkCompleted).length;
     const newPct = Math.round((doneCount / updatedSubs.length) * 100);
-
-    const autoStatus = getTaskAutoStatus({ ...task, subtasks: updatedSubs, progress_pct: newPct });
 
     setTasks((prev) =>
       prev.map((t) =>
         t.id === taskId
-          ? { ...t, subtasks: updatedSubs, progress_pct: newPct, status: autoStatus as Status }
+          ? { ...t, subtasks: updatedSubs, progress_pct: newPct }
           : t
       )
     );
 
     try {
-      await fetchWithAuth(`${BACKEND_URL}/tasks/${taskId}/subtasks`, {
+      const res = await fetchWithAuth(`${BACKEND_URL}/tasks/${taskId}/subtasks`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subtasks: updatedSubs }),
       });
+      if (!res.ok) throw new Error("Failed to add subtask.");
+      await fetchTasks();
       showToast("Execution step added!", "success");
     } catch (err) {
       console.error("Failed to add subtask", err);
@@ -861,10 +820,8 @@ export default function Tasks() {
     const currentSubs: SubTask[] = Array.isArray(task.subtasks) ? task.subtasks : [];
     const updatedSubs = currentSubs.filter((s) => s.id !== subtaskId);
     const newPct = updatedSubs.length > 0
-      ? Math.round((updatedSubs.filter((s) => s.completed).length / updatedSubs.length) * 100)
+      ? Math.round((updatedSubs.filter(isWorkCompleted).length / updatedSubs.length) * 100)
       : 0;
-
-    const autoStatus = getTaskAutoStatus({ ...task, subtasks: updatedSubs, progress_pct: newPct });
 
     setTasks((prev) =>
       prev.map((t) =>
@@ -873,27 +830,28 @@ export default function Tasks() {
               ...t,
               subtasks: updatedSubs,
               progress_pct: newPct,
-              status: autoStatus as Status,
             }
           : t
       )
     );
 
     try {
-      await fetchWithAuth(`${BACKEND_URL}/tasks/${taskId}/subtasks`, {
+      const res = await fetchWithAuth(`${BACKEND_URL}/tasks/${taskId}/subtasks`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subtasks: updatedSubs }),
       });
+      if (!res.ok) throw new Error("Failed to delete subtask.");
+      await fetchTasks();
     } catch (err) {
       console.error("Failed to delete subtask", err);
     }
   };
 
   const totalTasks = tasks.length;
-  const completed  = tasks.filter((t) => t.status?.toLowerCase() === "completed").length;
-  const ongoing    = tasks.filter((t) => ["in-progress","ongoing","in progress"].includes(t.status?.toLowerCase())).length;
-  const delayed    = tasks.filter((t) => t.status?.toLowerCase() === "delayed").length;
+  const completed  = tasks.filter(isWorkCompleted).length;
+  const ongoing    = tasks.filter((t) => getWorkStatus(t) === "Ongoing").length;
+  const delayed    = tasks.filter((t) => getWorkStatus(t) === "Delayed").length;
   const grouped    = groupTasksByPhase(tasks);
 
   const toggleExpand = (id: number | string) =>
@@ -911,7 +869,7 @@ export default function Tasks() {
       name: task.task_name,
       description: task.site_instructions ?? "",
       phase: task.phase,
-      phases: task.phases,
+      phases: getTaskPhases(task),
       priority: task.priority,
     });
   };
@@ -944,7 +902,7 @@ export default function Tasks() {
 
   const TASK_STATUS_OPTIONS = [
     { value: 'All', label: 'All Statuses' },
-    { value: 'in-progress', label: 'In Progress' },
+    { value: 'ongoing', label: 'Ongoing' },
     { value: 'completed', label: 'Completed' },
     { value: 'pending', label: 'Pending' },
     { value: 'delayed', label: 'Delayed' },
@@ -988,7 +946,7 @@ export default function Tasks() {
       <div className="tasks-stats">
         <div className="tasks-stat-card"><span className="tasks-stat-label">Total Task</span><span className="tasks-stat-value">{totalTasks}</span></div>
         <div className="tasks-stat-card"><span className="tasks-stat-label">Completed</span><span className="tasks-stat-value">{completed}</span></div>
-        <div className="tasks-stat-card"><span className="tasks-stat-label">On Going</span><span className="tasks-stat-value">{ongoing}</span></div>
+        <div className="tasks-stat-card"><span className="tasks-stat-label">Ongoing</span><span className="tasks-stat-value">{ongoing}</span></div>
         <div className="tasks-stat-card"><span className="tasks-stat-label">Delayed</span><span className="tasks-stat-value">{delayed}</span></div>
       </div>
 
@@ -1016,12 +974,7 @@ export default function Tasks() {
           const filterStatus = phaseFilters[phase] || 'All';
           const displayedTasks = filterStatus === 'All'
             ? phaseTasks
-            : phaseTasks.filter((t) => {
-                const s = (t.status || '').toLowerCase().replace(' ', '-');
-                const target = filterStatus.toLowerCase().replace(' ', '-');
-                if (target === 'in-progress') return ['in-progress', 'ongoing', 'in progress'].includes(s);
-                return s === target;
-              });
+            : phaseTasks.filter((t) => getWorkStatus(t).toLowerCase() === filterStatus);
 
           return (
             <div className="tasks-table-section" key={phase}>
@@ -1087,7 +1040,7 @@ export default function Tasks() {
                 </thead>
                 <tbody>
                   {displayedTasks.map((task) => {
-                    const pct = task.progress_pct ?? 0;
+                    const pct = getTaskProgress(task);
 
                     return (
                       <Fragment key={task.id}>
@@ -1115,9 +1068,9 @@ export default function Tasks() {
                           </td>
                           <td className="tasks-td"><PriorityBadge priority={task.priority} /></td>
                           
-                          {/* Auto Status Badge */}
+                          {/* Saved task status */}
                           <td className="tasks-td">
-                            <AutoStatusBadge task={task} />
+                            <TaskWorkStatusBadge item={task} />
                           </td>
 
                           {/* Dynamic Progress Bar */}

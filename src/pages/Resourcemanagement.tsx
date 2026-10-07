@@ -2,6 +2,7 @@ import { getErrorMessage } from '../utils/errors';
 import React, { useState, useEffect } from "react";
 import "../components/Resourcemanagement.css";
 import { API_BASE_URL, fetchWithAuth } from "../utils/api";
+import { formatCurrency } from '../utils/currency';
 import StatusBadge from "../components/StatusBadge";
 import { showToast } from "../utils/toast";
 
@@ -42,10 +43,6 @@ const emptyForm: NewResourceForm = {
   name: "", category: "Material", quantity: "", unit: "",
   minThreshold: "", unitPrice: "", supplier: "", assignedProject: "",
 };
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const peso = (n: number) => "₱" + n.toLocaleString("en-PH");
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -256,8 +253,8 @@ const ResourceManagement: React.FC = () => {
       <div className="res-card__rows">
         <div className="res-card__row"><span>Quantity:</span>     <span>{r.quantity} {r.unit}</span></div>
         <div className="res-card__row"><span>Min Threshold:</span><span>{r.minThreshold} {r.unit}</span></div>
-        <div className="res-card__row"><span>Unit Price:</span>   <span>{peso(r.unitPrice)}</span></div>
-        <div className="res-card__row"><span>Total Value:</span>  <span>{peso(r.quantity * r.unitPrice)}</span></div>
+        <div className="res-card__row"><span>Unit Price:</span>   <span>{formatCurrency(r.unitPrice)}</span></div>
+        <div className="res-card__row"><span>Total Value:</span>  <span>{formatCurrency(r.quantity * r.unitPrice)}</span></div>
       </div>
 
       <div className="res-card__project">Project: {r.project}</div>
@@ -311,7 +308,7 @@ const ResourceManagement: React.FC = () => {
       <div className="form-row form-row--2">
         <div className="form-group">
           <label>Unit Price <span className="required">*</span></label>
-          <input name="unitPrice" type="number" value={values.unitPrice} onChange={onChange} className="form-input" />
+          <input name="unitPrice" type="number" step="0.01" value={values.unitPrice} onChange={onChange} className="form-input" />
         </div>
         <div className="form-group">
           <label>Supplier <span className="required">*</span></label>
@@ -364,7 +361,7 @@ const ResourceManagement: React.FC = () => {
         </div>
         <div className="stat-card stat-card--wide">
           <span className="stat-label">Total Value</span>
-          <span className="stat-value stat-value--large">{peso(totalValue)}</span>
+          <span className="stat-value stat-value--large">{formatCurrency(totalValue)}</span>
         </div>
       </div>
 

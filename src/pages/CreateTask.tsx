@@ -3,11 +3,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../components/CreateTask.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
+import { formatCurrency } from '../utils/currency';
+import { SubtaskWorkSummary } from '../components/TaskWorkStatus';
 import { showToast } from '../utils/toast';
 import { Package, Truck, Building2, X, AlertTriangle, Info } from 'lucide-react';
 import Dropdown from '../components/Dropdown';
 import TaskPhaseChecklist from '../components/TaskPhaseChecklist';
-import { legacyTaskPhasePayload, taskPhaseRequiredMessage } from '../utils/taskPhases';
+import { taskPhasePayload, taskPhaseRequiredMessage } from '../utils/taskPhases';
 
 const API_URL = API_BASE_URL;
 
@@ -360,7 +362,7 @@ const CreateTask: React.FC = () => {
 
     try {
       const { phases, ...taskFields } = formData;
-      const phasePayload = legacyTaskPhasePayload(phases);
+      const phasePayload = taskPhasePayload(phases);
       const res = await fetchWithAuth(`${API_URL}/tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -611,7 +613,7 @@ const CreateTask: React.FC = () => {
                     </div>
 
                     <div className="pm-mat-field">
-                      <label className="pm-mat-label">Supplier / Vendor</label>
+                      <label className="pm-mat-label">Contractor</label>
                       <input
                         type="text"
                         className="pm-mat-input"
@@ -752,7 +754,7 @@ const CreateTask: React.FC = () => {
                           )}
                           {mat.unitPrice && Number(mat.unitPrice) > 0 && (
                             <span className="pm-allocated-mat-detail" title="Unit Price">
-                              ₱{Number(mat.unitPrice).toLocaleString()}
+                              {formatCurrency(mat.unitPrice)}
                             </span>
                           )}
                           {mat.minThreshold && Number(mat.minThreshold) > 0 && (
@@ -838,6 +840,7 @@ const CreateTask: React.FC = () => {
                       }}
                     >
                       <span style={{ fontWeight: 500, color: '#1e293b' }}>{idx + 1}. {st.title}</span>
+                      <SubtaskWorkSummary subtask={st} />
                       <button
                         type="button"
                         style={{
