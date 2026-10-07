@@ -19,7 +19,7 @@ interface ProjectRecord {
   start_date: string;
   end_date: string;
   budget: string;
-  status: 'Planning' | 'Ongoing' | 'Completed';
+  status: 'Planning' | 'Ongoing' | 'Completed' | 'Pending' | string;
   scope?: string;
   phase?: string;
   task_count?: number;
@@ -249,6 +249,7 @@ const Projects: React.FC = () => {
   const statusOptions = [
     { value: 'All', label: 'All Statuses' },
     { value: 'Planning', label: 'Planning' },
+    { value: 'Pending', label: 'Pending' },
     { value: 'Ongoing', label: 'Ongoing' },
     { value: 'Completed', label: 'Completed' },
   ];

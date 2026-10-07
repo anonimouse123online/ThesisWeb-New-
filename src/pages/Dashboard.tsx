@@ -241,7 +241,7 @@ const Dashboard: React.FC = () => {
     ...Array.from(new Set(projects.map(p => p.pm))).map(pm => ({ value: pm, label: pm }))
   ];
 
-  const baseStatuses = ['Planning', 'Ongoing', 'Completed'];
+  const baseStatuses = ['Planning', 'Pending', 'Ongoing', 'Completed'];
   const extraStatuses = Array.from(
     new Set(
       projects
