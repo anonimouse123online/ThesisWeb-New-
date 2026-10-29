@@ -1124,6 +1124,28 @@
 .msg-create-group-modal {
     max-width: 540px;
     width: 100%;
+    max-height: calc(100dvh - 48px);
+    overflow-y: auto;
+}
+
+.msg-create-group-modal > * {
+    flex-shrink: 0;
+}
+
+.msg-create-group-modal > .msg-member-list {
+    max-height: 280px;
+    min-height: 0;
+    overflow-y: auto;
+    margin-bottom: 0;
+}
+
+.msg-create-group-modal .msg-member {
+    flex-shrink: 0;
+}
+
+.msg-create-group-modal .msg-member-main {
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .msg-added-section-header {

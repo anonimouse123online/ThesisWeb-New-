@@ -1,3 +1,4 @@
+import { clearSession } from '../utils/session';
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 
@@ -14,7 +15,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   }
 
   if (!userStr) {
-    localStorage.removeItem('token');
+    clearSession();
     return <Navigate to="/login" replace />;
   }
 
@@ -27,8 +28,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
     // Web portal is Admin-only
     if (userRole !== 'admin') {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      clearSession();
 
       return <Navigate to="/login" replace />;
     }
@@ -36,8 +36,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   } catch (error) {
     console.error('Invalid stored user data:', error);
 
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    clearSession();
 
     return <Navigate to="/login" replace />;
   }

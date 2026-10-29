@@ -46,7 +46,11 @@ interface ProjectReportItem {
   prepared_by_name?: string;
   prepared_by_role?: string;
   created_at: string;
+  images?: ReportImage[];
+  image_paths?: string[];
 }
+
+interface ReportImage { url: string; filename?: string }
 
 interface ClientReportParsed {
   title: string;
@@ -59,6 +63,27 @@ interface ClientReportParsed {
   } | null;
   workProgress: string[];
   ongoingScope: string[];
+}
+
+function AuthenticatedReportImage({ url, alt }: { url: string; alt: string }) {
+  const [objectUrl, setObjectUrl] = useState('');
+  useEffect(() => {
+    let active = true;
+    let createdUrl = '';
+    const token = localStorage.getItem('token');
+    const controller = new AbortController();
+    fetchWithAuth(/^https?:\/\//i.test(url) ? url : `${API_URL}${url.startsWith('/') ? '' : '/'}${url}`, { signal: controller.signal })
+      .then(response => { if (!response.ok) throw new Error('Image unavailable'); return response.blob(); })
+      .then(blob => {
+        if (!active || localStorage.getItem('token') !== token) return;
+        createdUrl = URL.createObjectURL(blob);
+        setObjectUrl(createdUrl);
+      }).catch(() => { if (active) setObjectUrl(''); });
+    return () => { active = false; controller.abort(); if (createdUrl) URL.revokeObjectURL(createdUrl); };
+  }, [url]);
+  return objectUrl
+    ? <a href={objectUrl} target="_blank" rel="noreferrer"><img src={objectUrl} alt={alt} loading="lazy" /></a>
+    : <span className="pr-image-unavailable" role="status">{alt}: image unavailable</span>;
 }
 
 const parseClientReport = (
@@ -270,6 +295,7 @@ const ProjectReports: React.FC = () => {
   const [selectedType, setSelectedType] = useState<string>('All');
   const [showModal, setShowModal]       = useState(false);
   const [viewReport, setViewReport]     = useState<ProjectReportItem | null>(null);
+  const [editingReport, setEditingReport] = useState<ProjectReportItem | null>(null);
 
   // Form State
   const [title, setTitle]                       = useState('');
@@ -282,6 +308,15 @@ const ProjectReports: React.FC = () => {
   const [equipmentOnSite, setEquipmentOnSite]   = useState('');
   const [weather, setWeather]                   = useState('');
   const [submitting, setSubmitting]             = useState(false);
+  const [reportImages, setReportImages] = useState<ReportImage[]>([]);
+  const [newImageFiles, setNewImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+
+  useEffect(() => {
+    const urls = newImageFiles.map(file => URL.createObjectURL(file));
+    setImagePreviews(urls);
+    return () => urls.forEach(url => URL.revokeObjectURL(url));
+  }, [newImageFiles]);
 
   const fetchReports = useCallback(async (searchTerm: string) => {
     setLoading(true);
@@ -320,6 +355,21 @@ const ProjectReports: React.FC = () => {
     }
   }, [projectCode, fetchReports]);
 
+  const openCreateReport = () => {
+    setEditingReport(null); setTitle(''); setReportType(REPORT_TYPES[0]);
+    setReportDate(new Date().toISOString().split('T')[0]); setSummary(''); setKeyActivities('');
+    setIssuesHighlighted(''); setManpowerCount(0); setEquipmentOnSite(''); setWeather('');
+    setReportImages([]); setNewImageFiles([]); setShowModal(true);
+  };
+
+  const openEditReport = (report: ProjectReportItem) => {
+    setEditingReport(report); setTitle(report.title); setReportType(report.report_type);
+    setReportDate(report.report_date?.slice(0, 10) || ''); setSummary(report.summary || '');
+    setKeyActivities(report.key_activities || ''); setIssuesHighlighted(report.issues_highlighted || '');
+    setManpowerCount(Number(report.manpower_count) || 0); setEquipmentOnSite(report.equipment_on_site || '');
+    setWeather(report.weather || ''); setReportImages(report.images || []); setNewImageFiles([]); setShowModal(true);
+  };
+
   const handleCreateReport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !summary.trim()) {
@@ -329,27 +379,49 @@ const ProjectReports: React.FC = () => {
 
     setSubmitting(true);
     try {
-      const res = await fetchWithAuth(`${API_URL}/projects/${projectCode}/reports`, {
-        method: 'POST',
+      let uploadedImages = [...reportImages];
+      if (newImageFiles.length) {
+        const uploadBody = new FormData();
+        newImageFiles.forEach(file => uploadBody.append('images', file));
+        const uploadResponse = await fetchWithAuth(`${API_URL}/projects/${encodeURIComponent(projectCode || '')}/reports/images`, { method: 'POST', body: uploadBody });
+        const uploadPayload = await uploadResponse.json();
+        if (!uploadResponse.ok) throw new Error(uploadPayload.message || uploadPayload.error || 'Failed to upload report images');
+        const referencesFrom = (items: unknown): ReportImage[] => Array.isArray(items) ? items.flatMap((image: unknown): ReportImage[] => {
+          if (typeof image === 'string') return [{ url: image }];
+          if (image && typeof image === 'object' && typeof (image as ReportImage).url === 'string') return [image as ReportImage];
+          return [];
+        }) : [];
+        const references = referencesFrom(uploadPayload.data).length
+          ? referencesFrom(uploadPayload.data)
+          : referencesFrom(uploadPayload.images);
+        if (references.length === 0) throw new Error('The image upload succeeded but returned no image references. Please try again.');
+        uploadedImages = [...uploadedImages, ...references];
+        setReportImages(uploadedImages);
+        setNewImageFiles([]);
+      }
+      if (uploadedImages.length > 20) throw new Error('A report can include up to 20 images.');
+
+      const reportBody: Record<string, unknown> = {
+        title: title.trim(), report_type: reportType, report_date: reportDate, summary: summary.trim(),
+        manpower_count: manpowerCount, images: uploadedImages,
+      };
+      if (keyActivities.trim()) reportBody.key_activities = keyActivities.trim();
+      if (issuesHighlighted.trim()) reportBody.issues_highlighted = issuesHighlighted.trim();
+      if (equipmentOnSite.trim()) reportBody.equipment_on_site = equipmentOnSite.trim();
+      if (weather.trim()) reportBody.weather = weather.trim();
+
+      const res = await fetchWithAuth(`${API_URL}/projects/${encodeURIComponent(projectCode || '')}/reports${editingReport ? `/${encodeURIComponent(editingReport.id)}` : ''}`, {
+        method: editingReport ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: title.trim(),
-          report_type: reportType,
-          report_date: reportDate,
-          summary: summary.trim(),
-          key_activities: keyActivities.trim(),
-          issues_highlighted: issuesHighlighted.trim(),
-          manpower_count: manpowerCount,
-          equipment_on_site: equipmentOnSite.trim(),
-          weather: weather.trim(),
-        }),
+        body: JSON.stringify(reportBody),
       });
 
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || 'Failed to create report');
 
-      showToast('Project report created successfully!', 'success');
+      showToast(editingReport ? 'Project report updated successfully!' : 'Project report created successfully!', 'success');
       setShowModal(false);
+      setEditingReport(null); setReportImages([]); setNewImageFiles([]);
       setTitle('');
       setSummary('');
       setKeyActivities('');
@@ -357,7 +429,7 @@ const ProjectReports: React.FC = () => {
       setEquipmentOnSite('');
       setWeather('');
       setManpowerCount(0);
-      fetchReports(search);
+      await fetchReports(search);
     } catch (err: unknown) {
       showToast(getErrorMessage(err), 'error');
     } finally {
@@ -422,6 +494,7 @@ const ProjectReports: React.FC = () => {
             {projectCode} • Executive summaries, QA audits, safety observations, and daily site journals
           </p>
         </div>
+        <button type="button" className="pr-btn-generate" onClick={openCreateReport}>+ New Site Report</button>
       </div>
 
       {/* ── Stat Metrics ── */}
@@ -563,6 +636,10 @@ const ProjectReports: React.FC = () => {
                 </div>
               )}
 
+              {report.images?.length ? <div className="pr-image-gallery" aria-label="Report images">
+                {report.images.map((image, index) => <AuthenticatedReportImage key={`${image.url}-${index}`} url={image.url} alt={image.filename || `Report attachment ${index + 1}`} />)}
+              </div> : null}
+
               <div className="pr-card-actions">
                 <button
                   className="pr-btn-view"
@@ -570,6 +647,7 @@ const ProjectReports: React.FC = () => {
                 >
                   View Full Document
                 </button>
+                <button className="pr-btn-view" onClick={() => openEditReport(report)}>Edit Report</button>
                 <button
                   className="pr-btn-export"
                   onClick={() => handleExportPDF(report)}
@@ -658,6 +736,14 @@ const ProjectReports: React.FC = () => {
                   )}
 
                   {/* Work Progress section */}
+                  {viewReport.images?.length ? <section className="client-doc-section">
+                    <h2 className="client-doc-section-heading">Site Images</h2>
+                    <div className="pr-image-gallery pr-image-gallery--document">
+                      {viewReport.images.map((image, index) => <AuthenticatedReportImage key={`${image.url}-${index}`} url={image.url} alt={image.filename || `Report attachment ${index + 1}`} />)}
+                    </div>
+                  </section> : null}
+
+                  {/* Work Progress section */}
                   <section className="client-doc-section">
                     <h2 className="client-doc-section-heading">Work Progress</h2>
                     <div className="client-doc-list">
@@ -700,7 +786,7 @@ const ProjectReports: React.FC = () => {
         <div className="ir-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowModal(false); }}>
           <div className="ir-modal" style={{ maxWidth: '580px' }}>
             <div className="ir-modal-header">
-              <h2 className="ir-modal-title">Generate Project Report</h2>
+              <h2 className="ir-modal-title">{editingReport ? 'Edit Project Report' : 'Generate Project Report'}</h2>
               <p style={{ margin: 0, fontSize: '12px', color: '#888' }}>Submit a daily site log, inspection audit, or milestone report.</p>
             </div>
 
@@ -765,7 +851,7 @@ const ProjectReports: React.FC = () => {
                     <label className="pp-form-label">Total Manpower Count</label>
                     <input
                       type="number"
-                      min="1"
+                      min="0"
                       className="pp-form-input"
                       value={manpowerCount}
                       onChange={(e) => setManpowerCount(parseInt(e.target.value) || 0)}
@@ -781,6 +867,31 @@ const ProjectReports: React.FC = () => {
                       onChange={(e) => setWeather(e.target.value)}
                     />
                   </div>
+                </div>
+
+                <div className="pp-form-group">
+                  <label className="pp-form-label">Site Images (up to 20, JPEG, PNG or WEBP)</label>
+                  <input className="pp-form-input" type="file" accept="image/jpeg,image/png,image/webp" multiple
+                    onChange={event => {
+                      const selected = Array.from(event.currentTarget.files || []);
+                      const allowed = selected.filter(file => ['image/jpeg', 'image/png', 'image/webp'].includes(file.type) && file.size <= 15 * 1024 * 1024);
+                      if (allowed.length !== selected.length) showToast('Only JPEG, PNG or WEBP images up to 15 MB each are accepted.', 'warning');
+                      const available = Math.max(0, 20 - reportImages.length);
+                      if (selected.length > available) showToast('A report can include up to 20 images.', 'warning');
+                      setNewImageFiles(previous => [...previous, ...allowed].slice(0, available));
+                      event.currentTarget.value = '';
+                    }} />
+                  {(reportImages.length > 0 || newImageFiles.length > 0) && <div className="pr-image-gallery pr-image-gallery--form">
+                    {reportImages.map((image, index) => <div key={`saved-${image.url}`} className="pr-image-preview">
+                      <AuthenticatedReportImage url={image.url} alt={image.filename || `Saved attachment ${index + 1}`} />
+                      <button type="button" onClick={() => setReportImages(items => items.filter((_, imageIndex) => imageIndex !== index))} aria-label="Remove saved image">×</button>
+                    </div>)}
+                    {newImageFiles.map((file, index) => <div key={`${file.name}-${index}`} className="pr-image-preview">
+                      <img src={imagePreviews[index]} alt={file.name} />
+                      <button type="button" onClick={() => setNewImageFiles(items => items.filter((_, imageIndex) => imageIndex !== index))} aria-label={`Remove ${file.name}`}>×</button>
+                    </div>)}
+                  </div>}
+                  <small className="pr-image-hint">{reportImages.length + newImageFiles.length} of 20 selected. New images upload before the report is saved.</small>
                 </div>
 
                 {/* Equipment */}
@@ -800,7 +911,7 @@ const ProjectReports: React.FC = () => {
                   Cancel
                 </button>
                 <button type="submit" className="ir-btn-submit" disabled={submitting}>
-                  {submitting ? 'Generating…' : 'Publish Report'}
+                  {submitting ? 'Saving…' : editingReport ? 'Save Changes' : 'Publish Report'}
                 </button>
               </div>
             </form>

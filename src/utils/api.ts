@@ -1,3 +1,4 @@
+import { clearSession } from './session';
 export const API_BASE_URL = (
   import.meta.env.VITE_BACKEND_URL || "http://localhost:5001"
 ).replace(/\/+$/, "");
@@ -21,9 +22,7 @@ export async function fetchWithAuth(
   const requestUrl = apiUrl(url);
 
   const token =
-    localStorage.getItem("token") ||
-    localStorage.getItem("authToken") ||
-    localStorage.getItem("accessToken");
+    localStorage.getItem("token");
 
   console.log("[AUTH] Request:", requestUrl);
   console.log("[AUTH] Token found:", !!token);
@@ -58,7 +57,19 @@ export async function fetchWithAuth(
   const response = await fetch(requestUrl, {
     ...options,
     headers,
+    cache: "no-store",
   });
+
+  if (localStorage.getItem("token") !== token) {
+    throw new DOMException("Session changed while loading data.", "AbortError");
+  }
+  // Parsing may complete after an account switch even after fetch has resolved.
+  const readJson = response.json.bind(response);
+  response.json = async () => {
+    const data = await readJson();
+    if (localStorage.getItem("token") !== token) throw new DOMException("Session changed.", "AbortError");
+    return data;
+  };
 
   console.log(
     "[AUTH] Response:",
@@ -78,10 +89,7 @@ export async function fetchWithAuth(
       "[AUTH] Session invalid or expired."
     );
 
-    localStorage.removeItem("token");
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("user");
+    clearSession();
 
     // Prevent redirect loop if already on login page
     if (

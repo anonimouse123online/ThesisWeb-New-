@@ -3,6 +3,7 @@ import { Search, Send, Users, User, Plus, X, Check, Paperclip, FileText, Downloa
 import { useNavigate } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
 import './Messages.css';
+import { apiUrl, fetchWithAuth } from '../utils/api';
 
 export interface Attachment {
   name: string;
@@ -197,7 +198,7 @@ const Messages: React.FC = () => {
             const att = m.attachments[0];
             const isImage = (att.mimeType || '').startsWith('image/') || m.message_type === 'image';
             const fileUrl = att.filePath
-              ? (att.filePath.startsWith('http') ? att.filePath : `http://localhost:5001${att.filePath}`)
+              ? apiUrl(att.filePath)
               : '';
             attachment = {
               name: att.originalName || att.fileName || 'Attachment',
@@ -729,14 +730,51 @@ const Messages: React.FC = () => {
   );
 };
 
+/* Load protected images with the same bearer authentication as API requests. */
+const MessageImage: React.FC<{ att: Attachment }> = ({ att }) => {
+  const [image, setImage] = useState<{ source: string; url: string; failed: boolean } | null>(null);
+  const source = att.dataUrl;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const token = localStorage.getItem('token');
+    let objectUrl: string | undefined;
+
+    const load = async () => {
+      try {
+        const response = await fetchWithAuth(source, { signal: controller.signal });
+        if (!response.ok) throw new Error(`Image request failed (${response.status})`);
+        const blob = await response.blob();
+        if (controller.signal.aborted || localStorage.getItem('token') !== token) return;
+        objectUrl = URL.createObjectURL(blob);
+        setImage({ source, url: objectUrl, failed: false });
+      } catch {
+        if (!controller.signal.aborted && localStorage.getItem('token') === token) {
+          setImage({ source, url: '', failed: true });
+        }
+      }
+    };
+
+    void load();
+    return () => {
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [source]);
+
+  if (!image || image.source !== source) return <span role="status">Loading image...</span>;
+  if (image.failed) return <span role="status">Unable to load image: {att.name}</span>;
+  return (
+    <a href={image.url} target="_blank" rel="noopener noreferrer" download={att.name} className="msg-img-link" title="Click to view/download image">
+      <img src={image.url} alt={att.name} className="msg-img" />
+    </a>
+  );
+};
+
 /* Attachment bubble content */
 const AttachmentView: React.FC<{ att: Attachment; mine: boolean }> = ({ att, mine }) => {
   if (att.isImage) {
-    return (
-      <a href={att.dataUrl} target="_blank" rel="noopener noreferrer" download={att.name} className="msg-img-link" title="Click to view/download image">
-        <img src={att.dataUrl} alt={att.name} className="msg-img" />
-      </a>
-    );
+    return <MessageImage att={att} />;
   }
   return (
     <a href={att.dataUrl} download={att.name} target="_blank" rel="noopener noreferrer" className={`msg-file-card${mine ? ' mine' : ''}`} title={`Download ${att.name}`}>
@@ -1017,7 +1055,7 @@ const CreateGroupModal: React.FC<{
           </div>
         </div>
 
-        <div className="msg-member-list" style={{ maxHeight: '180px' }}>
+        <div className="msg-member-list">
           {users.map((u) => {
             const isSelected = selectedUsers.some(su => su.id === u.id);
             return (

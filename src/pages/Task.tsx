@@ -3,13 +3,16 @@ import AssignTaskModal from "../pages/Assigntaskmodal";
 import { API_BASE_URL, fetchWithAuth } from "../utils/api";
 import { getErrorMessage } from "../utils/errors";
 import { showToast } from "../utils/toast";
-import { X, Rocket, CheckCircle2, Circle } from "lucide-react";
+import { formatCalendarDate } from "../utils/dates";
+import { X, Rocket, CheckCircle2, Circle, Pencil } from "lucide-react";
 import Dropdown from "../components/Dropdown";
 import { TaskWorkStatusBadge, SubtaskWorkSummary } from "../components/TaskWorkStatus";
 import { getWorkStatus, getTaskProgress, isWorkCompleted, type SubTask, type WorkStatusFields } from "../utils/taskWorkStatus";
 import "../components/Task.css";
 import TaskPhaseChecklist from "../components/TaskPhaseChecklist";
 import { formatTaskPhases, getTaskPhases, groupTasksByPhase, taskPhasePayload, taskPhaseRequiredMessage, type TaskPhaseFields } from "../utils/taskPhases";
+import TaskScheduleFeedback from "../components/TaskScheduleFeedback";
+import { scheduleFieldMessage, scheduleMessage, scheduleValidationFromPayload, type ScheduleValidation } from "../utils/taskSchedule";
 
 const BACKEND_URL = API_BASE_URL;
 
@@ -33,6 +36,8 @@ interface Task extends TaskPhaseFields, WorkStatusFields {
   project_name?: string;
   project_code?: string;
   code?: string;
+  estimated_duration_days?: number | null;
+  predecessor_task_ids?: string[];
 }
 
 interface User {
@@ -239,7 +244,7 @@ function TaskDetailPanel({
               <div className="tdp-info-item">
                 <span className="tdp-info-label">Start Date</span>
                 <span className="tdp-info-value">
-                  {new Date(task.start_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  {formatCalendarDate(task.start_date)}
                 </span>
               </div>
             )}
@@ -289,6 +294,8 @@ const EMPTY_FORM = {
   taskName: "", phases: [] as string[], assigneeId: "", projectId: "",
   startDate: "",
   dueDate: "",
+  estimatedDurationDays: "",
+  predecessorTaskIds: [] as string[],
   priority: "Medium" as Priority, manpowerNeeded: "",
   siteInstructions: "",
 };
@@ -319,6 +326,8 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
   const [usersLoading, setUsersLoading]       = useState(true);
   const [projects, setProjects]               = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
+  const [scheduleTasks, setScheduleTasks] = useState<Task[]>([]);
+  const [scheduleValidation, setScheduleValidation] = useState<ScheduleValidation | null>(null);
 
   const selectedProject = useMemo(() => {
     return projects.find(p => String(p.id) === String(form.projectId) || p.code === form.projectId);
@@ -409,6 +418,20 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
     })();
   }, []);
 
+  useEffect(() => {
+    if (!form.projectId) { setScheduleTasks([]); return; }
+    let active = true;
+    fetchWithAuth(`${BACKEND_URL}/tasks?project_id=${encodeURIComponent(form.projectId)}`)
+      .then(async response => {
+        if (!response.ok) throw new Error('Unable to load predecessor tasks.');
+        const payload = await response.json();
+        const list = Array.isArray(payload) ? payload : Array.isArray(payload.data) ? payload.data : Array.isArray(payload.tasks) ? payload.tasks : [];
+        if (active) setScheduleTasks(list);
+      })
+      .catch(() => { if (active) setScheduleTasks([]); });
+    return () => { active = false; };
+  }, [form.projectId]);
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
@@ -460,14 +483,20 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
           projectId:         form.projectId,
           startDate:         form.startDate,
           dueDate:           form.dueDate,
+          estimatedDurationDays: form.estimatedDurationDays ? Number(form.estimatedDurationDays) : null,
+          predecessorTaskIds: form.predecessorTaskIds,
           priority:          form.priority,
           manpowerNeeded:    form.manpowerNeeded.trim(),
           siteInstructions:  form.siteInstructions.trim(),
           subtasks,
         }),
       });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? "Failed to create task."); }
-      const { data } = await res.json();
+      const payload = await res.json();
+      const validation = scheduleValidationFromPayload(payload);
+      if (validation) setScheduleValidation(validation);
+      if (!res.ok && validation?.status === 'INVALID') return;
+      if (!res.ok) throw new Error(scheduleMessage(payload, "Failed to create task."));
+      const { data } = payload;
 
       const selectedUser    = users.find((u) => u.id === form.assigneeId);
       const selectedProject = projects.find((p) => p.id === form.projectId);
@@ -480,7 +509,9 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
         subtasks:     Array.isArray(data.subtasks) ? data.subtasks : subtasks,
       };
 
-      showToast("Task created successfully!", "success");
+      if (validation?.status === 'WARNING') showToast('Task created with schedule warnings. Review the task schedule.', 'warning');
+      else if (validation?.status === 'INSUFFICIENT_DATA') showToast('Task created. More scheduling information is needed for full feasibility validation.', 'warning');
+      else showToast("Task created successfully!", "success");
       onCreated(taskWithMeta);
       onClose();
     } catch (err: unknown) { setError(getErrorMessage(err)); } finally { setLoading(false); }
@@ -529,7 +560,7 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
                 searchable={projects.length > 5}
                 options={projects.map((p) => ({ value: p.id, label: `${p.code} — ${p.name}` }))}
                 value={form.projectId}
-                onChange={(val) => setForm((prev) => ({ ...prev, projectId: val }))}
+                onChange={(val) => { setScheduleValidation(null); setForm((prev) => ({ ...prev, projectId: val })); }}
                 placeholder={projectsLoading ? "Loading projects…" : "Select a project"}
               />
             </div>
@@ -548,7 +579,7 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
                     : engineerUsers.map((u) => ({ value: u.id, label: `${u.full_name} (${formatRole(u.role)})` }))
                 }
                 value={form.assigneeId}
-                onChange={(val) => setForm((prev) => ({ ...prev, assigneeId: val }))}
+                onChange={(val) => { setScheduleValidation(null); setForm((prev) => ({ ...prev, assigneeId: val })); }}
                 placeholder={usersLoading ? "Loading engineers…" : "Select an engineer"}
               />
             </div>
@@ -582,14 +613,16 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
               <input
                 name="startDate"
                 type="date"
-                className="ct-input"
+                className={`ct-input${scheduleFieldMessage(scheduleValidation, 'startDate') ? ' task-schedule-input--invalid' : ''}`}
                 min={minStartDate}
                 max={projectMaxDate || undefined}
                 value={form.startDate}
+                aria-invalid={Boolean(scheduleFieldMessage(scheduleValidation, 'startDate'))}
                 onChange={(e) => {
                   const val = e.target.value;
                   if (minStartDate && val && val < minStartDate) return;
                   if (projectMaxDate && val && val > projectMaxDate) return;
+                  setScheduleValidation(null);
                   setForm(prev => ({
                     ...prev,
                     startDate: val,
@@ -598,6 +631,7 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
                 }}
                 required
               />
+              {scheduleFieldMessage(scheduleValidation, 'startDate') && <small className="task-schedule-field-error">Review the start date conflict below.</small>}
             </div>
 
             <div className="ct-field">
@@ -614,18 +648,31 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
                 type="date"
                 min={form.startDate ? (minStartDate && minStartDate > form.startDate ? minStartDate : form.startDate) : minStartDate}
                 max={projectMaxDate || undefined}
-                className="ct-input"
+                className={`ct-input${scheduleFieldMessage(scheduleValidation, 'dueDate') ? ' task-schedule-input--invalid' : ''}`}
                 value={form.dueDate}
+                aria-invalid={Boolean(scheduleFieldMessage(scheduleValidation, 'dueDate'))}
                 onChange={(e) => {
                   const val = e.target.value;
                   if (projectMaxDate && val && val > projectMaxDate) return;
                   if (minStartDate && val && val < minStartDate) return;
+                  setScheduleValidation(null);
                   setForm(prev => ({ ...prev, dueDate: val }));
                 }}
                 required
               />
+              {scheduleFieldMessage(scheduleValidation, 'dueDate') && <small className="task-schedule-field-error">Review the due date conflict below.</small>}
             </div>
           </div>
+
+            <TaskScheduleFeedback
+            durationDays={form.estimatedDurationDays} predecessorIds={form.predecessorTaskIds}
+            tasks={scheduleTasks} result={scheduleValidation} projectStartDate={projectMinDate} projectEndDate={projectMaxDate}
+              onChange={patch => { setScheduleValidation(null); setForm(prev => ({ ...prev, ...patch })); }}
+              onApplySuggestion={suggestion => { setScheduleValidation(null); setForm(prev => ({ ...prev,
+              ...(suggestion.startDate ? { startDate: suggestion.startDate } : {}),
+              ...(suggestion.dueDate ? { dueDate: suggestion.dueDate } : {}),
+              })); }}
+          />
 
           <div className="ct-field">
             <label className="ct-label">Manpower Needed</label>
@@ -726,6 +773,68 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
   );
 }
 
+function EditTaskScheduleForm({ task, tasks, projects, onClose, onSaved }: {
+  task: Task; tasks: Task[]; projects: Project[]; onClose: () => void; onSaved: (task: Task) => void;
+}) {
+  const project = projects.find(item => String(item.id) === String(task.project_id) || item.code === task.project_code);
+  const projectStartDate = project?.start_date?.slice(0, 10);
+  const projectEndDate = project?.end_date?.slice(0, 10);
+  const [startDate, setStartDate] = useState(task.start_date?.slice(0, 10) || '');
+  const [dueDate, setDueDate] = useState(task.due_date?.slice(0, 10) || '');
+  const [durationDays, setDurationDays] = useState(task.estimated_duration_days == null ? '' : String(task.estimated_duration_days));
+  const [predecessorIds, setPredecessorIds] = useState(task.predecessor_task_ids || []);
+  const [result, setResult] = useState<ScheduleValidation | null>(null);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSaving(true); setError('');
+    try {
+      const response = await fetchWithAuth(`${BACKEND_URL}/tasks/${encodeURIComponent(String(task.id))}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ start_date: startDate || null, due_date: dueDate,
+          estimated_duration_days: durationDays ? Number(durationDays) : null, predecessor_task_ids: predecessorIds }),
+      });
+      const payload = await response.json();
+      const validation = scheduleValidationFromPayload(payload);
+      if (validation) setResult(validation);
+      if (!response.ok && validation?.status === 'INVALID') return;
+      if (!response.ok) throw new Error(scheduleMessage(payload, 'Unable to update task schedule.'));
+      const updated = payload?.data || {};
+      if (validation?.status === 'WARNING') showToast('Task schedule saved with warnings. Review the schedule.', 'warning');
+      else if (validation?.status === 'INSUFFICIENT_DATA') showToast('Task schedule saved. More information is needed for full feasibility validation.', 'warning');
+      else showToast('Task schedule updated.', 'success');
+      onSaved({ ...task, ...updated, start_date: updated.start_date ?? startDate,
+        due_date: updated.due_date ?? dueDate, estimated_duration_days: updated.estimated_duration_days ?? (durationDays ? Number(durationDays) : null),
+        predecessor_task_ids: updated.predecessor_task_ids ?? predecessorIds });
+      onClose();
+    } catch (caught) { setError(getErrorMessage(caught)); }
+    finally { setSaving(false); }
+  };
+
+  return <div className="ct-overlay" onClick={onClose}>
+    <div className="ct-modal task-schedule-edit-modal" onClick={event => event.stopPropagation()}>
+      <div className="ct-header"><div><h2 className="ct-title">Edit Task Schedule</h2><p className="ct-subtitle">{task.task_name}</p></div>
+        <button type="button" className="ct-close" onClick={onClose} aria-label="Close"><X size={18} /></button></div>
+      <form className="ct-form" onSubmit={submit}>
+        <div className="ct-row">
+          <label className="ct-field"><span className="ct-label">Start Date</span><input className={`ct-input${scheduleFieldMessage(result, 'startDate') ? ' task-schedule-input--invalid' : ''}`} type="date" value={startDate} aria-invalid={Boolean(scheduleFieldMessage(result, 'startDate'))} onChange={event => { setResult(null); setError(''); setStartDate(event.target.value); }} />{scheduleFieldMessage(result, 'startDate') && <small className="task-schedule-field-error">Review the start date conflict below.</small>}</label>
+          <label className="ct-field"><span className="ct-label">Due Date *</span><input className={`ct-input${scheduleFieldMessage(result, 'dueDate') ? ' task-schedule-input--invalid' : ''}`} type="date" min={startDate || undefined} max={projectEndDate} value={dueDate} aria-invalid={Boolean(scheduleFieldMessage(result, 'dueDate'))} onChange={event => { setResult(null); setError(''); setDueDate(event.target.value); }} required />{scheduleFieldMessage(result, 'dueDate') && <small className="task-schedule-field-error">Review the due date conflict below.</small>}</label>
+        </div>
+        <TaskScheduleFeedback durationDays={durationDays} predecessorIds={predecessorIds}
+          tasks={tasks.filter(item => String(item.project_id) === String(task.project_id))} currentTaskId={task.id} result={result}
+          projectStartDate={projectStartDate} projectEndDate={projectEndDate}
+          onChange={patch => { setResult(null); setError(''); if (patch.estimatedDurationDays !== undefined) setDurationDays(patch.estimatedDurationDays); if (patch.predecessorTaskIds) setPredecessorIds(patch.predecessorTaskIds); }}
+          onApplySuggestion={suggestion => { setResult(null); setError(''); if (suggestion.startDate) setStartDate(suggestion.startDate); if (suggestion.dueDate) setDueDate(suggestion.dueDate); }} />
+        {error && <p className="ct-error-msg" role="alert">{error}</p>}
+        <div className="ct-footer"><button type="button" className="ct-btn ct-btn--cancel" onClick={onClose} disabled={saving}>Cancel</button>
+          <button type="submit" className="ct-btn ct-btn--submit" disabled={saving}>{saving ? 'Checking…' : 'Save Schedule'}</button></div>
+      </form>
+    </div>
+  </div>;
+}
+
 // ── Main Tasks Component ──
 export default function Tasks() {
   const [tasks, setTasks]                     = useState<Task[]>([]);
@@ -735,6 +844,7 @@ export default function Tasks() {
   const [showCreate, setShowCreate]           = useState(false);
   const [createTaskPhase, setCreateTaskPhase] = useState<string>("");
   const [assignTask, setAssignTask]           = useState<import("../pages/Assigntaskmodal").TaskInfo | null>(null);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [projects, setProjects]               = useState<Project[]>([]);
   const [filterProjectId, setFilterProjectId] = useState<string>("");
 
@@ -926,6 +1036,8 @@ export default function Tasks() {
           onAssign={handleAssign}
         />
       )}
+      {editingTask && <EditTaskScheduleForm task={editingTask} tasks={tasks} projects={projects} onClose={() => setEditingTask(null)}
+        onSaved={updated => setTasks(previous => previous.map(item => item.id === updated.id ? updated : item))} />}
 
       <div className="tasks-page-header">
         <div>
@@ -1063,7 +1175,7 @@ export default function Tasks() {
                           <td className="tasks-td">{task.assignee || "—"}</td>
                           <td className="tasks-td tasks-td--date">
                             {task.due_date
-                              ? new Date(task.due_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                              ? formatCalendarDate(task.due_date)
                               : "—"}
                           </td>
                           <td className="tasks-td"><PriorityBadge priority={task.priority} /></td>
@@ -1095,6 +1207,7 @@ export default function Tasks() {
                           </td>
 
                           <td className="tasks-td" onClick={(e) => e.stopPropagation()}>
+                            <button className="tasks-action-assign" onClick={() => setEditingTask(task)} aria-label={`Edit schedule for ${task.task_name}`} title="Edit task schedule"><Pencil size={13} /> Dates</button>
                             <button className="tasks-action-assign" onClick={(e) => handleOpenAssign(task, e)}>Assign</button>
                           </td>
                         </tr>

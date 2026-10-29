@@ -10,6 +10,8 @@ import { Package, Truck, Building2, X, AlertTriangle, Info } from 'lucide-react'
 import Dropdown from '../components/Dropdown';
 import TaskPhaseChecklist from '../components/TaskPhaseChecklist';
 import { taskPhasePayload, taskPhaseRequiredMessage } from '../utils/taskPhases';
+import TaskScheduleFeedback from '../components/TaskScheduleFeedback';
+import { scheduleFieldMessage, scheduleMessage, scheduleValidationFromPayload, type ScheduleValidation } from '../utils/taskSchedule';
 
 const API_URL = API_BASE_URL;
 
@@ -103,6 +105,8 @@ const CreateTask: React.FC = () => {
   );
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [projectResources, setProjectResources] = useState<ProjectResource[]>([]);
+  const [scheduleTasks, setScheduleTasks] = useState<Array<{ id: string; task_name: string }>>([]);
+  const [scheduleValidation, setScheduleValidation] = useState<ScheduleValidation | null>(null);
 
   const [formData, setFormData] = useState({
     taskName: '',
@@ -115,6 +119,8 @@ const CreateTask: React.FC = () => {
     manpowerNeeded: 1,
     materialsRequired: '',
     siteInstructions: '',
+    estimatedDurationDays: '',
+    predecessorTaskIds: [] as string[],
   });
 
   const selectedProject = useMemo(() => {
@@ -127,6 +133,19 @@ const CreateTask: React.FC = () => {
   const projectMaxDate = toDateInputValue(selectedProject?.end_date);
   const todayStr = new Date().toISOString().split('T')[0];
   const minStartDate = projectMinDate && projectMinDate > todayStr ? projectMinDate : todayStr;
+
+  useEffect(() => {
+    if (!formData.projectId) { setScheduleTasks([]); return; }
+    let active = true;
+    fetchWithAuth(`${API_URL}/tasks?project_id=${encodeURIComponent(formData.projectId)}`)
+      .then(async response => {
+        if (!response.ok) throw new Error('Unable to load predecessor tasks.');
+        const payload = await response.json();
+        const rows = Array.isArray(payload) ? payload : Array.isArray(payload.data) ? payload.data : Array.isArray(payload.tasks) ? payload.tasks : [];
+        if (active) setScheduleTasks(rows);
+      }).catch(() => { if (active) setScheduleTasks([]); });
+    return () => { active = false; };
+  }, [formData.projectId]);
 
   const [subtasks, setSubtasks] = useState<{ id: string; title: string; completed: boolean }[]>([]);
   const [subtaskInput, setSubtaskInput] = useState('');
@@ -366,13 +385,20 @@ const CreateTask: React.FC = () => {
       const res = await fetchWithAuth(`${API_URL}/tasks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...taskFields, ...phasePayload, allocatedMaterials, subtasks }),
+        body: JSON.stringify({ ...taskFields, ...phasePayload,
+          estimatedDurationDays: formData.estimatedDurationDays ? Number(formData.estimatedDurationDays) : null,
+          predecessorTaskIds: formData.predecessorTaskIds, allocatedMaterials, subtasks }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to create task');
+      const validation = scheduleValidationFromPayload(data);
+      if (validation) setScheduleValidation(validation);
+      if (!res.ok && validation?.status === 'INVALID') return;
+      if (!res.ok) throw new Error(scheduleMessage(data, 'Failed to create task'));
 
-      showToast('Task created and published successfully!', 'success');
+      if (validation?.status === 'WARNING') showToast('Task created with schedule warnings. Review the task schedule.', 'warning');
+      else if (validation?.status === 'INSUFFICIENT_DATA') showToast('Task created. More scheduling information is needed for full feasibility validation.', 'warning');
+      else showToast('Task created and published successfully!', 'success');
       navigate('/tasks');
     } catch (err: unknown) {
       setError(getErrorMessage(err));
@@ -423,7 +449,7 @@ const CreateTask: React.FC = () => {
                 searchable={projects.length > 5}
                 options={projects.map((p) => ({ value: p.id, label: `${p.code} — ${p.name}` }))}
                 value={formData.projectId}
-                onChange={(val) => setFormData((prev) => ({ ...prev, projectId: val }))}
+                onChange={(val) => { setScheduleValidation(null); setFormData((prev) => ({ ...prev, projectId: val })); }}
                 placeholder={loadingOptions ? 'Loading projects…' : 'Select a project'}
               />
             </div>
@@ -453,7 +479,7 @@ const CreateTask: React.FC = () => {
                       }))
                 }
                 value={formData.assigneeId}
-                onChange={(val) => setFormData((prev) => ({ ...prev, assigneeId: val }))}
+                onChange={(val) => { setScheduleValidation(null); setFormData((prev) => ({ ...prev, assigneeId: val })); }}
                 placeholder={loadingOptions ? 'Loading engineers…' : 'Select an engineer'}
               />
             </div>
@@ -470,14 +496,18 @@ const CreateTask: React.FC = () => {
               </label>
               <input
                 type="date"
+                className={scheduleFieldMessage(scheduleValidation, 'startDate') ? 'task-schedule-input--invalid' : undefined}
                 min={minStartDate}
                 max={projectMaxDate || undefined}
                 required
                 value={formData.startDate}
+                aria-invalid={Boolean(scheduleFieldMessage(scheduleValidation, 'startDate'))}
+                aria-describedby={scheduleFieldMessage(scheduleValidation, 'startDate') ? 'create-task-start-schedule-error' : undefined}
                 onChange={(e) => {
                   const val = e.target.value;
                   if (minStartDate && val && val < minStartDate) return;
                   if (projectMaxDate && val && val > projectMaxDate) return;
+                  setScheduleValidation(null);
                   setFormData(prev => ({
                     ...prev,
                     startDate: val,
@@ -485,6 +515,7 @@ const CreateTask: React.FC = () => {
                   }));
                 }}
               />
+              {scheduleFieldMessage(scheduleValidation, 'startDate') && <small className="task-schedule-field-error" id="create-task-start-schedule-error">Review the start date conflict below.</small>}
             </div>
 
             {/* Due Date */}
@@ -499,17 +530,32 @@ const CreateTask: React.FC = () => {
               </label>
               <input
                 type="date"
+                className={scheduleFieldMessage(scheduleValidation, 'dueDate') ? 'task-schedule-input--invalid' : undefined}
                 min={formData.startDate ? (minStartDate && minStartDate > formData.startDate ? minStartDate : formData.startDate) : minStartDate}
                 max={projectMaxDate || undefined}
                 required
                 value={formData.dueDate}
+                aria-invalid={Boolean(scheduleFieldMessage(scheduleValidation, 'dueDate'))}
+                aria-describedby={scheduleFieldMessage(scheduleValidation, 'dueDate') ? 'create-task-due-schedule-error' : undefined}
                 onChange={(e) => {
                   const val = e.target.value;
                   if (projectMaxDate && val && val > projectMaxDate) return;
                   if (minStartDate && val && val < minStartDate) return;
+                  setScheduleValidation(null);
                   setFormData(prev => ({ ...prev, dueDate: val }));
                 }}
               />
+              {scheduleFieldMessage(scheduleValidation, 'dueDate') && <small className="task-schedule-field-error" id="create-task-due-schedule-error">Review the due date conflict below.</small>}
+            </div>
+
+            <div className="form-full-width">
+              <TaskScheduleFeedback durationDays={formData.estimatedDurationDays} predecessorIds={formData.predecessorTaskIds}
+                tasks={scheduleTasks} result={scheduleValidation} projectStartDate={projectMinDate} projectEndDate={projectMaxDate}
+                onChange={patch => { setScheduleValidation(null); setFormData(prev => ({ ...prev, ...patch })); }}
+                onApplySuggestion={suggestion => { setScheduleValidation(null); setFormData(prev => ({ ...prev,
+                  ...(suggestion.startDate ? { startDate: suggestion.startDate } : {}),
+                  ...(suggestion.dueDate ? { dueDate: suggestion.dueDate } : {}),
+                })); }} />
             </div>
 
             {/* Priority */}

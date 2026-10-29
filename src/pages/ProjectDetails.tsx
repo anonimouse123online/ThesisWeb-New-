@@ -4,7 +4,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import '../components/ProjectDetails.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import { formatCurrency } from '../utils/currency';
-import { toDateInputValue } from '../utils/dates';
+import { formatCalendarDate, toDateInputValue } from '../utils/dates';
 import ProfileDropdown from '../components/ProfileDropdown';
 import StatusBadge from '../components/StatusBadge';
 import { TaskWorkStatusBadge, SubtaskWorkSummary } from '../components/TaskWorkStatus';
@@ -13,6 +13,8 @@ import Dropdown from '../components/Dropdown';
 import { showToast } from '../utils/toast';
 import TaskPhaseChecklist from '../components/TaskPhaseChecklist';
 import { TASK_PHASE_CATEGORIES, formatTaskPhases, getTaskPhases, groupTasksByPhase, taskPhasePayload, taskPhaseRequiredMessage, type TaskPhaseFields } from '../utils/taskPhases';
+import TaskScheduleFeedback from '../components/TaskScheduleFeedback';
+import { scheduleFieldMessage, scheduleMessage, scheduleValidationFromPayload, type ScheduleValidation } from '../utils/taskSchedule';
 import {
   LayoutDashboard,
   ClipboardList,
@@ -31,7 +33,6 @@ import {
   Check,
   CheckCircle2,
   Circle,
-  Clock,
   UserPlus,
   Play,
   ChevronDown,
@@ -39,7 +40,8 @@ import {
   ArrowRight,
   Info,
   Crown,
-  ShieldCheck
+  ShieldCheck,
+  Pencil
 } from 'lucide-react';
 
 const API_URL = API_BASE_URL;
@@ -96,6 +98,8 @@ interface TaskItem extends TaskPhaseFields, WorkStatusFields {
   images?: string[];
   project_id?: string;
   project_code?: string;
+  estimated_duration_days?: number | null;
+  predecessor_task_ids?: string[];
 }
 
 interface ResourceItem {
@@ -242,9 +246,7 @@ const GenerateCodeModal: React.FC<{ project: Project; onClose: () => void }> = (
                   {copied ? <><Check size={14} /> Copied</> : 'Copy'}
                 </button>
               </div>
-              <p className="gc-expiry-note" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <Clock size={13} /> This code expires in 7 days or after use.
-              </p>
+
             </>
           )}
         </div>
@@ -289,6 +291,10 @@ const ProjectDetails: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [activating, setActivating] = useState(false);
   const [showGenerateModal, setShowGenerateModal] = useState(false);
+  const [showDueDateModal, setShowDueDateModal] = useState(false);
+  const [dueDateDraft, setDueDateDraft] = useState('');
+  const [dueDateReason, setDueDateReason] = useState('');
+  const [savingDueDate, setSavingDueDate] = useState(false);
 
   // Tab Data States
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -342,6 +348,8 @@ const ProjectDetails: React.FC = () => {
     assigneeId: '',
     startDate: '',
     dueDate: '',
+    estimatedDurationDays: '',
+    predecessorTaskIds: [] as string[],
     priority: 'Medium' as 'High' | 'Medium' | 'Low',
     manpowerNeeded: '',
     materialsRequired: '',
@@ -349,6 +357,7 @@ const ProjectDetails: React.FC = () => {
     subtasks: [] as SubTask[],
   });
   const [modalSubtaskInput, setModalSubtaskInput] = useState('');
+  const [taskScheduleValidation, setTaskScheduleValidation] = useState<ScheduleValidation | null>(null);
   const [allocatedMaterials, setAllocatedMaterials] = useState<AllocatedMaterial[]>([]);
   const [matItemInput, setMatItemInput] = useState<{
     name: string;
@@ -501,6 +510,63 @@ const ProjectDetails: React.FC = () => {
       showToast(getErrorMessage(err), 'error');
     } finally {
       setActivating(false);
+    }
+  };
+
+  const handleSaveDueDate = async () => {
+    if (!project) return;
+    const startDate = toDateInputValue(project.start_date) || '';
+    const previousDueDate = toDateInputValue(project.end_date) || '';
+    if (!dueDateDraft || dueDateDraft < startDate) {
+      showToast('Project due date cannot be earlier than the start date.', 'error');
+      return;
+    }
+    if (dueDateDraft === previousDueDate) {
+      showToast('The due date has not changed.', 'error');
+      return;
+    }
+    if (!dueDateReason.trim()) {
+      showToast('Please provide a reason for the due date change.', 'error');
+      return;
+    }
+    if (savingDueDate) return;
+    if (!window.confirm(`Save project due date ${formatCalendarDate(dueDateDraft)}?`)) return;
+    setSavingDueDate(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/projects/${encodeURIComponent(project.code)}/due-date`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dueDate: dueDateDraft, reason: dueDateReason.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 409) {
+        const payload = data.data || data;
+        const affected = payload.affectedTasks || payload.tasks || payload.conflicts || [];
+        const detailLines = Array.isArray(affected) ? affected.map((task: { task_name?: string; taskName?: string; name?: string; due_date?: string; dueDate?: string; deadline?: string }) => {
+          const taskName = task.task_name || task.taskName || task.name || 'Unnamed task';
+          const deadline = task.due_date || task.dueDate || task.deadline;
+          return `${taskName}${deadline ? ` — ${formatCalendarDate(deadline)}` : ''}`;
+        }) : [];
+        window.alert([data.message || 'Existing task deadlines exceed the proposed project due date.', ...detailLines].join('\n\n'));
+        return;
+      }
+      if (!res.ok) throw new Error(data.message || 'Failed to update project due date');
+
+      const refreshed = await fetchWithAuth(`${API_URL}/projects/${encodeURIComponent(project.code)}`);
+      if (!refreshed.ok) throw new Error('Due date was saved, but project details could not be refreshed. Reload the page to see the latest timeline.');
+      const refreshedJson = await refreshed.json();
+      const updatedProject: Partial<Project> = refreshedJson.data || refreshedJson.project || refreshedJson;
+      const updatedEndDate = updatedProject.end_date;
+      if (!updatedEndDate) throw new Error('Due date was saved, but the refreshed project response did not include its due date.');
+      setProject(prev => prev ? { ...prev, end_date: updatedEndDate } : prev);
+      setAllProjects(prev => prev.map(item => item.id === project.id ? { ...item, end_date: updatedEndDate } : item));
+      setShowDueDateModal(false);
+      setDueDateReason('');
+      showToast('Project due date updated successfully.', 'success');
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err, 'Unable to update project due date.'), 'error');
+    } finally {
+      setSavingDueDate(false);
     }
   };
 
@@ -747,6 +813,8 @@ const ProjectDetails: React.FC = () => {
         assigneeId: newTaskForm.assigneeId || (engineerMembers[0]?.id ?? null),
         startDate: newTaskForm.startDate || (projStart && projStart > todayStr ? projStart : todayStr),
         dueDate: newTaskForm.dueDate || (projEnd || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]),
+        estimatedDurationDays: newTaskForm.estimatedDurationDays ? Number(newTaskForm.estimatedDurationDays) : null,
+        predecessorTaskIds: newTaskForm.predecessorTaskIds,
         priority: newTaskForm.priority,
         manpowerNeeded: newTaskForm.manpowerNeeded,
         materialsRequired: newTaskForm.materialsRequired || formatMaterialsString(allocatedMaterials),
@@ -762,9 +830,14 @@ const ProjectDetails: React.FC = () => {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || data.error || 'Failed to create task');
+      const validation = scheduleValidationFromPayload(data);
+      if (validation) setTaskScheduleValidation(validation);
+      if (!res.ok && validation?.status === 'INVALID') return;
+      if (!res.ok) throw new Error(scheduleMessage(data, 'Failed to create task'));
 
-      showToast('Task created successfully!', 'success');
+      if (validation?.status === 'WARNING') showToast('Task created with schedule warnings. Review the task schedule.', 'warning');
+      else if (validation?.status === 'INSUFFICIENT_DATA') showToast('Task created. More scheduling information is needed for full feasibility validation.', 'warning');
+      else showToast('Task created successfully!', 'success');
       setShowAddTaskModal(false);
       setAllocatedMaterials([]);
       setMatItemInput({
@@ -782,6 +855,8 @@ const ProjectDetails: React.FC = () => {
         assigneeId: '',
         startDate: new Date().toISOString().split('T')[0],
         dueDate: '',
+        estimatedDurationDays: '',
+        predecessorTaskIds: [],
         priority: 'Medium',
         manpowerNeeded: '',
         materialsRequired: '',
@@ -1036,7 +1111,10 @@ const ProjectDetails: React.FC = () => {
             </div>
             <div className="pd-meta-item">
               <p className="pd-meta-label">Timeline</p>
-              <p className="pd-meta-value">{formatTimeline(project.start_date, project.end_date)}</p>
+              <p className="pd-meta-value pd-timeline-value">
+                {formatTimeline(project.start_date, project.end_date)}
+                {userRole.toLowerCase() === 'admin' && <button type="button" className="pd-edit-date" aria-label="Edit project due date" title="Edit due date" onClick={() => { setDueDateDraft(toDateInputValue(project.end_date) || ''); setDueDateReason(''); setShowDueDateModal(true); }}><Pencil size={14} /></button>}
+              </p>
             </div>
             <div
               className="pd-meta-item"
@@ -1390,7 +1468,7 @@ const ProjectDetails: React.FC = () => {
                                       </div>
                                     </td>
                                     <td className="pd-td-muted">
-                                      {task.due_date ? new Date(task.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                                      {task.due_date ? formatCalendarDate(task.due_date) : '—'}
                                     </td>
                                     <td>
                                       <span className={`pd-priority-badge pd-priority--${(task.priority || 'medium').toLowerCase()}`}>
@@ -1891,7 +1969,7 @@ const ProjectDetails: React.FC = () => {
                           }))
                     }
                     value={newTaskForm.assigneeId}
-                    onChange={val => setNewTaskForm(prev => ({ ...prev, assigneeId: val }))}
+                    onChange={val => { setTaskScheduleValidation(null); setNewTaskForm(prev => ({ ...prev, assigneeId: val })); }}
                     placeholder="Select an engineer"
                   />
                 </div>
@@ -1911,12 +1989,14 @@ const ProjectDetails: React.FC = () => {
                     type="date"
                     min={minStartDate}
                     max={newTaskForm.dueDate ? (projectMaxDate && projectMaxDate < newTaskForm.dueDate ? projectMaxDate : newTaskForm.dueDate) : projectMaxDate}
-                    className="pm-input"
+                    className={`pm-input${scheduleFieldMessage(taskScheduleValidation, 'startDate') ? ' task-schedule-input--invalid' : ''}`}
                     value={newTaskForm.startDate}
+                    aria-invalid={Boolean(scheduleFieldMessage(taskScheduleValidation, 'startDate'))}
                     onChange={e => {
                       const newStart = e.target.value;
                       if (minStartDate && newStart && newStart < minStartDate) return;
                       if (projectMaxDate && newStart && newStart > projectMaxDate) return;
+                      setTaskScheduleValidation(null);
                       setNewTaskForm(prev => ({
                         ...prev,
                         startDate: newStart,
@@ -1924,6 +2004,7 @@ const ProjectDetails: React.FC = () => {
                       }));
                     }}
                   />
+                  {scheduleFieldMessage(taskScheduleValidation, 'startDate') && <small className="task-schedule-field-error">Review the start date conflict below.</small>}
                 </div>
                 <div className="pm-form-group">
                   <label>
@@ -1938,15 +2019,27 @@ const ProjectDetails: React.FC = () => {
                     type="date"
                     min={newTaskForm.startDate ? (minStartDate && minStartDate > newTaskForm.startDate ? minStartDate : newTaskForm.startDate) : minStartDate}
                     max={projectMaxDate}
-                    className="pm-input"
+                    className={`pm-input${scheduleFieldMessage(taskScheduleValidation, 'dueDate') ? ' task-schedule-input--invalid' : ''}`}
                     value={newTaskForm.dueDate}
+                    aria-invalid={Boolean(scheduleFieldMessage(taskScheduleValidation, 'dueDate'))}
                     onChange={e => {
                       const newDue = e.target.value;
                       if (projectMaxDate && newDue && newDue > projectMaxDate) return;
                       if (minStartDate && newDue && newDue < minStartDate) return;
+                      setTaskScheduleValidation(null);
                       setNewTaskForm(prev => ({ ...prev, dueDate: newDue }));
                     }}
                   />
+                  {scheduleFieldMessage(taskScheduleValidation, 'dueDate') && <small className="task-schedule-field-error">Review the due date conflict below.</small>}
+                </div>
+                <div className="pm-form-group" style={{ gridColumn: '1 / -1' }}>
+                  <TaskScheduleFeedback durationDays={newTaskForm.estimatedDurationDays} predecessorIds={newTaskForm.predecessorTaskIds}
+                    tasks={tasks} result={taskScheduleValidation} projectStartDate={projectMinDate} projectEndDate={projectMaxDate}
+                    onChange={patch => { setTaskScheduleValidation(null); setNewTaskForm(prev => ({ ...prev, ...patch })); }}
+                    onApplySuggestion={suggestion => { setTaskScheduleValidation(null); setNewTaskForm(prev => ({ ...prev,
+                      ...(suggestion.startDate ? { startDate: suggestion.startDate } : {}),
+                      ...(suggestion.dueDate ? { dueDate: suggestion.dueDate } : {}),
+                    })); }} />
                 </div>
                 <div className="pm-form-group">
                   <label>Priority</label>
@@ -2486,6 +2579,21 @@ const ProjectDetails: React.FC = () => {
           project={project}
           onClose={() => setShowGenerateModal(false)}
         />
+      )}
+      {showDueDateModal && project && (
+        <div className="gc-overlay" onClick={() => setShowDueDateModal(false)}>
+          <section className="gc-modal pd-due-date-modal" role="dialog" aria-modal="true" aria-labelledby="pd-due-date-title" onClick={event => event.stopPropagation()}>
+            <header className="gc-modal-header"><div><h2 className="gc-title" id="pd-due-date-title">Edit Project Due Date</h2><p className="gc-subtitle">Update the deadline for {project.name}</p></div><button className="gc-close-btn" type="button" aria-label="Close" onClick={() => setShowDueDateModal(false)}><X size={16} /></button></header>
+            <form onSubmit={event => { event.preventDefault(); void handleSaveDueDate(); }}>
+              <div className="pd-due-date-body">
+                <label className="pd-due-date-field"><span>Project Start Date</span><input type="date" value={toDateInputValue(project.start_date)} readOnly disabled /></label>
+                <label className="pd-due-date-field"><span>Project Due Date</span><input type="date" min={toDateInputValue(project.start_date)} value={dueDateDraft} onChange={event => setDueDateDraft(event.target.value)} required /></label>
+                <label className="pd-due-date-field"><span>Reason for Extension or Adjustment</span><textarea value={dueDateReason} onChange={event => setDueDateReason(event.target.value)} rows={4} maxLength={1000} required placeholder="Explain why the due date is changing" /></label>
+              </div>
+              <footer className="gc-modal-footer"><button className="gc-cancel-btn" type="button" onClick={() => setShowDueDateModal(false)}>Cancel</button><button className="gc-generate-btn" type="submit" disabled={savingDueDate}>{savingDueDate ? 'Saving…' : 'Save Changes'}</button></footer>
+            </form>
+          </section>
+        </div>
       )}
     </main>
   );

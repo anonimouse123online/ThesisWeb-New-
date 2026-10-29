@@ -1,3 +1,4 @@
+import { clearSession, logoutSession } from '../utils/session';
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -27,14 +28,12 @@ export function useAuth() {
   useEffect(() => {
     if (session.corrupted) {
       // Keep storage writes outside the state initializer.
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      clearSession();
     }
   }, [session.corrupted]);
 
   const logout = useCallback(() => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    logoutSession();
     setSession({ user: null, token: null, corrupted: false });
     navigate('/login');
   }, [navigate]);

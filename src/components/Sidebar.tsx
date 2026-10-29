@@ -1,3 +1,4 @@
+import { logoutSession } from '../utils/session';
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { fetchWithAuth } from '../utils/api';
@@ -294,8 +295,7 @@ const Sidebar: React.FC = () => {
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    logoutSession();
 
     navigate('/login');
   };

@@ -1,3 +1,4 @@
+import { logoutSession } from '../utils/session';
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
@@ -107,8 +108,7 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
   }, [isOpen]);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    logoutSession();
     navigate('/login');
   };
 

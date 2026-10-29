@@ -20,38 +20,18 @@ interface User {
 
 const BACKEND_URL = API_BASE_URL;
 
-const ROLES: Role[] = [
-  "Admin",
-  "Site Engineer",
-  "Project Manager",
-  "Supervisor",
-];
-
-// ─── Chevron icon ─────────────────────────────────────────────────────────────
-
-const ChevronDown = () => (
-  <svg viewBox="0 0 20 20" fill="none" width="14" height="14">
-    <path d="M5 8l5 5 5-5" stroke="#555" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [openRoleDropdown, setOpenRoleDropdown] = useState<string | null>(null);
-  const [updatingRole, setUpdatingRole] = useState<string | null>(null);
-
-  // Check if current user is admin
+  // Identify the current user for the account label and removal guard.
   const storedUser = localStorage.getItem('user');
-  let isAdmin = false;
   let currentUserId: string | null = null;
   try {
     if (storedUser) {
       const parsed = JSON.parse(storedUser);
-      isAdmin = parsed.role?.trim().toLowerCase() === 'admin';
       currentUserId = parsed.id || null;
     }
   } catch { /* ignore */ }
@@ -76,31 +56,6 @@ const UserManagement: React.FC = () => {
     }
   };
 
-  const handleRoleChange = async (userId: string, newRole: Role) => {
-    setOpenRoleDropdown(null);
-    setUpdatingRole(userId);
-    try {
-      const res = await fetchWithAuth(`${BACKEND_URL}/users/${userId}/role`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: newRole }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to update role");
-      }
-      const { data } = await res.json();
-      setUsers(prev =>
-        prev.map(u => (u.id === userId ? { ...u, role: data.role } : u))
-      );
-      showToast("User role updated successfully!", "success");
-    } catch (err: unknown) {
-      showToast(getErrorMessage(err), "error");
-    } finally {
-      setUpdatingRole(null);
-    }
-  };
-
   const handleRemoveUser = async (userId: string, userName?: string) => {
     if (userId === currentUserId) {
       showToast("You cannot remove your own account from your projects.", "warning");
@@ -122,19 +77,8 @@ const UserManagement: React.FC = () => {
     }
   };
 
-  const toggleDropdown = (userId: string) => {
-    setOpenRoleDropdown(prev => (prev === userId ? null : userId));
-  };
-
-  // Close dropdown when clicking outside
-  const handleOverlayClick = () => setOpenRoleDropdown(null);
-
   return (
     <div className="um-container">
-      {openRoleDropdown && (
-        <div className="um-overlay" onClick={handleOverlayClick} />
-      )}
-
       {/* Header */}
       <div className="um-header">
         <h1 className="um-title">User Management</h1>
@@ -209,36 +153,7 @@ const UserManagement: React.FC = () => {
                   {/* Role */}
                   <div className="um-field">
                     <span className="um-field__label">Role</span>
-                    <div className="um-role-wrap">
-                      {user.can_remove || (isAdmin && user.relationship !== 'project_owner' && user.id !== currentUserId) ? (
-                        <>
-                          <button
-                            className="um-role-btn"
-                            onClick={() => toggleDropdown(user.id)}
-                            disabled={updatingRole === user.id}
-                          >
-                            <span>{updatingRole === user.id ? 'Saving...' : user.role}</span>
-                            <ChevronDown />
-                          </button>
-
-                          {openRoleDropdown === user.id && (
-                            <div className="um-dropdown">
-                              {ROLES.map(role => (
-                                <button
-                                  key={role}
-                                  className={`um-dropdown__item ${user.role === role ? "um-dropdown__item--active" : ""}`}
-                                  onClick={() => handleRoleChange(user.id, role)}
-                                >
-                                  {role}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <span className="um-field__value">{user.role}</span>
-                      )}
-                    </div>
+                    <span className="um-field__value">{user.role}</span>
                   </div>
 
                   {/* Email */}

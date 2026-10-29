@@ -277,3 +277,32 @@ select option:checked {
 }
 
 
+.task-schedule-fields { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; }
+.task-schedule-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 12px; }
+.task-schedule-predecessors { min-height: 82px; background: #fff; }
+.task-schedule-fields small, .task-schedule-note { color: #64748b; font-size: 11px; margin: 0; }
+.task-schedule-fields .task-schedule-field-error { color: #b42318; font-weight: 600; }
+.task-schedule-input--invalid, .task-schedule-input--invalid:focus { border-color: #dc6b65 !important; box-shadow: 0 0 0 2px rgba(220, 107, 101, .12) !important; }
+.task-schedule-result { display: flex; align-items: flex-start; gap: 9px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 9px; background: #fff; color: #334155; font-size: 12px; scroll-margin: 16px; }
+.task-schedule-result:focus { outline: 2px solid #f97316; outline-offset: 2px; }
+.task-schedule-result > svg { flex: 0 0 auto; margin-top: 1px; color: #64748b; }
+.task-schedule-result-body { min-width: 0; flex: 1; }
+.task-schedule-result-title { display: block; color: #1e293b; font-size: 13px; }
+.task-schedule-result-count { margin: 2px 0 9px !important; color: #64748b; font-size: 11px; }
+.task-schedule-result--invalid { background: #fffafa; border-color: #f0c5c2; }
+.task-schedule-result--invalid > svg { color: #c7463d; }
+.task-schedule-result--warning { background: #fffdf7; border-color: #f0d69a; }
+.task-schedule-result--warning > svg { color: #bd7c0b; }
+.task-schedule-result--insufficient_data { background: #fafbfc; border-color: #d9e0e8; }
+.task-schedule-result--valid { background: #f8fcf9; border-color: #d3e8d8; }
+.task-schedule-result--valid > svg { color: #39834f; }
+.task-schedule-issue { padding: 8px 0; border-top: 1px solid rgba(148, 163, 184, .24); }
+.task-schedule-issue h4 { margin: 0; color: #7f2924; font-size: 12px; }
+.task-schedule-issue-message, .task-schedule-guidance, .task-schedule-message { margin: 4px 0 0; overflow-wrap: anywhere; line-height: 1.45; }
+.task-schedule-guidance { color: #64748b; }
+.task-schedule-workday-counts { margin: 5px 0 0; padding: 6px 8px; border-radius: 6px; background: #fff1f0; color: #7f2924; }
+.task-schedule-suggestion { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; padding: 9px; border: 1px solid #f2d29a; border-radius: 7px; background: #fffdf7; color: #66501d; }
+.task-schedule-suggestion p { margin: 3px 0 0; color: #64748b; overflow-wrap: anywhere; }
+.task-schedule-apply { padding: 6px 10px; border: 1px solid #f97316; border-radius: 6px; background: #fff; color: #c2410c; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.task-schedule-apply:hover { background: #fff7ed; }
+@media (max-width: 720px) { .task-schedule-row { grid-template-columns: 1fr; } .task-schedule-suggestion { align-items: flex-start; flex-direction: column; } }

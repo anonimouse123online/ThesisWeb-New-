@@ -22,7 +22,7 @@ const { collectLoginSecurityContext, createLoginSecurityContext, hasCoordinates 
 const { loginAdmin } = await import(moduleUrl('authService'));
 const { parseSecurityLogs, fetchSecurityLogs, locationUrl } = await import(moduleUrl('securityLogs'));
 
-const originals = new Map(['navigator', 'window', 'localStorage', 'fetch'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+const originals = new Map(['navigator', 'window', 'localStorage', 'sessionStorage', 'fetch'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
 const user = { id: 1, name: 'Admin', email: 'admin@example.com', role: 'admin' };
 const session = { token: 'final-session', user };
 let locationCalls;
@@ -50,8 +50,9 @@ beforeEach(() => {
   Object.defineProperty(globalThis, 'window', { configurable: true, value: { isSecureContext: true, location: { pathname: '/audit-trail', href: '' } } });
   const storage = new Map();
   Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: {
-    getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key),
+    getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key), clear: () => storage.clear(),
   } });
+  Object.defineProperty(globalThis, 'sessionStorage', { configurable: true, value: { clear() {} } });
   navigatorWith(success => success({ coords: { latitude: 0, longitude: 0, accuracy: 25 } }));
   globalThis.fetch = () => { throw new Error('Unexpected network request'); };
 });

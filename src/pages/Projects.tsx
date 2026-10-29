@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import '../components/Projects.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import { formatCurrency } from '../utils/currency';
+import { formatCalendarDate } from '../utils/dates';
 import Dropdown from '../components/Dropdown';
 import ProfileDropdown from '../components/ProfileDropdown';
 import StatusBadge from '../components/StatusBadge';
@@ -493,7 +494,7 @@ const Projects: React.FC = () => {
                     <td className="pm-td-muted">{t.phase ? t.phase.replace(/^Phase\s*\d+\s*[-–:]\s*/i, '') : '—'}</td>
                     <td>{t.assignee || 'Unassigned'}</td>
                     <td className="pm-td-muted">
-                      {t.due_date ? new Date(t.due_date).toLocaleDateString() : '—'}
+                      {t.due_date ? formatCalendarDate(t.due_date) : '—'}
                     </td>
                     <td>
                       <span className={`pd-priority-badge pd-priority--${(t.priority || 'medium').toLowerCase()}`}>

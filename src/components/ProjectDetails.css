@@ -238,6 +238,17 @@
   color: var(--text);
 }
 
+.pd-timeline-value { display: flex; align-items: center; gap: 8px; }
+.pd-edit-date { display: inline-flex; align-items: center; justify-content: center; padding: 4px; border: 0; border-radius: 5px; color: #047857; background: transparent; cursor: pointer; }
+.pd-edit-date:hover { background: rgba(4, 120, 87, 0.1); }
+.pd-edit-date:focus-visible { outline: 2px solid #047857; outline-offset: 2px; }
+.pd-due-date-modal { max-width: 520px; }
+.pd-due-date-body { display: grid; gap: 16px; padding: 20px 24px; }
+.pd-due-date-field { display: grid; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text); }
+.pd-due-date-field input, .pd-due-date-field textarea { width: 100%; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 7px; padding: 10px 12px; color: var(--text); font: inherit; font-weight: 400; background: #fff; }
+.pd-due-date-field input:disabled { color: #6b7280; background: #f3f4f6; opacity: 1; }
+.pd-due-date-field textarea { resize: vertical; }
+
 /* ── Stats Row (Ongoing) ── */
 .pd-stats-row {
   display: grid;

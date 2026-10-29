@@ -1,3 +1,4 @@
+import { startSession } from '../utils/session';
 import React, { useState } from 'react';
 import {
   ShieldCheck,
@@ -95,7 +96,7 @@ const LoginPage: React.FC = () => {
       try {
         const user = JSON.parse(userStr);
         if (user.role?.trim().toLowerCase() === 'admin') {
-          navigate('/dashboard', { replace: true });
+          window.location.replace('/dashboard');
           return;
         }
       } catch { /* ignore */ }
@@ -180,8 +181,7 @@ const LoginPage: React.FC = () => {
 
       // Keep the existing session keys and remember-email behavior.
       // A provisional login attempt is never persisted.
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      startSession(data.token, data.user);
       if (rememberMe) {
         localStorage.setItem('remember_me', 'true');
         localStorage.setItem('remembered_email', email.trim().toLowerCase());
@@ -189,7 +189,7 @@ const LoginPage: React.FC = () => {
         localStorage.removeItem('remember_me');
         localStorage.removeItem('remembered_email');
       }
-      navigate('/dashboard', { replace: true });
+      window.location.replace('/dashboard');
     } catch (error) {
       if (loginActive.current) setError(error instanceof Error ? error.message : 'Unable to sign in. Please try again.');
     } finally {
