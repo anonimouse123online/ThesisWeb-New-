@@ -198,6 +198,7 @@ const NAV_ITEMS = [
     label: 'Time log',
     path: '/timelog',
   },
+  { icon: 'Timelog', label: 'Scheduling', path: '/schedule' },
   {
     icon: 'Users',
     label: 'Users',

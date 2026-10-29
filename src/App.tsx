@@ -19,6 +19,7 @@ import ProjectReports from './pages/ProjectReports';
 import Settings from './pages/Settings';
 import Notification from './pages/Notification';
 import Messages from './pages/Messages';
+import Schedule from './pages/Schedule';
 
 import ProtectedRoute from './components/ProtectedRoute';
 import { ToastContainer } from './components/Toast';
@@ -109,6 +110,8 @@ export default function App() {
             </AuthLayout>
           }
         />
+
+        <Route path="/schedule" element={<AuthLayout><Schedule /></AuthLayout>} />
 
         <Route
           path="/tasks/new"
