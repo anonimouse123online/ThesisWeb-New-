@@ -160,14 +160,15 @@
   table-layout: fixed;
 }
 
-.pm-project-table .pm-col-code { width: 12.5%; }
-.pm-project-table .pm-col-name { width: 17%; }
-.pm-project-table .pm-col-client { width: 11%; }
-.pm-project-table .pm-col-timeline { width: 8%; }
-.pm-project-table .pm-col-budget { width: 7%; }
-.pm-project-table .pm-col-progress { width: 9%; }
+.pm-project-table .pm-col-code { width: 10.5%; }
+.pm-project-table .pm-col-name { width: 13%; }
+.pm-project-table .pm-col-alerts { width: 7.5%; }
+.pm-project-table .pm-col-client { width: 8.5%; }
+.pm-project-table .pm-col-timeline { width: 9%; }
+.pm-project-table .pm-col-budget { width: 13.5%; }
+.pm-project-table .pm-col-progress { width: 10%; }
 .pm-project-table .pm-col-resources { width: 8%; }
-.pm-project-table .pm-col-status { width: 9.5%; }
+.pm-project-table .pm-col-status { width: 8%; }
 .pm-project-table .pm-col-issues { width: 6%; }
 .pm-project-table .pm-col-actions { width: 12%; }
 
@@ -176,6 +177,22 @@
   font-size: 10px;
   letter-spacing: 0.02em;
   overflow-wrap: anywhere;
+}
+
+.pm-project-table th:nth-child(2),
+.pm-project-table td.pm-project-name {
+  padding-right: 4px;
+}
+
+.pm-project-table th:nth-child(3),
+.pm-project-table td.pm-project-alerts {
+  padding-left: 4px;
+  white-space: nowrap;
+}
+
+.pm-project-table th:last-child,
+.pm-project-table td.pm-project-actions {
+  text-align: center;
 }
 
 .pm-project-table td {
@@ -529,7 +546,164 @@
 }
 
 .pm-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-color: #f8fafc;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px 16px;
+  padding-right: 42px !important;
   cursor: pointer;
+  color: #0f172a;
+  font-weight: 500;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pm-select:hover {
+  background-color: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.pm-select:focus {
+  background-color: #ffffff;
+  border-color: #ea580c;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15);
+  outline: none;
+}
+
+.pm-select option {
+  padding: 10px 14px;
+  background-color: #ffffff;
+  color: #1e293b;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+/* ── Choice Selectors & Dropdown Integration in Modal ── */
+.pm-form-group .sp-dropdown {
+  width: 100%;
+}
+
+.pm-form-group .sp-dropdown-trigger {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  min-height: 42px;
+  color: #0f172a;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pm-form-group .sp-dropdown-trigger:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.pm-form-group .sp-dropdown-trigger--active {
+  background: #ffffff;
+  border-color: #ea580c !important;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15) !important;
+}
+
+.pm-form-group .sp-dropdown-menu {
+  border-radius: 12px;
+  border: 1.5px solid #e2e8f0;
+  box-shadow: 0 16px 36px -4px rgba(15, 23, 42, 0.16), 0 4px 12px -2px rgba(15, 23, 42, 0.08);
+  padding: 6px;
+  z-index: 1300;
+}
+
+.pm-form-group .sp-dropdown-item {
+  padding: 9px 12px;
+  border-radius: 8px;
+  transition: all 0.14s ease;
+}
+
+.pm-form-group .sp-dropdown-item:hover:not(:disabled) {
+  background: #fff7ed;
+  color: #ea580c;
+}
+
+.pm-form-group .sp-dropdown-item--selected {
+  background: #ffedd5 !important;
+  color: #c2410c !important;
+}
+
+.pm-form-group .sp-dropdown-item-label {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.pm-form-group .sp-dropdown-item-sublabel {
+  font-size: 11.5px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+/* ── Choice Benchmark Indicator & Badges ── */
+.pm-choice-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: #64748b;
+  margin-top: 6px;
+  line-height: 1.4;
+}
+
+.pm-choice-hint svg {
+  color: #ea580c;
+  flex-shrink: 0;
+}
+
+.pm-choice-hint strong {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.pm-choice-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.pm-choice-badge--orange {
+  background: #fff7ed;
+  color: #ea580c;
+  border: 1px solid #fed7aa;
+}
+
+.pm-choice-badge--blue {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+
+.pm-choice-badge--green {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+.pm-choice-badge--purple {
+  background: #faf5ff;
+  color: #7c3aed;
+  border: 1px solid #e9d5ff;
+}
+
+.pm-choice-badge--gray {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
 }
 
 .pm-modal-actions {
@@ -580,6 +754,76 @@
 .pm-btn-create:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ── Timeline Feasibility Indicators ── */
+.pm-feasibility-ok {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #ecfdf5;
+  border: 1.5px solid #10b981;
+  border-radius: 12px;
+  padding: 13px 16px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: #065f46;
+  line-height: 1.5;
+}
+
+.pm-feasibility-ok svg {
+  color: #10b981;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* ── Schedule Risk Badge Pills (in table) ── */
+.pm-risk-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 5.5px;
+  border-radius: 9999px;
+  margin: 0;
+  width: fit-content;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.pm-risk-pill--critical {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #f87171;
+}
+
+.pm-risk-pill--high {
+  background: #ffedd5;
+  color: #9a3412;
+  border: 1px solid #fb923c;
+}
+
+.pm-risk-pill--moderate {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fbbf24;
+}
+
+/* ── Schedule Extended Pill (in table) ── */
+.pm-extended-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2.5px 6.5px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  width: fit-content;
+  white-space: nowrap;
+  line-height: 1;
 }
 
 /* ── Responsive ── */
@@ -634,4 +878,4 @@
   background: #ea580c !important;
   color: #ffffff !important;
   box-shadow: 0 4px 14px rgba(234, 88, 12, 0.25);
-}
+}

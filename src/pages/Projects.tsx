@@ -5,12 +5,21 @@ import '../components/Projects.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import { formatCurrency } from '../utils/currency';
 import { formatCalendarDate } from '../utils/dates';
-import Dropdown from '../components/Dropdown';
+import Dropdown, { type DropdownOption } from '../components/Dropdown';
 import ProfileDropdown from '../components/ProfileDropdown';
 import StatusBadge from '../components/StatusBadge';
 import ProjectIssueBadge from '../components/ProjectIssueBadge';
 import { showToast } from '../utils/toast';
-import { ArrowRight, AlertTriangle, Building2, Plus } from 'lucide-react';
+import {
+  ArrowRight,
+  AlertTriangle,
+  Building2,
+  Plus,
+  ShieldAlert,
+  Clock,
+  CalendarClock,
+  CheckCircle2
+} from 'lucide-react';
 
 const BACKEND_URL = API_BASE_URL;
 
@@ -22,6 +31,7 @@ interface ProjectRecord {
   client: string;
   start_date: string;
   end_date: string;
+  original_end_date?: string | null;
   budget: string;
   status: 'Planning' | 'Ongoing' | 'Completed' | 'Pending' | string;
   scope?: string;
@@ -30,6 +40,9 @@ interface ProjectRecord {
   completed_task_count?: number;
   resource_count?: number;
   active_issue_count?: number | string | null;
+  project_type?: string;
+  construction_method?: string;
+  schedule_risk_level?: 'low' | 'moderate' | 'high' | 'critical' | null;
 }
 
 interface TaskRecord {
@@ -69,6 +82,9 @@ interface NewProjectForm {
   start_date: string;
   end_date: string;
   phase?: string;
+  project_type: string;
+  construction_method: string;
+  schedule_risk_acknowledged: boolean;
 }
 
 const emptyForm: NewProjectForm = {
@@ -81,6 +97,119 @@ const emptyForm: NewProjectForm = {
   start_date: '',
   end_date: '',
   phase: 'Foundation',
+  project_type: '',
+  construction_method: 'traditional',
+  schedule_risk_acknowledged: false,
+};
+
+/* ── Timeline Feasibility Rules (industry standards) ── */
+const FEASIBILITY_RULES: Record<string, Record<string, number>> = {
+  residential:     { traditional: 90,  modular_prefab: 21, renovation: 14 },
+  commercial:      { traditional: 180, modular_prefab: 60, renovation: 30 },
+  road_civil:      { traditional: 60,  modular_prefab: 30, renovation: 14 },
+  interior_fitout: { traditional: 14,  modular_prefab: 7,  renovation: 7  },
+  minor_repairs:   { traditional: 5,   modular_prefab: 3,  renovation: 3  },
+};
+
+const PROJECT_TYPE_LABELS: Record<string, string> = {
+  residential:     'Residential (House / Apartment)',
+  commercial:      'Commercial / Institutional Building',
+  road_civil:      'Road, Drainage & Civil Works',
+  interior_fitout: 'Interior Fit-out / Renovation',
+  minor_repairs:   'Minor Repairs / Specialty Works',
+};
+
+const CONSTRUCTION_METHOD_LABELS: Record<string, string> = {
+  traditional:    'Traditional (Reinforced Concrete / CHB)',
+  modular_prefab: 'Modular / Prefabricated / Steel Frame',
+  renovation:     'Renovation / Extension',
+};
+
+const PROJECT_TYPE_OPTIONS: DropdownOption[] = [
+  {
+    value: 'residential',
+    label: 'Residential (House / Apartment)',
+    sublabel: 'ASTM C31: Min. 90 calendar days concrete curing & sequential build',
+  },
+  {
+    value: 'commercial',
+    label: 'Commercial / Institutional Building',
+    sublabel: 'Multi-story foundation, deep curing, MEP & facade systems',
+  },
+  {
+    value: 'road_civil',
+    label: 'Road, Drainage & Civil Works',
+    sublabel: 'Grading, subbase compaction, drainage lines & asphalt/paving',
+  },
+  {
+    value: 'interior_fitout',
+    label: 'Interior Fit-out / Renovation',
+    sublabel: 'Non-structural partitions, architectural joinery, finishes',
+  },
+  {
+    value: 'minor_repairs',
+    label: 'Minor Repairs / Specialty Works',
+    sublabel: 'Punch-list fixes, waterproofing, repainting, hardware upgrades',
+  },
+];
+
+const CONSTRUCTION_METHOD_OPTIONS: DropdownOption[] = [
+  {
+    value: 'traditional',
+    label: 'Traditional (Reinforced Concrete / CHB)',
+    sublabel: 'Cast-in-place concrete; requires standard 14–28d ASTM curing',
+  },
+  {
+    value: 'modular_prefab',
+    label: 'Modular / Prefabricated / Steel Frame',
+    sublabel: 'Factory prefabrication with accelerated on-site erection',
+  },
+  {
+    value: 'renovation',
+    label: 'Renovation / Extension',
+    sublabel: 'Alterations utilizing existing structural core & foundation',
+  },
+];
+
+interface FeasibilityResult {
+  isRisky: boolean;
+  riskLevel: 'low' | 'moderate' | 'high' | 'critical';
+  durationDays: number;
+  minimumDays: number;
+  projectTypeLabel: string;
+  methodLabel: string;
+}
+
+const computeFeasibility = (form: NewProjectForm): FeasibilityResult | null => {
+  if (!form.project_type || !form.start_date || !form.end_date) return null;
+  const startMs = new Date(form.start_date).getTime();
+  const endMs = new Date(form.end_date).getTime();
+  if (isNaN(startMs) || isNaN(endMs) || endMs <= startMs) return null;
+
+  const durationDays = Math.round((endMs - startMs) / (1000 * 60 * 60 * 24));
+  const method = form.construction_method || 'traditional';
+  const typeRules = FEASIBILITY_RULES[form.project_type];
+  if (!typeRules) return null;
+
+  const minimumDays = typeRules[method] ?? typeRules.traditional;
+  const ratio = durationDays / minimumDays;
+
+  let riskLevel: FeasibilityResult['riskLevel'] = 'low';
+  if (durationDays < minimumDays) {
+    if (ratio < 0.25)      riskLevel = 'critical';
+    else if (ratio < 0.5)  riskLevel = 'high';
+    else if (ratio < 0.75) riskLevel = 'moderate';
+    else                   riskLevel = 'moderate';
+  }
+
+  return {
+    isRisky: durationDays < minimumDays,
+    riskLevel,
+    durationDays,
+    minimumDays,
+    projectTypeLabel: PROJECT_TYPE_LABELS[form.project_type] || form.project_type,
+    methodLabel: CONSTRUCTION_METHOD_LABELS[method] || method,
+  };
 };
 
 const generateRandomProjectCode = (existingProjects: ProjectRecord[] = []) => {
@@ -126,6 +255,9 @@ const Projects: React.FC = () => {
       budget: '',
       start_date: '',
       end_date: '',
+      project_type: '',
+      construction_method: 'traditional',
+      schedule_risk_acknowledged: false,
     });
     setFormError(null);
     setShowModal(true);
@@ -188,9 +320,27 @@ const Projects: React.FC = () => {
 
   const todayStr = new Date().toISOString().split('T')[0];
 
+  const formatBudgetWithCommas = (raw: string) => {
+    const clean = raw.replace(/[^\d.]/g, '');
+    if (!clean) return '';
+    const parts = clean.split('.');
+    const integerPart = parts[0].replace(/^0+(?=\d)/, '');
+    const formattedInteger = (integerPart || '0').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    if (parts.length > 1) {
+      return `${formattedInteger}.${parts.slice(1).join('').slice(0, 2)}`;
+    }
+    return formattedInteger;
+  };
+
   const handleCreateProject = async () => {
-    if (!form.code || !form.name || !form.location || !form.client || !form.start_date || !form.end_date || !form.budget || !form.scope) {
+    const rawBudget = String(form.budget).replace(/,/g, '').trim();
+    if (!form.code || !form.name || !form.location || !form.client || !form.start_date || !form.end_date || !rawBudget || !form.scope) {
       setFormError('Please fill in all required fields.');
+      return;
+    }
+
+    if (!form.project_type) {
+      setFormError('Please select a Project Type for timeline feasibility validation.');
       return;
     }
 
@@ -204,6 +354,13 @@ const Projects: React.FC = () => {
       return;
     }
 
+    // Client-side feasibility check
+    const feasibility = computeFeasibility(form);
+    if (feasibility?.isRisky && !form.schedule_risk_acknowledged) {
+      setFormError(`Aggressive timeline detected (${feasibility.durationDays} days vs. recommended ${feasibility.minimumDays} days). Please acknowledge the schedule risk below to proceed.`);
+      return;
+    }
+
     try {
       setSubmitting(true);
       setFormError(null);
@@ -212,11 +369,19 @@ const Projects: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          budget: rawBudget,
           phase: form.phase || 'Foundation',
         }),
       });
 
       const data = await res.json();
+
+      // Handle 422 feasibility warning from backend
+      if (res.status === 422 && data.feasibility_warning) {
+        setFormError(data.message);
+        return;
+      }
+
       if (!res.ok) throw new Error(data.message || 'Failed to create project');
 
       setProjects(prev => [data.data ?? data, ...prev]);
@@ -376,6 +541,7 @@ const Projects: React.FC = () => {
               <colgroup>
                 <col className="pm-col-code" />
                 <col className="pm-col-name" />
+                <col className="pm-col-alerts" />
                 <col className="pm-col-client" />
                 <col className="pm-col-timeline" />
                 <col className="pm-col-budget" />
@@ -389,6 +555,7 @@ const Projects: React.FC = () => {
                 <tr>
                   <th>Project Code</th>
                   <th>Name &amp; Location</th>
+                  <th>Alerts</th>
                   <th>Client</th>
                   <th>Timeline</th>
                   <th>Budget</th>
@@ -396,7 +563,7 @@ const Projects: React.FC = () => {
                   <th>Resources</th>
                   <th>Status</th>
                   <th>Issues</th>
-                  <th style={{ textAlign: 'right' }}>Actions</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -407,18 +574,51 @@ const Projects: React.FC = () => {
                   const invCost = getProjectResourceCost(prj.name, prj.code);
                   const remainingBudget = Math.max(0, initialBudget - invCost);
 
+                  const hasRisk = Boolean(prj.schedule_risk_level && prj.schedule_risk_level !== 'low');
+                  const isExtended = Boolean(prj.original_end_date && prj.end_date > prj.original_end_date);
+                  const extDays = isExtended
+                    ? Math.round((new Date(prj.end_date).getTime() - new Date(prj.original_end_date!).getTime()) / (1000 * 60 * 60 * 24))
+                    : 0;
+
                   return (
                     <tr key={prj.code}>
                       <td className="pm-project-code">
                         <span title={prj.code}>{prj.code}</span>
                       </td>
                       <td className="pm-project-name">
-                        <div className="pm-td-bold">{prj.name}</div>
+                        <div className="pm-td-bold">
+                          <span>{prj.name}</span>
+                        </div>
                         <div className="pm-td-muted pm-project-location">{prj.location}</div>
+                      </td>
+                      <td className="pm-project-alerts">
+                        {!hasRisk && (!isExtended || extDays <= 0) ? (
+                          <span className="pm-td-muted">—</span>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                            {hasRisk && (
+                              <span
+                                className={`pm-risk-pill pm-risk-pill--${prj.schedule_risk_level}`}
+                                title={`Fast-Track Schedule: Created with ${prj.schedule_risk_level!.toUpperCase()} schedule risk acknowledgment`}
+                              >
+                                <ShieldAlert size={12} />
+                              </span>
+                            )}
+                            {isExtended && extDays > 0 && (
+                              <span
+                                className="pm-extended-pill"
+                                title={`Timeline Extended: Baseline completion date was ${prj.original_end_date} (+${extDays} day${extDays === 1 ? '' : 's'})`}
+                              >
+                                <CalendarClock size={11} />
+                                <span>(+{extDays}D)</span>
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="pm-project-client">{prj.client}</td>
                       <td className="pm-td-muted">{formatTimeline(prj.start_date, prj.end_date)}</td>
-                      <td>
+                      <td className="pm-project-budget">
                         <strong title={invCost > 0 ? `Original Budget: ${formatCurrency(initialBudget)} | Inventory Cost: -${formatCurrency(invCost)} | Remaining: ${formatCurrency(remainingBudget)}` : undefined}>
                           {formatCurrency(remainingBudget)}
                         </strong>
@@ -602,6 +802,34 @@ const Projects: React.FC = () => {
               </div>
             </div>
 
+            <div className="pm-form-row pm-form-row--2">
+              <div className="pm-form-group">
+                <label>Project Type <span className="pm-required">*</span></label>
+                <Dropdown
+                  fullWidth
+                  options={PROJECT_TYPE_OPTIONS}
+                  value={form.project_type}
+                  placeholder="— Select Project Type —"
+                  onChange={val => setForm(prev => ({ ...prev, project_type: val, schedule_risk_acknowledged: false }))}
+                />
+                {form.project_type && (
+                  <div className="pm-choice-hint">
+                    <span>Recommended minimum: <strong>{FEASIBILITY_RULES[form.project_type]?.traditional || 0}+ calendar days</strong></span>
+                  </div>
+                )}
+              </div>
+              <div className="pm-form-group">
+                <label>Construction Method <span className="pm-required">*</span></label>
+                <Dropdown
+                  fullWidth
+                  options={CONSTRUCTION_METHOD_OPTIONS}
+                  value={form.construction_method}
+                  placeholder="Select Method"
+                  onChange={val => setForm(prev => ({ ...prev, construction_method: val, schedule_risk_acknowledged: false }))}
+                />
+              </div>
+            </div>
+
             <div className="pm-form-row pm-form-row--1">
               <div className="pm-form-group">
                 <label>Location <span className="pm-required">*</span></label>
@@ -641,11 +869,13 @@ const Projects: React.FC = () => {
                 <label>Budget (PHP) <span className="pm-required">*</span></label>
                 <input
                   className="pm-input"
-                  type="number"
-                  min="0"
-                  step="0.01"
+                  type="text"
+                  inputMode="decimal"
                   value={form.budget}
-                  onChange={e => setForm({ ...form, budget: e.target.value })}
+                  onChange={e => {
+                    const formatted = formatBudgetWithCommas(e.target.value);
+                    setForm({ ...form, budget: formatted });
+                  }}
                   placeholder="0.00"
                 />
               </div>
@@ -664,7 +894,8 @@ const Projects: React.FC = () => {
                     setForm(prev => ({
                       ...prev,
                       start_date: newStart,
-                      end_date: prev.end_date && prev.end_date < newStart ? newStart : prev.end_date
+                      end_date: prev.end_date && prev.end_date < newStart ? newStart : prev.end_date,
+                      schedule_risk_acknowledged: false,
                     }));
                   }}
                 />
@@ -676,10 +907,103 @@ const Projects: React.FC = () => {
                   type="date"
                   min={form.start_date || todayStr}
                   value={form.end_date}
-                  onChange={e => setForm({ ...form, end_date: e.target.value })}
+                  onChange={e => setForm({ ...form, end_date: e.target.value, schedule_risk_acknowledged: false })}
                 />
               </div>
             </div>
+
+            {/* ── Timeline Feasibility Alert ── */}
+            {(() => {
+              const f = computeFeasibility(form);
+              if (!f) return null;
+
+              if (!f.isRisky) {
+                return (
+                  <div className="pm-feasibility-ok">
+                    <CheckCircle2 size={16} />
+                    <span>
+                      <strong>Timeline is feasible.</strong> {f.durationDays}-day schedule meets the recommended
+                      minimum of {f.minimumDays} days for {f.projectTypeLabel.toLowerCase()} ({f.methodLabel.toLowerCase()}).
+                    </span>
+                  </div>
+                );
+              }
+
+              const riskColors: Record<string, { bg: string; border: string; text: string; icon: string }> = {
+                moderate: { bg: '#fef3c7', border: '#f59e0b', text: '#92400e', icon: '#f59e0b' },
+                high:     { bg: '#fee2e2', border: '#ef4444', text: '#991b1b', icon: '#ef4444' },
+                critical: { bg: '#fce4ec', border: '#dc2626', text: '#7f1d1d', icon: '#dc2626' },
+              };
+              const colors = riskColors[f.riskLevel] || riskColors.moderate;
+
+              return (
+                <div
+                  className="pm-feasibility-alert"
+                  style={{
+                    background: colors.bg,
+                    border: `1.5px solid ${colors.border}`,
+                    borderRadius: '12px',
+                    padding: '16px 18px',
+                    marginBottom: '16px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                    {f.riskLevel === 'critical' ? (
+                      <ShieldAlert size={22} color={colors.icon} style={{ flexShrink: 0, marginTop: '2px' }} />
+                    ) : (
+                      <AlertTriangle size={22} color={colors.icon} style={{ flexShrink: 0, marginTop: '2px' }} />
+                    )}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 800, fontSize: '13.5px', color: colors.text, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        {f.riskLevel} Schedule Risk Detected
+                      </div>
+                      <p style={{ fontSize: '12.5px', color: colors.text, margin: '0 0 10px 0', lineHeight: '1.6' }}>
+                        A <strong>{f.projectTypeLabel.toLowerCase()}</strong> project using <strong>{f.methodLabel.toLowerCase()}</strong> typically
+                        requires a minimum of <strong>{f.minimumDays} calendar days</strong> to account for concrete curing
+                        (ASTM/DPWH 14–28 days), structural phasing, and sequential task dependencies.
+                        Your selected timeline is only <strong>{f.durationDays} day{f.durationDays !== 1 ? 's' : ''}</strong>.
+                      </p>
+                      <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: colors.text, marginBottom: '12px', fontWeight: 600 }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Clock size={13} /> Your Duration: {f.durationDays} days
+                        </span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Clock size={13} /> Recommended: {f.minimumDays}+ days
+                        </span>
+                      </div>
+                      <label
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '10px',
+                          cursor: 'pointer',
+                          background: 'rgba(255,255,255,0.6)',
+                          borderRadius: '8px',
+                          padding: '10px 12px',
+                          border: `1px solid ${colors.border}40`,
+                          fontSize: '12.5px',
+                          color: colors.text,
+                          fontWeight: 600,
+                          lineHeight: '1.5',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={form.schedule_risk_acknowledged}
+                          onChange={e => setForm({ ...form, schedule_risk_acknowledged: e.target.checked })}
+                          style={{ marginTop: '3px', accentColor: colors.border, width: '16px', height: '16px', flexShrink: 0 }}
+                        />
+                        <span>
+                          I acknowledge this is a <strong>Fast-Track / Compressed Schedule</strong>.
+                          I understand the risks involved including zero task float, potential quality trade-offs,
+                          and that this project will be tagged as "{f.riskLevel.toUpperCase()} SCHEDULE RISK".
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="pm-modal-actions">
               <button
@@ -691,7 +1015,7 @@ const Projects: React.FC = () => {
               <button
                 className="pm-btn-create"
                 onClick={handleCreateProject}
-                disabled={submitting}
+                disabled={submitting || (computeFeasibility(form)?.isRisky && !form.schedule_risk_acknowledged)}
               >
                 {submitting ? 'Creating…' : 'Create Project'}
               </button>

@@ -41,10 +41,20 @@ import {
   Info,
   Crown,
   ShieldCheck,
+  ShieldAlert,
+  CalendarClock,
   Pencil
 } from 'lucide-react';
 
 const API_URL = API_BASE_URL;
+
+const FEASIBILITY_RULES: Record<string, Record<string, number>> = {
+  residential:     { traditional: 90,  modular_prefab: 21, renovation: 14 },
+  commercial:      { traditional: 180, modular_prefab: 60, renovation: 30 },
+  road_civil:      { traditional: 60,  modular_prefab: 30, renovation: 14 },
+  interior_fitout: { traditional: 14,  modular_prefab: 7,  renovation: 7  },
+  minor_repairs:   { traditional: 5,   modular_prefab: 3,  renovation: 3  },
+};
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -56,12 +66,16 @@ interface Project {
   client: string;
   start_date: string;
   end_date: string;
+  original_end_date?: string;
   budget: string;
   status: 'Planning' | 'Ongoing' | 'Completed' | 'Pending' | string;
   phase: string;
   scope: string;
   progress_pct?: number;
   owner_id?: string;
+  project_type?: string;
+  construction_method?: string;
+  schedule_risk_level?: 'low' | 'moderate' | 'high' | 'critical' | null;
 }
 
 interface TeamMember {
@@ -530,7 +544,6 @@ const ProjectDetails: React.FC = () => {
       return;
     }
     if (savingDueDate) return;
-    if (!window.confirm(`Save project due date ${formatCalendarDate(dueDateDraft)}?`)) return;
     setSavingDueDate(true);
     try {
       const res = await fetchWithAuth(`${API_URL}/projects/${encodeURIComponent(project.code)}/due-date`, {
@@ -558,8 +571,23 @@ const ProjectDetails: React.FC = () => {
       const updatedProject: Partial<Project> = refreshedJson.data || refreshedJson.project || refreshedJson;
       const updatedEndDate = updatedProject.end_date;
       if (!updatedEndDate) throw new Error('Due date was saved, but the refreshed project response did not include its due date.');
-      setProject(prev => prev ? { ...prev, end_date: updatedEndDate } : prev);
-      setAllProjects(prev => prev.map(item => item.id === project.id ? { ...item, end_date: updatedEndDate } : item));
+      setProject(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          ...updatedProject,
+          end_date: updatedEndDate,
+          original_end_date: updatedProject.original_end_date ?? prev.original_end_date,
+          schedule_risk_level: updatedProject.schedule_risk_level ?? null,
+        };
+      });
+      setAllProjects(prev => prev.map(item => item.id === project.id ? {
+        ...item,
+        ...updatedProject,
+        end_date: updatedEndDate,
+        original_end_date: updatedProject.original_end_date ?? item.original_end_date,
+        schedule_risk_level: updatedProject.schedule_risk_level ?? null,
+      } : item));
       setShowDueDateModal(false);
       setDueDateReason('');
       showToast('Project due date updated successfully.', 'success');
@@ -1077,10 +1105,45 @@ const ProjectDetails: React.FC = () => {
       <div className={`pd-hero-card ${project.status === 'Ongoing' ? 'pd-hero-card--ongoing' : ''}`}>
         <div className="pd-hero-top">
           <div className="pd-hero-left">
-            <div className="pd-title-row">
+            <div className="pd-title-row" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
               <span className="pd-code-badge">{project.code}</span>
               <h1 className="pd-title">{project.name}</h1>
               <StatusBadge status={project.status} />
+              {project.original_end_date && project.end_date > project.original_end_date && (() => {
+                const extDays = Math.round((new Date(project.end_date).getTime() - new Date(project.original_end_date).getTime()) / (1000 * 60 * 60 * 24));
+                if (extDays <= 0) return null;
+                return (
+                  <span
+                    className="pd-extended-badge"
+                    title={`Schedule Extended: Baseline due date was ${project.original_end_date} (+${extDays} day${extDays === 1 ? '' : 's'} extension)`}
+                  >
+                    <CalendarClock size={12} />
+                    Extended (+{extDays}d)
+                  </span>
+                );
+              })()}
+              {project.schedule_risk_level && project.schedule_risk_level !== 'low' && (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '3px 9px',
+                    borderRadius: '9999px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.3px',
+                    background: project.schedule_risk_level === 'critical' ? '#fee2e2' : project.schedule_risk_level === 'high' ? '#ffedd5' : '#fef3c7',
+                    color: project.schedule_risk_level === 'critical' ? '#991b1b' : project.schedule_risk_level === 'high' ? '#9a3412' : '#92400e',
+                    border: `1px solid ${project.schedule_risk_level === 'critical' ? '#f87171' : project.schedule_risk_level === 'high' ? '#fb923c' : '#fbbf24'}`
+                  }}
+                  title={`Fast-Track Schedule: Created with ${project.schedule_risk_level.toUpperCase()} schedule risk acknowledgment`}
+                >
+                  <ShieldAlert size={12} />
+                  {project.schedule_risk_level === 'critical' ? 'Critical Schedule Risk' : project.schedule_risk_level === 'high' ? 'High Schedule Risk' : 'Moderate Schedule Risk'}
+                </span>
+              )}
             </div>
             <p className="pd-location">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: '-2px', marginRight: '4px' }}>
@@ -1115,6 +1178,11 @@ const ProjectDetails: React.FC = () => {
                 {formatTimeline(project.start_date, project.end_date)}
                 {userRole.toLowerCase() === 'admin' && <button type="button" className="pd-edit-date" aria-label="Edit project due date" title="Edit due date" onClick={() => { setDueDateDraft(toDateInputValue(project.end_date) || ''); setDueDateReason(''); setShowDueDateModal(true); }}><Pencil size={14} /></button>}
               </p>
+              {project.original_end_date && project.end_date > project.original_end_date && (
+                <span className="pd-timeline-baseline" title={`Original project deadline at creation: ${project.original_end_date}`}>
+                  Baseline: {formatCalendarDate(project.original_end_date)}
+                </span>
+              )}
             </div>
             <div
               className="pd-meta-item"
@@ -1172,9 +1240,30 @@ const ProjectDetails: React.FC = () => {
                 <span className="pd-progress-graph-sub">Progress</span>
               </div>
             </div>
-            <span className="pd-progress-graph-title">Overall Progress</span>
+            <span className="pd-progress-graph-title">Overall Task Progress</span>
           </div>
         </div>
+
+        {project.schedule_risk_level && project.schedule_risk_level !== 'low' && (
+          <div style={{
+            margin: '16px 24px 0',
+            padding: '10px 14px',
+            borderRadius: '10px',
+            background: project.schedule_risk_level === 'critical' ? 'rgba(254, 226, 226, 0.7)' : project.schedule_risk_level === 'high' ? 'rgba(255, 237, 213, 0.7)' : 'rgba(254, 243, 199, 0.7)',
+            border: `1px solid ${project.schedule_risk_level === 'critical' ? '#f87171' : project.schedule_risk_level === 'high' ? '#fb923c' : '#fbbf24'}`,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            fontSize: '12.5px',
+            color: project.schedule_risk_level === 'critical' ? '#991b1b' : project.schedule_risk_level === 'high' ? '#9a3412' : '#92400e',
+            lineHeight: 1.5,
+          }}>
+            <ShieldAlert size={18} style={{ flexShrink: 0 }} />
+            <span>
+              <strong>Fast-Track Project Notice:</strong> This project was initiated under a compressed schedule ({project.schedule_risk_level.toUpperCase()} RISK). Standard concrete curing and sequential phasing requirements may necessitate accelerated construction methods or zero-float critical path tracking.
+            </span>
+          </div>
+        )}
       </div>
 
       {/* ─── Merged Tabs Navigation Bar ─── */}
@@ -2586,8 +2675,104 @@ const ProjectDetails: React.FC = () => {
             <header className="gc-modal-header"><div><h2 className="gc-title" id="pd-due-date-title">Edit Project Due Date</h2><p className="gc-subtitle">Update the deadline for {project.name}</p></div><button className="gc-close-btn" type="button" aria-label="Close" onClick={() => setShowDueDateModal(false)}><X size={16} /></button></header>
             <form onSubmit={event => { event.preventDefault(); void handleSaveDueDate(); }}>
               <div className="pd-due-date-body">
-                <label className="pd-due-date-field"><span>Project Start Date</span><input type="date" value={toDateInputValue(project.start_date)} readOnly disabled /></label>
-                <label className="pd-due-date-field"><span>Project Due Date</span><input type="date" min={toDateInputValue(project.start_date)} value={dueDateDraft} onChange={event => setDueDateDraft(event.target.value)} required /></label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+                  <label className="pd-due-date-field">
+                    <span>Project Start Date</span>
+                    <input type="date" value={toDateInputValue(project.start_date)} readOnly disabled />
+                  </label>
+                  <label className="pd-due-date-field">
+                    <span>Original Baseline Due Date</span>
+                    <input type="date" value={toDateInputValue(project.original_end_date || project.end_date)} readOnly disabled />
+                  </label>
+                </div>
+                <label className="pd-due-date-field">
+                  <span>New Project Due Date</span>
+                  <input type="date" min={toDateInputValue(project.start_date)} value={dueDateDraft} onChange={event => setDueDateDraft(event.target.value)} required />
+                </label>
+                {(() => {
+                  if (!project || !project.start_date || !dueDateDraft) return null;
+                  const baseDate = project.original_end_date || project.end_date;
+                  const isExtension = baseDate && dueDateDraft > baseDate;
+                  const extDays = isExtension ? Math.round((new Date(dueDateDraft).getTime() - new Date(baseDate).getTime()) / (1000 * 60 * 60 * 24)) : 0;
+
+                  let pType = project.project_type;
+                  if (!pType && project.name) {
+                    if (/house|residential|apartment|condo/i.test(project.name)) pType = 'residential';
+                    else if (/commercial|office|mall|building|hospital/i.test(project.name)) pType = 'commercial';
+                    else if (/road|drainage|bridge|highway/i.test(project.name)) pType = 'road_civil';
+                    else if (/fitout|fit-out|interior/i.test(project.name)) pType = 'interior_fitout';
+                    else if (/repair|fix|repaint/i.test(project.name)) pType = 'minor_repairs';
+                  }
+                  const typeRules = pType ? FEASIBILITY_RULES[pType] : null;
+
+                  const startMs = new Date(project.start_date).getTime();
+                  const endMs = new Date(dueDateDraft).getTime();
+                  if (isNaN(startMs) || isNaN(endMs) || endMs <= startMs) return null;
+
+                  const durationDays = Math.round((endMs - startMs) / (1000 * 60 * 60 * 24));
+                  const method = project.construction_method || 'traditional';
+                  const minDays = typeRules ? (typeRules[method] || typeRules.traditional) : 0;
+
+                  let riskLevel = 'low';
+                  let isFeasible = true;
+                  if (typeRules && minDays > 0) {
+                    if (durationDays < minDays) {
+                      const ratio = durationDays / minDays;
+                      if (ratio < 0.25)      riskLevel = 'critical';
+                      else if (ratio < 0.5)  riskLevel = 'high';
+                      else                   riskLevel = 'moderate';
+                      isFeasible = false;
+                    }
+                  }
+
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '4px 0 8px 0' }}>
+                      {isExtension && (
+                        <div style={{
+                          padding: '9px 13px',
+                          borderRadius: '8px',
+                          fontSize: '12.5px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          fontWeight: 600,
+                          background: '#eff6ff',
+                          color: '#1d4ed8',
+                          border: '1px solid #bfdbfe',
+                        }}>
+                          <CalendarClock size={16} style={{ flexShrink: 0 }} />
+                          <span>Timeline Extension: +{extDays} days beyond baseline ({baseDate}). "Extended (+{extDays}d)" badge will be displayed.</span>
+                        </div>
+                      )}
+                      {typeRules && (
+                        <div style={{
+                          padding: '10px 14px',
+                          borderRadius: '8px',
+                          fontSize: '12.5px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          fontWeight: 600,
+                          background: isFeasible ? '#ecfdf5' : riskLevel === 'critical' ? '#fee2e2' : riskLevel === 'high' ? '#ffedd5' : '#fef3c7',
+                          color: isFeasible ? '#065f46' : riskLevel === 'critical' ? '#991b1b' : riskLevel === 'high' ? '#9a3412' : '#92400e',
+                          border: `1px solid ${isFeasible ? '#a7f3d0' : riskLevel === 'critical' ? '#fca5a5' : riskLevel === 'high' ? '#fdba74' : '#fde68a'}`,
+                        }}>
+                          {isFeasible ? (
+                            <>
+                              <CheckCircle2 size={16} color="#10b981" style={{ flexShrink: 0 }} />
+                              <span>Timeline is feasible ({durationDays} days meets recommended {minDays}+ days). Schedule risk badge will be cleared upon saving.</span>
+                            </>
+                          ) : (
+                            <>
+                              <AlertTriangle size={16} color={riskLevel === 'critical' ? '#dc2626' : riskLevel === 'high' ? '#ea580c' : '#d97706'} style={{ flexShrink: 0 }} />
+                              <span>{riskLevel.toUpperCase()} RISK: {durationDays} days selected (recommended: {minDays}+ days). Schedule badge will update to {riskLevel.toUpperCase()} SCHEDULE RISK.</span>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 <label className="pd-due-date-field"><span>Reason for Extension or Adjustment</span><textarea value={dueDateReason} onChange={event => setDueDateReason(event.target.value)} rows={4} maxLength={1000} required placeholder="Explain why the due date is changing" /></label>
               </div>
               <footer className="gc-modal-footer"><button className="gc-cancel-btn" type="button" onClick={() => setShowDueDateModal(false)}>Cancel</button><button className="gc-generate-btn" type="submit" disabled={savingDueDate}>{savingDueDate ? 'Saving…' : 'Save Changes'}</button></footer>
