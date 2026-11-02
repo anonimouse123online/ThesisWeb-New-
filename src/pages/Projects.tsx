@@ -761,7 +761,7 @@ const Projects: React.FC = () => {
 
       {/* ── Create Project Modal ── */}
       {showModal && (
-        <div className="pm-overlay" onClick={() => setShowModal(false)}>
+        <div className="pm-overlay">
           <div className="pm-modal" onClick={e => e.stopPropagation()}>
             <h2 className="pm-modal-title">Create New Project</h2>
 

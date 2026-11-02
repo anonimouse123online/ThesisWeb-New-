@@ -178,6 +178,7 @@ const Messages: React.FC = () => {
           };
         });
         setConversations(formatted);
+        window.dispatchEvent(new Event('messages-updated'));
       }
     } catch (e) {
       console.error(e);
@@ -237,6 +238,7 @@ const Messages: React.FC = () => {
     socketRef.current.on('new_message', (msg) => {
       // Re-fetch conversations to update latest message
       fetchConversations();
+      window.dispatchEvent(new Event('messages-updated'));
       
       // If it belongs to active conversation, append it
       if (String(msg.conversation_id) === String(activeId)) {
@@ -326,12 +328,14 @@ const Messages: React.FC = () => {
 
   const openConversation = (id: string) => {
     setActiveId(id);
-    fetch(`http://localhost:5001/messages/conversations/${id}/read`, {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${token}` }
-    }).catch(console.error);
+    fetchWithAuth(`/messages/conversations/${id}/read`, {
+      method: 'PUT'
+    })
+      .then(() => window.dispatchEvent(new Event('messages-updated')))
+      .catch(console.error);
     
     setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, unread: 0 } : c)));
+    window.dispatchEvent(new Event('messages-updated'));
   };
 
   const stageFile = async (file: File) => {
@@ -665,7 +669,7 @@ const Messages: React.FC = () => {
       )}
 
       {forwardModalMsg && (
-        <div className="msg-overlay" onClick={() => setForwardModalMsg(null)}>
+        <div className="msg-overlay">
           <div className="msg-modal" onClick={(e) => e.stopPropagation()}>
             <button className="msg-modal-close" onClick={() => setForwardModalMsg(null)} aria-label="Close"><X size={18} /></button>
             <h3 className="msg-modal-title">Forward Message</h3>
@@ -688,7 +692,7 @@ const Messages: React.FC = () => {
       )}
 
       {emailModalMsg && (
-        <div className="msg-overlay" onClick={() => setEmailModalMsg(null)}>
+        <div className="msg-overlay">
           <div className="msg-modal" onClick={(e) => e.stopPropagation()}>
             <button className="msg-modal-close" onClick={() => setEmailModalMsg(null)} aria-label="Close">
               <X size={18} />
@@ -820,7 +824,7 @@ const CreateChatModal: React.FC<{
   }, [search, token]);
 
   return (
-    <div className="msg-overlay" onClick={onClose}>
+    <div className="msg-overlay">
       <div className="msg-modal" onClick={(e) => e.stopPropagation()}>
         <button className="msg-modal-close" onClick={onClose} aria-label="Close"><X size={18} /></button>
         <h3 className="msg-modal-title">New Chat</h3>
@@ -942,7 +946,7 @@ const CreateGroupModal: React.FC<{
   };
 
   return (
-    <div className="msg-overlay" onClick={onClose}>
+    <div className="msg-overlay">
       <div className="msg-modal msg-create-group-modal" onClick={(e) => e.stopPropagation()}>
         <button className="msg-modal-close" onClick={onClose} aria-label="Close"><X size={18} /></button>
         
@@ -1189,7 +1193,7 @@ const GroupMembersModal: React.FC<GroupMembersModalProps> = ({ conversationId, c
   }, [members, search]);
 
   return (
-    <div className="msg-overlay" onClick={onClose}>
+    <div className="msg-overlay">
       <div className="msg-modal msg-members-modal" onClick={(e) => e.stopPropagation()}>
         <button className="msg-modal-close" onClick={onClose} aria-label="Close">
           <X size={18} />

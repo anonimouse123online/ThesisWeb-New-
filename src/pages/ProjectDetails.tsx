@@ -14,6 +14,7 @@ import { showToast } from '../utils/toast';
 import TaskPhaseChecklist from '../components/TaskPhaseChecklist';
 import { TASK_PHASE_CATEGORIES, formatTaskPhases, getTaskPhases, groupTasksByPhase, taskPhasePayload, taskPhaseRequiredMessage, type TaskPhaseFields } from '../utils/taskPhases';
 import TaskScheduleFeedback from '../components/TaskScheduleFeedback';
+import AssigneeWorkloadAlert from '../components/AssigneeWorkloadAlert';
 import { scheduleFieldMessage, scheduleMessage, scheduleValidationFromPayload, type ScheduleValidation } from '../utils/taskSchedule';
 import {
   LayoutDashboard,
@@ -212,7 +213,7 @@ const GenerateCodeModal: React.FC<{ project: Project; onClose: () => void }> = (
   };
 
   return (
-    <div className="gc-overlay" onClick={onClose}>
+    <div className="gc-overlay">
       <div className="gc-modal" onClick={e => e.stopPropagation()}>
         <div className="gc-modal-header">
           <div className="gc-header-left">
@@ -904,7 +905,7 @@ const ProjectDetails: React.FC = () => {
   const handleCreateResource = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!project) return;
-    if (!resourceForm.name || !resourceForm.quantity || !resourceForm.unitPrice) {
+    if (!resourceForm.name || !resourceForm.quantity) {
       showToast('Please fill in all required resource fields', 'warning');
       return;
     }
@@ -2019,7 +2020,7 @@ const ProjectDetails: React.FC = () => {
 
       {/* 1. Add Task Modal */}
       {showAddTaskModal && (
-        <div className="pm-overlay" onClick={handleCloseAddTaskModal}>
+        <div className="pm-overlay">
           <div className="pm-modal" onClick={e => e.stopPropagation()}>
             <h2 className="pm-modal-title">Create Task for {project.name}</h2>
             <form onSubmit={handleCreateTask}>
@@ -2121,15 +2122,6 @@ const ProjectDetails: React.FC = () => {
                   />
                   {scheduleFieldMessage(taskScheduleValidation, 'dueDate') && <small className="task-schedule-field-error">Review the due date conflict below.</small>}
                 </div>
-                <div className="pm-form-group" style={{ gridColumn: '1 / -1' }}>
-                  <TaskScheduleFeedback durationDays={newTaskForm.estimatedDurationDays} predecessorIds={newTaskForm.predecessorTaskIds}
-                    tasks={tasks} result={taskScheduleValidation} projectStartDate={projectMinDate} projectEndDate={projectMaxDate}
-                    onChange={patch => { setTaskScheduleValidation(null); setNewTaskForm(prev => ({ ...prev, ...patch })); }}
-                    onApplySuggestion={suggestion => { setTaskScheduleValidation(null); setNewTaskForm(prev => ({ ...prev,
-                      ...(suggestion.startDate ? { startDate: suggestion.startDate } : {}),
-                      ...(suggestion.dueDate ? { dueDate: suggestion.dueDate } : {}),
-                    })); }} />
-                </div>
                 <div className="pm-form-group">
                   <label>Priority</label>
                   <Dropdown
@@ -2144,6 +2136,26 @@ const ProjectDetails: React.FC = () => {
                     placeholder="Select priority"
                   />
                 </div>
+                <div className="pm-form-group" style={{ gridColumn: '1 / -1' }}>
+                  <TaskScheduleFeedback durationDays={newTaskForm.estimatedDurationDays} predecessorIds={newTaskForm.predecessorTaskIds}
+                    tasks={tasks} result={taskScheduleValidation} projectStartDate={projectMinDate} projectEndDate={projectMaxDate}
+                    onChange={patch => { setTaskScheduleValidation(null); setNewTaskForm(prev => ({ ...prev, ...patch })); }}
+                    onApplySuggestion={suggestion => { setTaskScheduleValidation(null); setNewTaskForm(prev => ({ ...prev,
+                      ...(suggestion.startDate ? { startDate: suggestion.startDate } : {}),
+                      ...(suggestion.dueDate ? { dueDate: suggestion.dueDate } : {}),
+                    })); }} />
+                </div>
+                {newTaskForm.assigneeId && (
+                  <div className="pm-form-group" style={{ gridColumn: '1 / -1' }}>
+                    <AssigneeWorkloadAlert
+                      assigneeId={newTaskForm.assigneeId}
+                      assigneeName={engineerMembers.find(u => u.id === newTaskForm.assigneeId)?.name}
+                      startDate={newTaskForm.startDate}
+                      dueDate={newTaskForm.dueDate}
+                      projectId={project.id || project.code}
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Materials & Resources Required Builder */}
@@ -2525,8 +2537,8 @@ const ProjectDetails: React.FC = () => {
 
       {/* 2. Add Resource Modal */}
       {showAddResourceModal && (
-        <div className="pm-overlay" onClick={() => setShowAddResourceModal(false)}>
-          <div className="pm-modal" onClick={e => e.stopPropagation()}>
+        <div className="pm-overlay">
+          <div className="pm-modal pm-modal--resource" onClick={e => e.stopPropagation()}>
             <h2 className="pm-modal-title">Allocate Resource to {project.name}</h2>
             <form onSubmit={handleCreateResource}>
               {/* Task Dropdown */}
@@ -2627,7 +2639,7 @@ const ProjectDetails: React.FC = () => {
                   />
                 </div>
                 <div className="pm-form-group">
-                  <label>Unit Price (PHP) <span className="pm-required">*</span></label>
+                  <label>Unit Price (PHP)</label>
                   <input
                     type="number"
                     min="0"
@@ -2635,8 +2647,7 @@ const ProjectDetails: React.FC = () => {
                     className="pm-input"
                     value={resourceForm.unitPrice}
                     onChange={e => setResourceForm({ ...resourceForm, unitPrice: e.target.value })}
-                    placeholder="250.00"
-                    required
+                    placeholder="0.00"
                   />
                 </div>
               </div>
@@ -2670,7 +2681,7 @@ const ProjectDetails: React.FC = () => {
         />
       )}
       {showDueDateModal && project && (
-        <div className="gc-overlay" onClick={() => setShowDueDateModal(false)}>
+        <div className="gc-overlay">
           <section className="gc-modal pd-due-date-modal" role="dialog" aria-modal="true" aria-labelledby="pd-due-date-title" onClick={event => event.stopPropagation()}>
             <header className="gc-modal-header"><div><h2 className="gc-title" id="pd-due-date-title">Edit Project Due Date</h2><p className="gc-subtitle">Update the deadline for {project.name}</p></div><button className="gc-close-btn" type="button" aria-label="Close" onClick={() => setShowDueDateModal(false)}><X size={16} /></button></header>
             <form onSubmit={event => { event.preventDefault(); void handleSaveDueDate(); }}>

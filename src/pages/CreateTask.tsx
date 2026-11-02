@@ -11,6 +11,7 @@ import Dropdown from '../components/Dropdown';
 import TaskPhaseChecklist from '../components/TaskPhaseChecklist';
 import { taskPhasePayload, taskPhaseRequiredMessage } from '../utils/taskPhases';
 import TaskScheduleFeedback from '../components/TaskScheduleFeedback';
+import AssigneeWorkloadAlert from '../components/AssigneeWorkloadAlert';
 import { scheduleFieldMessage, scheduleMessage, scheduleValidationFromPayload, type ScheduleValidation } from '../utils/taskSchedule';
 
 const API_URL = API_BASE_URL;
@@ -557,6 +558,18 @@ const CreateTask: React.FC = () => {
                   ...(suggestion.dueDate ? { dueDate: suggestion.dueDate } : {}),
                 })); }} />
             </div>
+
+            {formData.assigneeId && (
+              <div className="form-full-width">
+                <AssigneeWorkloadAlert
+                  assigneeId={formData.assigneeId}
+                  assigneeName={engineerUsers.find(u => String(u.id) === String(formData.assigneeId))?.full_name || users.find(u => String(u.id) === String(formData.assigneeId))?.full_name}
+                  startDate={formData.startDate}
+                  dueDate={formData.dueDate}
+                  projectId={formData.projectId}
+                />
+              </div>
+            )}
 
             {/* Priority */}
             <div className="form-group">

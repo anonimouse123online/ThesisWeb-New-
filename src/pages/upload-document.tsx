@@ -207,7 +207,6 @@ const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
   return (
     <div
       className="ud-overlay"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="ud-modal" role="dialog" aria-modal="true" aria-labelledby="ud-title">
 

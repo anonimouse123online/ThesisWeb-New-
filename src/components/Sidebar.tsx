@@ -77,6 +77,30 @@ const Icons: Record<string, React.FC> = {
     </svg>
   ),
 
+  Scheduling: () => (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+      <path d="M8 14h.01" />
+      <path d="M12 14h.01" />
+      <path d="M16 14h.01" />
+      <path d="M8 18h.01" />
+      <path d="M12 18h.01" />
+      <path d="M16 18h.01" />
+    </svg>
+  ),
+
   Resource: () => (
     <svg
       width="20"
@@ -198,7 +222,11 @@ const NAV_ITEMS = [
     label: 'Time log',
     path: '/timelog',
   },
-  { icon: 'Timelog', label: 'Scheduling', path: '/schedule' },
+  {
+    icon: 'Scheduling',
+    label: 'Scheduling',
+    path: '/schedule',
+  },
   {
     icon: 'Users',
     label: 'Users',
@@ -295,6 +323,43 @@ const Sidebar: React.FC = () => {
     syncUser();
   }, []);
 
+  const [unreadMessages, setUnreadMessages] =
+    React.useState<number>(0);
+
+  React.useEffect(() => {
+    let isMounted = true;
+
+    const fetchUnread = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        const res = await fetchWithAuth('/messages/unread-count');
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const count = Number(data.unreadCount ?? data.data?.unreadCount ?? 0);
+        if (isMounted) {
+          setUnreadMessages(count);
+        }
+      } catch {
+        // Silently ignore polling errors
+      }
+    };
+
+    fetchUnread();
+
+    const interval = setInterval(fetchUnread, 5000);
+    const onUpdate = () => { fetchUnread(); };
+    window.addEventListener('messages-updated', onUpdate);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      window.removeEventListener('messages-updated', onUpdate);
+    };
+  }, []);
+
   const handleLogout = () => {
     logoutSession();
 
@@ -319,7 +384,10 @@ const Sidebar: React.FC = () => {
             path,
           }) => {
             const IconComponent =
-              Icons[icon];
+              Icons[icon] || Icons.Dashboard;
+
+            const isMessages = icon === 'Messages';
+            const showBadge = isMessages && unreadMessages > 0;
 
             return (
               <NavLink
@@ -337,6 +405,14 @@ const Sidebar: React.FC = () => {
               >
                 <span className="nav-icon">
                   <IconComponent />
+                  {showBadge && (
+                    <span
+                      className="nav-icon-badge"
+                      aria-label={`${unreadMessages} unread messages`}
+                    >
+                      {unreadMessages > 99 ? '99+' : unreadMessages}
+                    </span>
+                  )}
                 </span>
 
                 <span>

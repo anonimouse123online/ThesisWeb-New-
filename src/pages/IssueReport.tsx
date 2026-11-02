@@ -497,7 +497,7 @@ const IssueReport: React.FC = () => {
 
       {/* ── Report Issue Modal ── */}
       {showModal && (
-        <div className="ir-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowModal(false); }}>
+        <div className="ir-modal-overlay">
           <div className="ir-modal">
             <div className="ir-modal-header">
               <h2 className="ir-modal-title">Report New Site Issue</h2>

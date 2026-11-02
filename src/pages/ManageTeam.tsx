@@ -447,7 +447,7 @@ const ManageTeam: React.FC = () => {
 
       {/* Invite Code Modal */}
       {showInviteModal && (
-        <div className="mt-overlay" onClick={() => setShowInviteModal(false)}>
+        <div className="mt-overlay">
           <div className="mt-modal mt-modal--invite" onClick={(e) => e.stopPropagation()}>
             <div className="mt-modal-header">
               <h2 className="mt-modal-title">Project Invite Code</h2>

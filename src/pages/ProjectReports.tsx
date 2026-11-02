@@ -665,7 +665,7 @@ const ProjectReports: React.FC = () => {
       {viewReport && (() => {
         const doc = parseClientReport(viewReport, projectData?.name, projectData?.location);
         return (
-          <div className="client-doc-overlay" onClick={(e) => { if (e.target === e.currentTarget) setViewReport(null); }}>
+          <div className="client-doc-overlay">
             <div className="client-doc-modal">
               {/* Top toolbar */}
               <div className="client-doc-topbar no-print">
@@ -783,7 +783,7 @@ const ProjectReports: React.FC = () => {
 
       {/* ── Generate Report Modal ── */}
       {showModal && (
-        <div className="ir-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowModal(false); }}>
+        <div className="ir-modal-overlay">
           <div className="ir-modal" style={{ maxWidth: '580px' }}>
             <div className="ir-modal-header">
               <h2 className="ir-modal-title">{editingReport ? 'Edit Project Report' : 'Generate Project Report'}</h2>

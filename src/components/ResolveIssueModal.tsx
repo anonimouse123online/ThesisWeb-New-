@@ -56,11 +56,7 @@ export default function ResolveIssueModal({ issue, resolvedBy, onClose, onConfir
 
   return (
     <dialog ref={dialog} className="ir-modal ir-resolution-modal" aria-labelledby="ir-resolve-title"
-      onCancel={event => { event.preventDefault(); close(); }}
-      onClick={event => { if (event.target === event.currentTarget) {
-        const bounds = event.currentTarget.getBoundingClientRect();
-        if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) close();
-      } }}>
+      onCancel={event => { event.preventDefault(); close(); }}>
       <div className="ir-modal-header ir-resolution-header">
         <h2 className="ir-modal-title" id="ir-resolve-title">Resolve Issue</h2>
         <button type="button" className="ir-resolution-icon-btn" aria-label="Close resolution form" onClick={close} disabled={submitting}><X size={18} /></button>

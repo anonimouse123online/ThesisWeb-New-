@@ -333,7 +333,7 @@ const Documents: React.FC = () => {
 
       {/* ── In-Browser Document Preview Modal ── */}
       {previewDoc && (
-        <div className="docs-preview-overlay" onClick={handleClosePreview}>
+        <div className="docs-preview-overlay">
           <div
             className="docs-preview-modal"
             onClick={(e) => e.stopPropagation()}

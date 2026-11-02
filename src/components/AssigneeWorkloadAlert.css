@@ -1,0 +1,336 @@
+/* ─────────────────────────────────────────────────────────────
+   AssigneeWorkloadAlert.css — SitePulse Engineering Workload UI
+───────────────────────────────────────────────────────────── */
+
+.workload-alert-container {
+  width: 100%;
+  margin-top: 10px;
+  margin-bottom: 8px;
+  border-radius: var(--sp-radius-md, 12px);
+  border: 1px solid var(--sp-border, #e2e8f0);
+  background: #ffffff;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  transition: all 0.25s ease;
+  font-family: var(--font-body, -apple-system, sans-serif);
+}
+
+/* ── Workload Status Themes ── */
+.workload-alert-container--optimal {
+  border-color: #bbf7d0;
+  background: linear-gradient(180deg, #f0fdf4 0%, #ffffff 100%);
+}
+
+.workload-alert-container--moderate {
+  border-color: #fde68a;
+  background: linear-gradient(180deg, #fefce8 0%, #ffffff 100%);
+}
+
+.workload-alert-container--heavy {
+  border-color: #fdba74;
+  background: linear-gradient(180deg, #fff7ed 0%, #ffffff 100%);
+}
+
+.workload-alert-container--critical {
+  border-color: #fecaca;
+  background: linear-gradient(180deg, #fef2f2 0%, #ffffff 100%);
+}
+
+/* ── Loading state ── */
+.workload-loading-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  color: #64748b;
+  background: #f8fafc;
+  border-radius: var(--sp-radius-md, 12px);
+}
+
+.workload-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #cbd5e1;
+  border-top-color: #ea580c;
+  border-radius: 50%;
+  animation: workload-spin 0.8s linear infinite;
+}
+
+@keyframes workload-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Header ── */
+.workload-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.workload-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.workload-status-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.workload-status-icon--optimal {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.workload-status-icon--moderate {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.workload-status-icon--heavy {
+  background: #ffedd5;
+  color: #ea580c;
+}
+
+.workload-status-icon--critical {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.workload-title-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.workload-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+  line-height: 1.3;
+}
+
+.workload-subtitle {
+  font-size: 11.5px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.workload-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.workload-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.workload-badge--green {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+.workload-badge--amber {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.workload-badge--orange {
+  background: #ffedd5;
+  color: #c2410c;
+  border: 1px solid #fdba74;
+}
+
+.workload-badge--red {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+
+.workload-toggle-btn {
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.workload-toggle-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #0f172a;
+}
+
+/* ── Body ── */
+.workload-body {
+  padding: 0 14px 12px 14px;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  font-size: 12.5px;
+}
+
+.workload-advisory {
+  margin-top: 8px;
+  margin-bottom: 10px;
+  line-height: 1.45;
+  color: #334155;
+  font-size: 12px;
+}
+
+/* ── Conflicting Tasks List ── */
+.workload-tasks-heading {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #475569;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.workload-tasks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.workload-task-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.workload-task-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.workload-task-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.workload-task-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.workload-project-pill {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.workload-project-pill--current {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.workload-task-pills {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.workload-pill {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.workload-pill--priority-high {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.workload-pill--priority-medium {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.workload-pill--priority-low {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.workload-pill--status {
+  background: #f8fafc;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+/* ── Panelist Rationale Box ── */
+.workload-guidance-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(234, 88, 12, 0.06);
+  border-left: 3px solid #ea580c;
+  font-size: 11.5px;
+  color: #431407;
+  line-height: 1.4;
+  margin-top: 8px;
+}
+
+.workload-guidance-box svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: #ea580c;
+}

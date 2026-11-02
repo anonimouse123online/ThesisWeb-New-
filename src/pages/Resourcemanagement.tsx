@@ -139,7 +139,7 @@ const ResourceManagement: React.FC = () => {
 
   // ── CREATE ────────────────────────────────────────────────────────────────
   const handleAddResource = async () => {
-    if (!form.name || !form.quantity || !form.unitPrice || !form.assignedProject) {
+    if (!form.name || !form.quantity || !form.assignedProject) {
       showToast("Please fill in all required fields including the project.", "warning");
       return;
     }
@@ -155,7 +155,7 @@ const ResourceManagement: React.FC = () => {
           quantity:     parseFloat(form.quantity),
           unit:         form.unit,
           minThreshold: parseFloat(form.minThreshold) || 0,
-          unitPrice:    parseFloat(form.unitPrice),
+          unitPrice:    parseFloat(form.unitPrice) || 0,
           project:      form.assignedProject,
         }),
       });
@@ -202,7 +202,7 @@ const ResourceManagement: React.FC = () => {
           quantity:     parseFloat(editForm.quantity),
           unit:         editForm.unit,
           minThreshold: parseFloat(editForm.minThreshold) || 0,
-          unitPrice:    parseFloat(editForm.unitPrice),
+          unitPrice:    parseFloat(editForm.unitPrice) || 0,
           project:      editForm.assignedProject,
         }),
       });
@@ -307,8 +307,8 @@ const ResourceManagement: React.FC = () => {
 
       <div className="form-row form-row--2">
         <div className="form-group">
-          <label>Unit Price <span className="required">*</span></label>
-          <input name="unitPrice" type="number" step="0.01" value={values.unitPrice} onChange={onChange} className="form-input" />
+          <label>Unit Price (PHP)</label>
+          <input name="unitPrice" type="number" step="0.01" value={values.unitPrice} onChange={onChange} className="form-input" placeholder="0.00" />
         </div>
         <div className="form-group">
           <label>Supplier <span className="required">*</span></label>
@@ -436,7 +436,7 @@ const ResourceManagement: React.FC = () => {
 
       {/* ── Add Modal ── */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+        <div className="modal-overlay">
           <div className="modal" onClick={e => e.stopPropagation()}>
             <h2 className="modal-title">Add New Resource</h2>
             <p className="modal-subtitle">Add a new material or equipment to a specific project</p>
@@ -455,7 +455,7 @@ const ResourceManagement: React.FC = () => {
 
       {/* ── Edit Modal ── */}
       {showEditModal && editingResource && (
-        <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
+        <div className="modal-overlay">
           <div className="modal" onClick={e => e.stopPropagation()}>
             <h2 className="modal-title">Edit Resource</h2>
             <p className="modal-subtitle">Update the details of this resource</p>

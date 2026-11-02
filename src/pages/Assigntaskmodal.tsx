@@ -4,6 +4,7 @@ import StatusBadge from "../components/StatusBadge";
 import { API_BASE_URL, fetchWithAuth } from "../utils/api";
 import { getErrorMessage } from "../utils/errors";
 import { formatTaskPhases, type TaskPhaseFields } from "../utils/taskPhases";
+import AssigneeWorkloadAlert from "../components/AssigneeWorkloadAlert";
 
 const BACKEND_URL = API_BASE_URL;
 
@@ -189,12 +190,8 @@ export default function AssignTaskModal({
     }
   };
 
-  const handleOverlay = (e: React.MouseEvent<HTMLDivElement>) => {
-    if ((e.target as HTMLElement).classList.contains("atm-overlay")) onClose();
-  };
-
   return (
-    <div className="atm-overlay" onMouseDown={handleOverlay}>
+    <div className="atm-overlay">
       <div className="atm-modal" role="dialog" aria-modal="true" aria-labelledby="atm-title">
 
         {/* ── Header ── */}
@@ -301,6 +298,18 @@ export default function AssignTaskModal({
               {errors.deadline && <p className="atm-field-error">{errors.deadline}</p>}
             </div>
           </div>
+
+          {/* ── Engineer Workload & Conflict Check ── */}
+          {selectedEngineer && (
+            <div style={{ marginTop: '4px', marginBottom: '14px' }}>
+              <AssigneeWorkloadAlert
+                assigneeId={selectedEngineer}
+                assigneeName={engineers.find(e => e.id === selectedEngineer)?.name}
+                dueDate={deadline}
+                excludeTaskId={task.id}
+              />
+            </div>
+          )}
 
           {/* ── Estimated Hours ── */}
           <div className="atm-field">

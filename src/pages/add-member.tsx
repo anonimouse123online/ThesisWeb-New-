@@ -86,7 +86,6 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
   return (
     <div
       className="am-overlay"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
         className="am-modal"

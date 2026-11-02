@@ -12,6 +12,7 @@ import "../components/Task.css";
 import TaskPhaseChecklist from "../components/TaskPhaseChecklist";
 import { formatTaskPhases, getTaskPhases, groupTasksByPhase, taskPhasePayload, taskPhaseRequiredMessage, type TaskPhaseFields } from "../utils/taskPhases";
 import TaskScheduleFeedback from "../components/TaskScheduleFeedback";
+import AssigneeWorkloadAlert from "../components/AssigneeWorkloadAlert";
 import { scheduleFieldMessage, scheduleMessage, scheduleValidationFromPayload, type ScheduleValidation } from "../utils/taskSchedule";
 
 const BACKEND_URL = API_BASE_URL;
@@ -518,7 +519,7 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
   };
 
   return (
-    <div className="ct-overlay" onClick={onClose}>
+    <div className="ct-overlay">
       <div className="ct-modal" onClick={(e) => e.stopPropagation()}>
         <div className="ct-header">
           <div>
@@ -674,6 +675,18 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
               })); }}
           />
 
+          {form.assigneeId && (
+            <div className="ct-field" style={{ gridColumn: '1 / -1' }}>
+              <AssigneeWorkloadAlert
+                assigneeId={form.assigneeId}
+                assigneeName={engineerUsers.find(u => String(u.id) === String(form.assigneeId))?.full_name || users.find(u => String(u.id) === String(form.assigneeId))?.full_name}
+                startDate={form.startDate}
+                dueDate={form.dueDate}
+                projectId={form.projectId}
+              />
+            </div>
+          )}
+
           <div className="ct-field">
             <label className="ct-label">Manpower Needed</label>
             <input name="manpowerNeeded" className="ct-input" placeholder="e.g. 5 workers (optional)" value={form.manpowerNeeded} onChange={handleChange} />
@@ -813,7 +826,7 @@ function EditTaskScheduleForm({ task, tasks, projects, onClose, onSaved }: {
     finally { setSaving(false); }
   };
 
-  return <div className="ct-overlay" onClick={onClose}>
+  return <div className="ct-overlay">
     <div className="ct-modal task-schedule-edit-modal" onClick={event => event.stopPropagation()}>
       <div className="ct-header"><div><h2 className="ct-title">Edit Task Schedule</h2><p className="ct-subtitle">{task.task_name}</p></div>
         <button type="button" className="ct-close" onClick={onClose} aria-label="Close"><X size={18} /></button></div>
