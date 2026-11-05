@@ -320,6 +320,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 16px;
+  align-items: start;
 }
 
 .ir-card {
@@ -463,6 +464,51 @@
   gap: 10px;
   padding-top: 12px;
   border-top: 1px solid #f1f5f9;
+  flex-wrap: wrap;
+}
+
+.ir-status-update-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ir-status-label {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ir-footer-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ir-btn-preview {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #ea580c;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.ir-btn-preview:hover {
+  background: #f05a28;
+  border-color: #f05a28;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(240, 90, 40, 0.2);
 }
 
 .ir-status-select {
@@ -742,5 +788,33 @@ dialog.ir-resolution-modal::backdrop {
   .ir-search-wrap {
     min-width: 100%;
     max-width: 100%;
+  }
+}
+
+@media print {
+  .ir-nav-row,
+  .ir-header,
+  .ir-stats-grid,
+  .ir-toolbar-top,
+  .ir-toolbar-filters,
+  .ir-grid,
+  .ir-card,
+  .ir-empty,
+  .ir-modal-overlay,
+  .sidebar,
+  .global-back-button,
+  .client-doc-topbar,
+  .no-print {
+    display: none !important;
+  }
+
+  .ir-page {
+    margin: 0 !important;
+    padding: 0 !important;
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    position: static !important;
   }
 }

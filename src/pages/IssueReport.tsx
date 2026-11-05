@@ -2,13 +2,15 @@ import { getErrorMessage } from '../utils/errors';
 import React, { useState, useEffect, useCallback, useEffectEvent, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import '../components/IssueReport.css';
-import { API_BASE_URL, fetchWithAuth } from '../utils/api';
+import '../components/ProjectReports.css';
+import { API_BASE_URL, fetchWithAuth, apiUrl } from '../utils/api';
 import { showToast } from '../utils/toast';
 import ProfileDropdown from '../components/ProfileDropdown';
 import StatusBadge from '../components/StatusBadge';
 import Dropdown from '../components/Dropdown';
 import { isActiveIssue, type Issue } from '../utils/projectIssues';
 import { fetchIssueStatistics, parseIssueRecords, projectIssuesPath, resolveProjectIssue, type IssueStatistics } from '../utils/issuesApi';
+import { safeEvidenceUrl } from '../utils/issueResolution';
 import { useAuth } from '../hooks/useAuth';
 import ResolveIssueModal from '../components/ResolveIssueModal';
 import IssueResolutionDetails from '../components/IssueResolutionDetails';
@@ -24,10 +26,41 @@ import {
   User,
   Wrench,
   Calendar,
-  ArrowLeft
+  ArrowLeft,
+  Eye,
+  Printer
 } from 'lucide-react';
 
 const API_URL = API_BASE_URL;
+
+function AuthenticatedReportImage({ url, alt }: { url: string; alt: string }) {
+  const [objectUrl, setObjectUrl] = useState('');
+  useEffect(() => {
+    let active = true;
+    let createdUrl = '';
+    const token = localStorage.getItem('token');
+    const controller = new AbortController();
+    fetchWithAuth(/^https?:\/\//i.test(url) ? url : `${API_URL}${url.startsWith('/') ? '' : '/'}${url}`, { signal: controller.signal })
+      .then(response => { if (!response.ok) throw new Error('Image unavailable'); return response.blob(); })
+      .then(blob => {
+        if (!active || localStorage.getItem('token') !== token) return;
+        createdUrl = URL.createObjectURL(blob);
+        setObjectUrl(createdUrl);
+      }).catch(() => { if (active) setObjectUrl(''); });
+    return () => { active = false; controller.abort(); if (createdUrl) URL.revokeObjectURL(createdUrl); };
+  }, [url]);
+  return objectUrl
+    ? <a href={objectUrl} target="_blank" rel="noreferrer" title="Open full image in new tab"><img src={objectUrl} alt={alt} loading="lazy" /></a>
+    : <span style={{ padding: '24px 12px', display: 'block', textAlign: 'center', color: '#94a3b8', fontSize: '12px' }}>{alt}</span>;
+}
+
+const cleanImageAlt = (image: { url: string; filename?: string; name?: string }, index: number) => {
+  const name = image.name || image.filename || '';
+  if (!name || /^[a-f0-9-]{20,}/i.test(name) || name.length > 28) {
+    return `Inspection photograph ${index + 1}`;
+  }
+  return name;
+};
 
 const CATEGORIES = [
   'Safety Hazard',
@@ -72,6 +105,8 @@ const IssueReport: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
   const [priorityFilter, setPriorityFilter] = useState<string>('All');
   const [showModal, setShowModal]         = useState(false);
+  const [previewIssue, setPreviewIssue]   = useState<Issue | null>(null);
+  const [projectData, setProjectData]     = useState<{ name: string; location: string } | null>(null);
   const [resolutionTarget, setResolutionTarget] = useState<{ issue: Issue; projectCode: string } | null>(null);
   const [expandedResolutions, setExpandedResolutions] = useState<string[]>([]);
   const [statistics, setStatistics] = useState<IssueStatistics | null>(null);
@@ -79,6 +114,7 @@ const IssueReport: React.FC = () => {
   const issueRequest = useRef<AbortController | null>(null);
   const statisticsRequest = useRef<AbortController | null>(null);
   const statusPending = useRef(false);
+  const previewScrollWrapRef = useRef<HTMLDivElement>(null);
 
   // Form State
   const [title, setTitle]             = useState('');
@@ -159,6 +195,37 @@ const IssueReport: React.FC = () => {
     };
   }, [fetchStatistics]);
 
+  useEffect(() => {
+    if (!projectCode) return;
+    fetchWithAuth(`${API_URL}/projects/${projectCode}`)
+      .then(res => res.json())
+      .then(json => {
+        if (json?.data) {
+          setProjectData({
+            name: json.data.name || json.data.title || '',
+            location: json.data.location || '',
+          });
+        }
+      })
+      .catch(() => {});
+  }, [projectCode]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && previewIssue) {
+        setPreviewIssue(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [previewIssue]);
+
+  useEffect(() => {
+    if (previewIssue && previewScrollWrapRef.current) {
+      previewScrollWrapRef.current.scrollTop = 0;
+    }
+  }, [previewIssue]);
+
   const handleStatusChange = async (issue: Issue, newStatus: string) => {
     if (!projectCode || !canManageIssues || issue.status === 'Resolved' || statusPending.current) return;
     if (newStatus === 'Resolved') {
@@ -178,6 +245,7 @@ const IssueReport: React.FC = () => {
       if (!res.ok) throw new Error(json.message || 'Failed to update status');
 
       showToast(`Issue status updated to ${newStatus}.`, 'success');
+      window.dispatchEvent(new Event('project-issues-updated'));
       await Promise.all([fetchIssues(search), fetchStatistics()]);
     } catch (err: unknown) {
       showToast(getErrorMessage(err), 'error');
@@ -194,6 +262,7 @@ const IssueReport: React.FC = () => {
     await resolveProjectIssue(resolutionTarget.projectCode, resolutionTarget.issue.id, feedback);
     setResolutionTarget(null);
     showToast('Issue resolved successfully.', 'success');
+    window.dispatchEvent(new Event('project-issues-updated'));
     await Promise.all([fetchIssues(search), fetchStatistics()]);
   };
 
@@ -223,6 +292,7 @@ const IssueReport: React.FC = () => {
       if (!res.ok) throw new Error(json.message || 'Failed to report issue');
 
       showToast('New issue reported successfully!', 'success');
+      window.dispatchEvent(new Event('project-issues-updated'));
       setShowModal(false);
       setTitle('');
       setDescription('');
@@ -455,28 +525,68 @@ const IssueReport: React.FC = () => {
                   </div>
 
                   <div className="ir-card-footer">
-                    {issue.status === 'Resolved' ? <>
-                      <span className="ir-resolution-complete">Resolved <CheckCircle2 size={14} /></span>
-                      <button type="button" className="ir-resolution-view" aria-expanded={expandedResolutions.includes(issue.id)}
-                        aria-controls={`ir-resolution-${issue.id}`} onClick={() => setExpandedResolutions(previous => previous.includes(issue.id)
-                          ? previous.filter(id => id !== issue.id) : [...previous, issue.id])}>
-                        {expandedResolutions.includes(issue.id) ? 'Hide Resolution' : 'View Resolution'}
-                      </button>
-                    </> : canManageIssues ? <>
-                      <label htmlFor={`ir-status-${issue.id}`} style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Update Status:</label>
-                      <select
-                        id={`ir-status-${issue.id}`}
-                        aria-label={`Update status for ${issue.title}`}
-                        className="ir-status-select"
-                        value={issue.status}
-                        disabled={updatingStatus}
-                        onChange={(e) => handleStatusChange(issue, e.target.value)}
-                      >
-                        <option value="Open">Open</option>
-                        <option value="In Progress">In Progress</option>
-                        <option value="Resolved">Resolved</option>
-                      </select>
-                    </> : <StatusBadge status={issue.status} />}
+                    {issue.status === 'Resolved' ? (
+                      <>
+                        <span className="ir-resolution-complete">Resolved <CheckCircle2 size={14} /></span>
+                        <div className="ir-footer-actions">
+                          <button
+                            type="button"
+                            className="ir-btn-preview"
+                            onClick={() => setPreviewIssue(issue)}
+                            title="Preview issue report details"
+                          >
+                            <Eye size={13} /> Preview
+                          </button>
+                          <button
+                            type="button"
+                            className="ir-resolution-view"
+                            aria-expanded={expandedResolutions.includes(issue.id)}
+                            aria-controls={`ir-resolution-${issue.id}`}
+                            onClick={() => setExpandedResolutions(previous => previous.includes(issue.id) ? [] : [issue.id])}
+                          >
+                            {expandedResolutions.includes(issue.id) ? 'Hide Resolution' : 'View Resolution'}
+                          </button>
+                        </div>
+                      </>
+                    ) : canManageIssues ? (
+                      <>
+                        <div className="ir-status-update-wrap">
+                          <label htmlFor={`ir-status-${issue.id}`} className="ir-status-label">Update Status:</label>
+                          <select
+                            id={`ir-status-${issue.id}`}
+                            aria-label={`Update status for ${issue.title}`}
+                            className="ir-status-select"
+                            value={issue.status}
+                            disabled={updatingStatus}
+                            onChange={(e) => handleStatusChange(issue, e.target.value)}
+                          >
+                            <option value="Open">Open</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Resolved">Resolved</option>
+                          </select>
+                        </div>
+                        <button
+                          type="button"
+                          className="ir-btn-preview"
+                          onClick={() => setPreviewIssue(issue)}
+                          title="Preview issue report details"
+                        >
+                          <Eye size={13} /> Preview
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <StatusBadge status={issue.status} />
+                        <button
+                          type="button"
+                          className="ir-btn-preview"
+                          onClick={() => setPreviewIssue(issue)}
+                          title="Preview issue report details"
+                        >
+                          <Eye size={13} /> Preview
+                        </button>
+                      </>
+                    )}
                   </div>
                   {issue.status === 'Resolved' && expandedResolutions.includes(issue.id) &&
                     <IssueResolutionDetails issue={issue} id={`ir-resolution-${issue.id}`} />}
@@ -494,6 +604,273 @@ const IssueReport: React.FC = () => {
         onClose={() => setResolutionTarget(null)}
         onConfirm={confirmResolution}
       />}
+
+      {/* ── Issue Preview Modal (Full Document View) ── */}
+      {previewIssue && (
+        <div
+          className="client-doc-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setPreviewIssue(null);
+          }}
+        >
+          <div className="client-doc-modal">
+            {/* Topbar */}
+            <div className="client-doc-topbar no-print">
+              <div className="client-doc-topbar-left">
+                <span className="pr-card-type-badge pr-badge-ai">
+                  {previewIssue.category}
+                </span>
+                <span className="client-doc-topbar-title">{previewIssue.title}</span>
+                <StatusBadge status={previewIssue.status} />
+              </div>
+              <div className="client-doc-topbar-actions">
+                <button
+                  type="button"
+                  className="client-doc-btn-print"
+                  onClick={() => window.print()}
+                  title="Print or Save as PDF"
+                >
+                  <Printer size={15} /> Print / Export PDF
+                </button>
+                <button
+                  type="button"
+                  className="client-doc-btn-close"
+                  onClick={() => setPreviewIssue(null)}
+                  aria-label="Close"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Scrollable Document Viewport */}
+            <div className="client-doc-scroll-wrap" ref={previewScrollWrapRef}>
+              <article className="client-doc-paper" id="printable-issue-report">
+                {/* Document Header Title */}
+                <h1 className="client-doc-title">Site Issue Report</h1>
+
+                {/* Metadata block */}
+                <div className="client-doc-meta-section">
+                  <div className="client-doc-meta-row">
+                    <span className="client-doc-meta-label">Date:</span>
+                    <span className="client-doc-meta-value">{formatDate(previewIssue.created_at)}</span>
+                  </div>
+                  <div className="client-doc-meta-row">
+                    <span className="client-doc-meta-label">Project Name:</span>
+                    <span className="client-doc-meta-value">{projectData?.name || projectCode}</span>
+                  </div>
+                  <div className="client-doc-meta-row">
+                    <span className="client-doc-meta-label">Location:</span>
+                    <span className="client-doc-meta-value">{previewIssue.location || projectData?.location || 'Site Location'}</span>
+                  </div>
+                  <div className="client-doc-meta-row">
+                    <span className="client-doc-meta-label">Category:</span>
+                    <span className="client-doc-meta-value">{previewIssue.category}</span>
+                  </div>
+                  <div className="client-doc-meta-row">
+                    <span className="client-doc-meta-label">Priority:</span>
+                    <span className="client-doc-meta-value">{previewIssue.priority}</span>
+                  </div>
+                  <div className="client-doc-meta-row">
+                    <span className="client-doc-meta-label">Status:</span>
+                    <span className="client-doc-meta-value">{previewIssue.status}</span>
+                  </div>
+                  <div className="client-doc-meta-row">
+                    <span className="client-doc-meta-label">Reported By:</span>
+                    <span className="client-doc-meta-value">{previewIssue.reporter_name || 'Site Engineer'}</span>
+                  </div>
+                  {/* Removed "Assigned Resolver: Unassigned" completely — only shown if valid assignee exists */}
+                  {previewIssue.assignee_name && previewIssue.assignee_name.trim().toLowerCase() !== 'unassigned' && (
+                    <div className="client-doc-meta-row">
+                      <span className="client-doc-meta-label">Assigned To:</span>
+                      <span className="client-doc-meta-value">{previewIssue.assignee_name}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Issue Description & Observations */}
+                <section className="client-doc-section">
+                  <h2 className="client-doc-section-heading">Issue Description & Observations</h2>
+                  <div style={{ marginTop: '8px' }}>
+                    <div style={{ fontWeight: 700, fontSize: '15px', color: '#000000', marginBottom: '6px' }}>
+                      {previewIssue.title}
+                    </div>
+                    <p style={{ margin: 0, fontSize: '14px', color: '#374151', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
+                      {previewIssue.description}
+                    </p>
+                  </div>
+                </section>
+
+                {/* Resolution Details */}
+                {previewIssue.status === 'Resolved' && (() => {
+                  const previewRes = (previewIssue as any).resolution;
+                  const previewResolver =
+                    previewIssue.resolved_by_name ||
+                    (typeof previewIssue.resolved_by === 'object' ? previewIssue.resolved_by?.name : null) ||
+                    previewRes?.resolved_by?.name ||
+                    (typeof previewRes?.resolved_by === 'string' ? previewRes.resolved_by : null);
+                  const previewResolvedAt = previewIssue.resolved_at || previewRes?.resolved_at;
+                  const previewSummary =
+                    previewIssue.resolution_summary ||
+                    previewRes?.resolution_summary ||
+                    previewIssue.resolution_notes;
+                  const previewRawSteps = previewIssue.resolution_steps || previewRes?.resolution_steps;
+                  const previewSteps = Array.isArray(previewRawSteps)
+                    ? previewRawSteps.filter((step: unknown) => typeof step === 'string' && (step as string).trim())
+                    : [];
+                  const previewRemarks =
+                    previewIssue.final_remarks ||
+                    previewRes?.final_remarks;
+
+                  return (
+                    <section className="client-doc-section">
+                      <h2 className="client-doc-section-heading">Resolution Details</h2>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px', color: '#111827' }}>
+                        <div className="client-doc-meta-row">
+                          <span className="client-doc-meta-label">Resolved By:</span>
+                          <span className="client-doc-meta-value">
+                            {previewResolver || 'Not recorded'}
+                          </span>
+                        </div>
+                        {previewResolvedAt && (
+                          <div className="client-doc-meta-row">
+                            <span className="client-doc-meta-label">Resolved On:</span>
+                            <span className="client-doc-meta-value">{formatDate(previewResolvedAt)}</span>
+                          </div>
+                        )}
+                        <div style={{ marginTop: '4px' }}>
+                          <span className="client-doc-meta-label">Resolution Summary:</span>
+                          <p style={{ margin: '4px 0 0 0', fontSize: '13.5px', color: '#374151', lineHeight: 1.55 }}>
+                            {previewSummary || 'Issue marked as resolved.'}
+                          </p>
+                        </div>
+                        {previewSteps.length > 0 && (
+                          <div style={{ marginTop: '4px' }}>
+                            <span className="client-doc-meta-label">Steps Taken:</span>
+                            <ol style={{ margin: '4px 0 0 0', paddingLeft: '20px', fontSize: '13px', color: '#374151', lineHeight: 1.6 }}>
+                              {previewSteps.map((step, idx) => (
+                                <li key={idx}>{step as string}</li>
+                              ))}
+                            </ol>
+                          </div>
+                        )}
+                        {previewRemarks && (
+                          <div style={{ marginTop: '4px' }}>
+                            <span className="client-doc-meta-label">Final Remarks:</span>
+                            <p style={{ margin: '4px 0 0 0', fontSize: '13.5px', color: '#374151' }}>
+                              {previewRemarks}
+                            </p>
+                          </div>
+                        )}
+                        {previewIssue.resolution_evidence && previewIssue.resolution_evidence.length > 0 && (
+                          <div style={{ marginTop: '4px' }}>
+                            <span className="client-doc-meta-label">Verification Evidence:</span>
+                            <ul style={{ margin: '4px 0 0 0', paddingLeft: '20px', fontSize: '13px' }}>
+                              {previewIssue.resolution_evidence.map((ev, eIdx) => {
+                                const url = typeof ev?.url === 'string' ? safeEvidenceUrl(ev.url) : null;
+                                return (
+                                  <li key={ev?.id || eIdx}>
+                                    {url ? (
+                                      <a href={apiUrl(url)} target="_blank" rel="noopener noreferrer" style={{ color: '#ea580c', textDecoration: 'underline' }}>
+                                        {ev.name || `Evidence ${eIdx + 1}`}
+                                      </a>
+                                    ) : (
+                                      <span>{ev?.name || 'Attachment unavailable'}</span>
+                                    )}
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </section>
+                  );
+                })()}
+
+                {/* Attachment note on Page 1 if images exist */}
+                {previewIssue.images && previewIssue.images.length > 0 && (
+                  <div style={{ fontSize: '12px', color: '#64748b', fontStyle: 'italic', marginTop: '16px', marginBottom: '8px' }}>
+                    📎 Visual site evidence and inspection photos are attached on Page 2 ({previewIssue.images.length} {previewIssue.images.length === 1 ? 'image' : 'images'}).
+                  </div>
+                )}
+
+                {/* Page 1 Document Footer Sign-off */}
+                <footer className="client-doc-footer">
+                  <div className="client-doc-footer-left">
+                    <div><strong>Prepared By:</strong> {previewIssue.reporter_name || 'Site Engineer'}</div>
+                    <div><strong>Record ID:</strong> {previewIssue.id}</div>
+                  </div>
+                  <div className="client-doc-footer-right">
+                    <div><strong>SitePulse Official Daily Site Record</strong>{previewIssue.images?.length ? ' • Page 1 of 2' : ''}</div>
+                    <div>Status: <strong>{previewIssue.status}</strong> • Created: {formatDate(previewIssue.created_at)}</div>
+                  </div>
+                </footer>
+              </article>
+
+              {/* ── Page 2: Site Images (Separate Page with Full-Size Uncropped Photos) ── */}
+              {previewIssue.images && previewIssue.images.length > 0 && (
+                <article className="client-doc-paper client-doc-paper--page2">
+                  <div className="client-doc-page-header">
+                    <span className="client-doc-page-header-title">Site Issue Report — Visual Site Evidence</span>
+                    <span className="client-doc-page-badge">Page 2 of 2</span>
+                  </div>
+
+                  <div className="client-doc-meta-section" style={{ marginBottom: '20px' }}>
+                    <div className="client-doc-meta-row">
+                      <span className="client-doc-meta-label">Project:</span>
+                      <span className="client-doc-meta-value">{projectData?.name || projectCode}</span>
+                      <span style={{ color: '#94a3b8', margin: '0 8px' }}>•</span>
+                      <span className="client-doc-meta-label">Date:</span>
+                      <span className="client-doc-meta-value">{formatDate(previewIssue.created_at)}</span>
+                      <span style={{ color: '#94a3b8', margin: '0 8px' }}>•</span>
+                      <span className="client-doc-meta-label">Location:</span>
+                      <span className="client-doc-meta-value">{previewIssue.location || projectData?.location || 'Site Location'}</span>
+                    </div>
+                  </div>
+
+                  <section className="client-doc-section" style={{ marginBottom: '16px' }}>
+                    <h2 className="client-doc-section-heading" style={{ fontSize: '18px' }}>
+                      Site Images & Field Evidence
+                    </h2>
+                    <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 18px 0' }}>
+                      Verified high-resolution job site inspection photographs and technical observations (showing full uncropped view).
+                    </p>
+
+                    <div className="client-doc-full-gallery">
+                      {previewIssue.images.map((image, index) => (
+                        <div key={`${image.url}-${index}`} className="client-doc-image-card">
+                          <div className="client-doc-image-wrapper">
+                            <AuthenticatedReportImage
+                              url={image.url}
+                              alt={cleanImageAlt(image, index)}
+                            />
+                          </div>
+                          <div className="client-doc-image-caption">
+                            <strong>Figure {index + 1}:</strong> {cleanImageAlt(image, index)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  {/* Page 2 Document Footer Sign-off */}
+                  <footer className="client-doc-footer">
+                    <div className="client-doc-footer-left">
+                      <div><strong>Prepared By:</strong> {previewIssue.reporter_name || 'Site Engineer'}</div>
+                      <div><strong>Record ID:</strong> {previewIssue.id}</div>
+                    </div>
+                    <div className="client-doc-footer-right">
+                      <div><strong>SitePulse Official Daily Site Record</strong> • Page 2 of 2</div>
+                      <div>Status: <strong>{previewIssue.status}</strong> • Created: {formatDate(previewIssue.created_at)}</div>
+                    </div>
+                  </footer>
+                </article>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Report Issue Modal ── */}
       {showModal && (

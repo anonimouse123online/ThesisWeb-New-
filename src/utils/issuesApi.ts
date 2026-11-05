@@ -25,6 +25,20 @@ export function projectIssuesPath(projectCode: string): string {
 export function parseIssueRecords(payload: unknown): Issue[] {
   return parseProjectIssues<Issue>(payload).map(issue => {
     const priority = issue.priority || issue.severity;
+    const res = (issue as any).resolution;
+
+    const resolvedByName =
+      issue.resolved_by_name ??
+      (typeof res?.resolved_by === 'object' ? res?.resolved_by?.name : null) ??
+      (typeof res?.resolved_by === 'string' ? res.resolved_by : null) ??
+      (typeof issue.resolved_by === 'object' ? (issue.resolved_by as any)?.name : null) ??
+      (typeof issue.resolved_by === 'string' ? issue.resolved_by : null) ??
+      null;
+
+    const resolvedBy =
+      res?.resolved_by ??
+      issue.resolved_by ??
+      (resolvedByName ? { name: resolvedByName } : null);
 
     return {
       ...issue,
@@ -34,6 +48,25 @@ export function parseIssueRecords(payload: unknown): Issue[] {
           ? priority[0].toUpperCase() + priority.slice(1).toLowerCase()
           : issue.priority
       ) as Issue['priority'],
+      resolution_summary:
+        res?.resolution_summary ??
+        issue.resolution_summary ??
+        (issue as any).resolution_notes ??
+        null,
+      resolution_steps:
+        res?.resolution_steps ??
+        issue.resolution_steps ??
+        null,
+      final_remarks:
+        res?.final_remarks ??
+        issue.final_remarks ??
+        null,
+      resolved_by_name: resolvedByName,
+      resolved_by: resolvedBy,
+      resolved_at:
+        res?.resolved_at ??
+        issue.resolved_at ??
+        null,
     };
   });
 }
@@ -101,7 +134,7 @@ export async function resolveProjectIssue(
         .replaceAll(':issueId', ''),
     )
   ) {
-    throw new Error('The issue resolution endpoint configuration is invalid.');
+    throw new Error('The issue resolution endpoint has not been configured or is invalid.');
   }
 
   const path = pathTemplate

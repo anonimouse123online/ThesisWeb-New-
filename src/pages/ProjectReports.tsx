@@ -736,14 +736,6 @@ const ProjectReports: React.FC = () => {
                   )}
 
                   {/* Work Progress section */}
-                  {viewReport.images?.length ? <section className="client-doc-section">
-                    <h2 className="client-doc-section-heading">Site Images</h2>
-                    <div className="pr-image-gallery pr-image-gallery--document">
-                      {viewReport.images.map((image, index) => <AuthenticatedReportImage key={`${image.url}-${index}`} url={image.url} alt={image.filename || `Report attachment ${index + 1}`} />)}
-                    </div>
-                  </section> : null}
-
-                  {/* Work Progress section */}
                   <section className="client-doc-section">
                     <h2 className="client-doc-section-heading">Work Progress</h2>
                     <div className="client-doc-list">
@@ -763,6 +755,13 @@ const ProjectReports: React.FC = () => {
                     </div>
                   </section>
 
+                  {/* Attachment note on Page 1 if images exist */}
+                  {viewReport.images && viewReport.images.length > 0 && (
+                    <div style={{ fontSize: '12px', color: '#64748b', fontStyle: 'italic', marginTop: '16px', marginBottom: '8px' }}>
+                      📎 Visual site evidence and inspection photos are attached on Page 2 ({viewReport.images.length} {viewReport.images.length === 1 ? 'image' : 'images'}).
+                    </div>
+                  )}
+
                   {/* Document Footer Sign-off */}
                   <footer className="client-doc-footer">
                     <div className="client-doc-footer-left">
@@ -770,11 +769,71 @@ const ProjectReports: React.FC = () => {
                       <div><strong>Record ID:</strong> {viewReport.id}</div>
                     </div>
                     <div className="client-doc-footer-right">
-                      <div><strong>SitePulse Official Daily Site Record</strong></div>
+                      <div><strong>SitePulse Official Daily Site Record</strong>{viewReport.images?.length ? ' • Page 1 of 2' : ''}</div>
                       <div>Status: <strong>{viewReport.status || 'Submitted'}</strong> • Created: {formatDate(viewReport.created_at)}</div>
                     </div>
                   </footer>
                 </article>
+
+                {/* ── Page 2: Site Images (Separate Page with Full-Size Uncropped Photos) ── */}
+                {viewReport.images && viewReport.images.length > 0 && (
+                  <article className="client-doc-paper client-doc-paper--page2">
+                    <div className="client-doc-page-header">
+                      <span className="client-doc-page-header-title">{doc.title} — Visual Site Evidence</span>
+                      <span className="client-doc-page-badge">Page 2 of 2</span>
+                    </div>
+
+                    <div className="client-doc-meta-section" style={{ marginBottom: '20px' }}>
+                      <div className="client-doc-meta-row">
+                        <span className="client-doc-meta-label">Project:</span>
+                        <span className="client-doc-meta-value">{doc.projectName}</span>
+                        <span style={{ color: '#94a3b8', margin: '0 8px' }}>•</span>
+                        <span className="client-doc-meta-label">Date:</span>
+                        <span className="client-doc-meta-value">{doc.date}</span>
+                        <span style={{ color: '#94a3b8', margin: '0 8px' }}>•</span>
+                        <span className="client-doc-meta-label">Location:</span>
+                        <span className="client-doc-meta-value">{doc.location}</span>
+                      </div>
+                    </div>
+
+                    <section className="client-doc-section" style={{ marginBottom: '16px' }}>
+                      <h2 className="client-doc-section-heading" style={{ fontSize: '18px' }}>
+                        Site Images & Field Evidence
+                      </h2>
+                      <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 18px 0' }}>
+                        Verified high-resolution job site inspection photographs and technical observations (showing full uncropped view).
+                      </p>
+
+                      <div className="client-doc-full-gallery">
+                        {viewReport.images.map((image, index) => (
+                          <div key={`${image.url}-${index}`} className="client-doc-image-card">
+                            <div className="client-doc-image-wrapper">
+                              <AuthenticatedReportImage
+                                url={image.url}
+                                alt={image.filename || `Site photo attachment ${index + 1}`}
+                              />
+                            </div>
+                            <div className="client-doc-image-caption">
+                              <strong>Figure {index + 1}:</strong> {image.filename || `Site Evidence Photo ${index + 1}`}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+
+                    {/* Page 2 Document Footer Sign-off */}
+                    <footer className="client-doc-footer">
+                      <div className="client-doc-footer-left">
+                        <div><strong>Prepared By:</strong> {viewReport.prepared_by_name || 'Site Engineer'} ({viewReport.prepared_by_role || 'Field Engineer'})</div>
+                        <div><strong>Record ID:</strong> {viewReport.id}</div>
+                      </div>
+                      <div className="client-doc-footer-right">
+                        <div><strong>SitePulse Official Daily Site Record</strong> • Page 2 of 2</div>
+                        <div>Status: <strong>{viewReport.status || 'Submitted'}</strong> • Created: {formatDate(viewReport.created_at)}</div>
+                      </div>
+                    </footer>
+                  </article>
+                )}
               </div>
             </div>
           </div>

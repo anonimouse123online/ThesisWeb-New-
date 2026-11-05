@@ -1,11 +1,21 @@
 // Session boundaries discard all account data while retaining login preferences.
 export function clearSession(): void {
-  const remember = localStorage.getItem('remember_me');
-  const email = localStorage.getItem('remembered_email');
-  localStorage.clear();
-  sessionStorage.clear();
-  if (remember) localStorage.setItem('remember_me', remember);
-  if (email) localStorage.setItem('remembered_email', email);
+  const storage = typeof globalThis.localStorage !== 'undefined' ? globalThis.localStorage : null;
+  const remember = typeof storage?.getItem === 'function' ? storage.getItem('remember_me') : null;
+  const email = typeof storage?.getItem === 'function' ? storage.getItem('remembered_email') : null;
+  if (typeof storage?.clear === 'function') {
+    storage.clear();
+  } else if (storage) {
+    storage.removeItem?.('token');
+    storage.removeItem?.('authToken');
+    storage.removeItem?.('accessToken');
+    storage.removeItem?.('user');
+  }
+  if (typeof globalThis.sessionStorage !== 'undefined' && typeof globalThis.sessionStorage?.clear === 'function') {
+    globalThis.sessionStorage.clear();
+  }
+  if (remember && typeof storage?.setItem === 'function') storage.setItem('remember_me', remember);
+  if (email && typeof storage?.setItem === 'function') storage.setItem('remembered_email', email);
 }
 
 export function logoutSession(): void {

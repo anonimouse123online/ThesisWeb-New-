@@ -21,8 +21,12 @@ export async function fetchWithAuth(
 ): Promise<Response> {
   const requestUrl = apiUrl(url);
 
-  const token =
-    localStorage.getItem("token");
+  const getStoredToken = () =>
+    localStorage.getItem("token") ||
+    localStorage.getItem("authToken") ||
+    localStorage.getItem("accessToken");
+
+  const token = getStoredToken();
 
   console.log("[AUTH] Request:", requestUrl);
   console.log("[AUTH] Token found:", !!token);
@@ -60,14 +64,14 @@ export async function fetchWithAuth(
     cache: "no-store",
   });
 
-  if (localStorage.getItem("token") !== token) {
+  if (getStoredToken() !== token) {
     throw new DOMException("Session changed while loading data.", "AbortError");
   }
   // Parsing may complete after an account switch even after fetch has resolved.
   const readJson = response.json.bind(response);
   response.json = async () => {
     const data = await readJson();
-    if (localStorage.getItem("token") !== token) throw new DOMException("Session changed.", "AbortError");
+    if (getStoredToken() !== token) throw new DOMException("Session changed.", "AbortError");
     return data;
   };
 

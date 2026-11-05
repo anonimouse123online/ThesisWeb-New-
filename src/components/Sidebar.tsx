@@ -326,6 +326,9 @@ const Sidebar: React.FC = () => {
   const [unreadMessages, setUnreadMessages] =
     React.useState<number>(0);
 
+  const [unresolvedIssuesCount, setUnresolvedIssuesCount] =
+    React.useState<number>(0);
+
   React.useEffect(() => {
     let isMounted = true;
 
@@ -360,6 +363,79 @@ const Sidebar: React.FC = () => {
     };
   }, []);
 
+  React.useEffect(() => {
+    let isMounted = true;
+
+    const fetchUnresolvedIssues = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        let count: number | null = null;
+        try {
+          const res = await fetchWithAuth('/projects/unresolved-issues-count');
+          if (res.ok) {
+            const data = await res.json();
+            const val = Number(data.unresolvedCount ?? data.data?.unresolvedCount ?? data.count);
+            if (Number.isFinite(val) && val >= 0) {
+              count = val;
+            }
+          }
+        } catch {
+          // ignore and fallback
+        }
+
+        if (count === null) {
+          try {
+            const res = await fetchWithAuth('/issues/unresolved-count');
+            if (res.ok) {
+              const data = await res.json();
+              const val = Number(data.unresolvedCount ?? data.data?.unresolvedCount ?? data.count);
+              if (Number.isFinite(val) && val >= 0) {
+                count = val;
+              }
+            }
+          } catch {
+            // ignore and fallback
+          }
+        }
+
+        if (count === null) {
+          try {
+            const res = await fetchWithAuth('/projects');
+            if (res.ok) {
+              const data = await res.json();
+              const list = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
+              count = list.reduce((sum: number, p: any) => sum + (Number(p.active_issue_count) || 0), 0);
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        if (count !== null && isMounted) {
+          setUnresolvedIssuesCount(count);
+        }
+      } catch {
+        // Silently ignore polling errors
+      }
+    };
+
+    fetchUnresolvedIssues();
+
+    const interval = setInterval(fetchUnresolvedIssues, 5000);
+    const onUpdate = () => { fetchUnresolvedIssues(); };
+    window.addEventListener('project-issues-updated', onUpdate);
+    window.addEventListener('issues-updated', onUpdate);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+      window.removeEventListener('project-issues-updated', onUpdate);
+      window.removeEventListener('issues-updated', onUpdate);
+    };
+  }, []);
+
   const handleLogout = () => {
     logoutSession();
 
@@ -387,7 +463,20 @@ const Sidebar: React.FC = () => {
               Icons[icon] || Icons.Dashboard;
 
             const isMessages = icon === 'Messages';
-            const showBadge = isMessages && unreadMessages > 0;
+            const isProjects = icon === 'Projects';
+            const showBadge = isMessages
+              ? unreadMessages > 0
+              : isProjects
+              ? unresolvedIssuesCount > 0
+              : false;
+
+            const badgeCount = isMessages ? unreadMessages : unresolvedIssuesCount;
+            const badgeAriaLabel = isMessages
+              ? `${unreadMessages} unread messages`
+              : `${unresolvedIssuesCount} unresolved project issue${unresolvedIssuesCount === 1 ? '' : 's'}`;
+            const badgeTitle = isProjects
+              ? `${unresolvedIssuesCount} unresolved reported issue${unresolvedIssuesCount === 1 ? '' : 's'} across projects`
+              : undefined;
 
             return (
               <NavLink
@@ -403,14 +492,14 @@ const Sidebar: React.FC = () => {
                   }`
                 }
               >
-                <span className="nav-icon">
+                <span className="nav-icon" title={badgeTitle}>
                   <IconComponent />
                   {showBadge && (
                     <span
-                      className="nav-icon-badge"
-                      aria-label={`${unreadMessages} unread messages`}
+                      className={`nav-icon-badge${isProjects ? ' nav-icon-badge--alert' : ''}`}
+                      aria-label={badgeAriaLabel}
                     >
-                      {unreadMessages > 99 ? '99+' : unreadMessages}
+                      {badgeCount > 99 ? '99+' : badgeCount}
                     </span>
                   )}
                 </span>

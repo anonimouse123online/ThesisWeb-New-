@@ -5,6 +5,20 @@ export interface IssueEvidence {
   mime_type?: string;
 }
 
+export interface IssueImage {
+  url: string;
+  filename?: string;
+  name?: string;
+}
+
+export interface IssueResolution {
+  resolution_summary?: string | null;
+  resolution_steps?: string[] | null;
+  final_remarks?: string | null;
+  resolved_by?: { id?: string; name?: string } | string | null;
+  resolved_at?: string | null;
+}
+
 export interface Issue {
   id: string;
   project_code: string;
@@ -22,8 +36,12 @@ export interface Issue {
   resolved_by?: string | { id?: string; name?: string } | null;
   resolved_by_name?: string | null;
   resolution_evidence?: IssueEvidence[] | null;
+  resolution?: IssueResolution | null;
+  images?: IssueImage[] | null;
   reporter_name?: string;
+  reporter_role?: string;
   assignee_name?: string;
+  assignee_role?: string;
   assigned_to?: string;
   created_at: string;
   resolved_at?: string | null;
