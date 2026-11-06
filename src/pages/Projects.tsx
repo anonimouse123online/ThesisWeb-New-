@@ -8,6 +8,7 @@ import { formatCalendarDate } from '../utils/dates';
 import Dropdown, { type DropdownOption } from '../components/Dropdown';
 import ProfileDropdown from '../components/ProfileDropdown';
 import StatusBadge from '../components/StatusBadge';
+import { getWorkStatus } from '../utils/taskWorkStatus';
 import ProjectIssueBadge from '../components/ProjectIssueBadge';
 import { showToast } from '../utils/toast';
 import {
@@ -434,7 +435,7 @@ const Projects: React.FC = () => {
   const filteredTasks = tasks.filter(t => {
     const pCode = t.project_code || t.code || '';
     const matchProject = selectedProjectFilter === 'All' || pCode === selectedProjectFilter || (t.project_name && t.project_name.toLowerCase().includes(selectedProjectFilter.toLowerCase()));
-    const matchStatus  = selectedStatusFilter === 'All' || (t.status || '').toLowerCase() === selectedStatusFilter.toLowerCase();
+    const matchStatus  = selectedStatusFilter === 'All' || getWorkStatus(t).toLowerCase() === selectedStatusFilter.toLowerCase();
     const matchSearch  = !searchQuery || t.task_name.toLowerCase().includes(searchQuery.toLowerCase()) || (t.assignee && t.assignee.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchProject && matchStatus && matchSearch;
   });
@@ -702,7 +703,7 @@ const Projects: React.FC = () => {
                       </span>
                     </td>
                     <td>
-                      <StatusBadge status={t.status || 'Pending'} />
+                      <StatusBadge status={getWorkStatus(t)} />
                     </td>
                   </tr>
                 ))}

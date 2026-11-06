@@ -72,9 +72,9 @@ const { SubtaskWorkSummary } = await import(moduleUrl(new URL('../src/components
 const { default: Tasks } = await import(moduleUrl(new URL('../src/pages/Task.tsx', import.meta.url)));
 const { default: ProjectDetails } = await import(moduleUrl(new URL('../src/pages/ProjectDetails.tsx', import.meta.url)));
 
-test('saved work status wins over percentage, deadlines, and stale completion flags', () => {
-  assert.equal(getWorkStatus({ status: 'pending', progress: 100, completed: true, due_date: '2000-01-01' }), 'Pending');
-  assert.equal(getWorkStatus({ status: 'ongoing', progress: 0, due_date: '2000-01-01' }), 'Ongoing');
+test('saved work status wins over percentage, future deadlines, and stale completion flags', () => {
+  assert.equal(getWorkStatus({ status: 'pending', progress: 100, completed: true, due_date: '2099-01-01' }), 'Pending');
+  assert.equal(getWorkStatus({ status: 'ongoing', progress: 0, due_date: '2099-01-01' }), 'Ongoing');
   for (const status of [' Ongoing ', 'in-progress', 'In Progress', 'in_progress', 'active']) {
     assert.equal(getWorkStatus({ status }), 'Ongoing');
   }
@@ -82,6 +82,14 @@ test('saved work status wins over percentage, deadlines, and stale completion fl
   assert.equal(getWorkStatus({ status: 'delayed' }), 'Delayed');
   assert.equal(getWorkStatus({ status: 'paused' }), 'Paused');
   assert.equal(getWorkStatus({ progress: 45 }), 'Pending');
+});
+
+test('overdue tasks display Delayed when past due date unless already completed', () => {
+  assert.equal(getWorkStatus({ status: 'ongoing', due_date: '2000-01-01' }), 'Delayed');
+  assert.equal(getWorkStatus({ status: 'pending', due_date: '2000-01-01' }), 'Delayed');
+  assert.equal(getWorkStatus({ status: 'completed', due_date: '2000-01-01' }), 'Completed');
+  assert.equal(getWorkStatus({ completed: true, due_date: '2000-01-01' }), 'Completed');
+  assert.equal(getWorkStatus({ status: 'ongoing', due_date: '2099-01-01' }), 'Ongoing');
 });
 
 test('backend progress and legacy progress_pct remain separate from status', () => {
@@ -168,7 +176,7 @@ async function mountPage(Page, records) {
 
 const sampleTask = {
   id: 'task-1', task_name: 'Fence Foundation', assignee: 'Engineer One', phase: 'Structural',
-  priority: 'Medium', due_date: '2000-01-01', materials_required: '', site_instructions: '',
+  priority: 'Medium', due_date: '2099-01-01', materials_required: '', site_instructions: '',
   project_code: 'PRJ-1', status: 'ongoing', progress: 45,
   subtasks: [
     { id: 's1', title: 'Excavation', status: 'ongoing', progress: 60, completed: false },

@@ -355,13 +355,6 @@ const ProjectReports: React.FC = () => {
     }
   }, [projectCode, fetchReports]);
 
-  const openCreateReport = () => {
-    setEditingReport(null); setTitle(''); setReportType(REPORT_TYPES[0]);
-    setReportDate(new Date().toISOString().split('T')[0]); setSummary(''); setKeyActivities('');
-    setIssuesHighlighted(''); setManpowerCount(0); setEquipmentOnSite(''); setWeather('');
-    setReportImages([]); setNewImageFiles([]); setShowModal(true);
-  };
-
   const openEditReport = (report: ProjectReportItem) => {
     setEditingReport(report); setTitle(report.title); setReportType(report.report_type);
     setReportDate(report.report_date?.slice(0, 10) || ''); setSummary(report.summary || '');
@@ -494,7 +487,6 @@ const ProjectReports: React.FC = () => {
             {projectCode} • Executive summaries, QA audits, safety observations, and daily site journals
           </p>
         </div>
-        <button type="button" className="pr-btn-generate" onClick={openCreateReport}>+ New Site Report</button>
       </div>
 
       {/* ── Stat Metrics ── */}
