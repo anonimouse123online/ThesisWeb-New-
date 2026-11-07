@@ -4,6 +4,7 @@ export interface Attachment {
   size: number;
   dataUrl: string;
   isImage: boolean;
+  isVideo?: boolean;
 }
 
 export interface Message {

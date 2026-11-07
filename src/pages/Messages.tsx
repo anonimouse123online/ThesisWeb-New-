@@ -11,6 +11,7 @@ export interface Attachment {
   size: number;
   dataUrl: string;
   isImage: boolean;
+  isVideo?: boolean;
 }
 
 export interface Conversation {
@@ -91,7 +92,7 @@ interface ClientToServerEvents {
   join_conversation: (conversationId: string) => void;
 }
 
-const MAX_BYTES = 10 * 1024 * 1024;
+const MAX_BYTES = 100 * 1024 * 1024; // 100 MB
 
 const fmtSize = (bytes: number) => {
   if (bytes < 1024) return `${bytes} B`;
@@ -101,13 +102,27 @@ const fmtSize = (bytes: number) => {
 
 const fileToAttachment = (file: File): Promise<Attachment> =>
   new Promise((resolve, reject) => {
+    const isImage = file.type.startsWith('image/');
+    const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|webm|mkv|avi|3gp)$/i.test(file.name);
+    if (isVideo || file.size > 5 * 1024 * 1024) {
+      resolve({
+        name: file.name,
+        type: file.type || 'application/octet-stream',
+        size: file.size,
+        dataUrl: URL.createObjectURL(file),
+        isImage,
+        isVideo,
+      });
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => resolve({
       name: file.name,
       type: file.type || 'application/octet-stream',
       size: file.size,
       dataUrl: reader.result as string,
-      isImage: file.type.startsWith('image/'),
+      isImage,
+      isVideo,
     });
     reader.onerror = reject;
     reader.readAsDataURL(file);
@@ -138,12 +153,24 @@ const Messages: React.FC = () => {
   const [forwardModalMsg, setForwardModalMsg] = useState<Message | null>(null);
   const [emailModalMsg, setEmailModalMsg] = useState<Message | null>(null);
   const [emailRecipient, setEmailRecipient] = useState('');
+  const [previewImage, setPreviewImage] = useState<{ url: string; name: string } | null>(null);
   
   const threadEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const socketRef = useRef<Socket<ServerToClientEvents, ClientToServerEvents> | null>(null);
 
   const token = localStorage.getItem('token') || '';
+
+  useEffect(() => {
+    if (!previewImage) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setPreviewImage(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [previewImage]);
 
   const fetchConversations = useCallback(async () => {
     try {
@@ -198,6 +225,8 @@ const Messages: React.FC = () => {
           if (m.attachments && m.attachments.length > 0) {
             const att = m.attachments[0];
             const isImage = (att.mimeType || '').startsWith('image/') || m.message_type === 'image';
+            const isVideo = (att.mimeType || '').startsWith('video/') || m.message_type === 'video' ||
+              /\.(mp4|mov|webm|mkv|avi|3gp)$/i.test(att.originalName || att.fileName || '');
             const fileUrl = att.filePath
               ? apiUrl(att.filePath)
               : '';
@@ -206,7 +235,8 @@ const Messages: React.FC = () => {
               type: att.mimeType || 'application/octet-stream',
               size: Number(att.fileSize) || 0,
               dataUrl: fileUrl,
-              isImage
+              isImage,
+              isVideo
             };
           }
 
@@ -578,7 +608,13 @@ const Messages: React.FC = () => {
                             <span className="msg-reply-text">{m.replyTo.text}</span>
                           </div>
                         )}
-                        {m.attachment && <AttachmentView att={m.attachment} mine={mine} />}
+                        {m.attachment && (
+                          <AttachmentView
+                            att={m.attachment}
+                            mine={mine}
+                            onPreview={(url, name) => setPreviewImage({ url, name })}
+                          />
+                        )}
                         {m.text && <span>{m.text}</span>}
                       </div>
 
@@ -609,6 +645,8 @@ const Messages: React.FC = () => {
               <div className="msg-attach-preview">
                 {pending.isImage ? (
                   <img src={pending.dataUrl} alt={pending.name} className="msg-attach-thumb" />
+                ) : pending.isVideo ? (
+                  <video src={pending.dataUrl} className="msg-attach-thumb" />
                 ) : (
                   <span className="msg-attach-fileicon"><FileText size={18} /></span>
                 )}
@@ -730,12 +768,57 @@ const Messages: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* ── In-Screen Image Preview Modal ── */}
+      {previewImage && (
+        <div
+          className="msg-preview-overlay"
+          onClick={() => setPreviewImage(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={previewImage.name || 'Image Preview'}
+        >
+          <div className="msg-preview-container" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="msg-preview-close"
+              onClick={() => setPreviewImage(null)}
+              aria-label="Close preview"
+            >
+              <X size={20} />
+            </button>
+            <img
+              src={previewImage.url}
+              alt={previewImage.name}
+              className="msg-preview-img"
+            />
+            {previewImage.name && (
+              <div className="msg-preview-footer">
+                <span className="msg-preview-filename">{previewImage.name}</span>
+                <a
+                  href={previewImage.url}
+                  download={previewImage.name}
+                  className="msg-preview-dl"
+                  title="Download image"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Download size={15} />
+                  <span>Download</span>
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 /* Load protected images with the same bearer authentication as API requests. */
-const MessageImage: React.FC<{ att: Attachment }> = ({ att }) => {
+const MessageImage: React.FC<{
+  att: Attachment;
+  onPreview?: (url: string, name: string) => void;
+}> = ({ att, onPreview }) => {
   const [image, setImage] = useState<{ source: string; url: string; failed: boolean } | null>(null);
   const source = att.dataUrl;
 
@@ -769,16 +852,67 @@ const MessageImage: React.FC<{ att: Attachment }> = ({ att }) => {
   if (!image || image.source !== source) return <span role="status">Loading image...</span>;
   if (image.failed) return <span role="status">Unable to load image: {att.name}</span>;
   return (
-    <a href={image.url} target="_blank" rel="noopener noreferrer" download={att.name} className="msg-img-link" title="Click to view/download image">
+    <button
+      type="button"
+      className="msg-img-btn"
+      onClick={() => onPreview?.(image.url, att.name)}
+      title="Click to view full image"
+    >
       <img src={image.url} alt={att.name} className="msg-img" />
-    </a>
+    </button>
+  );
+};
+
+/* Video Player Component */
+const MessageVideo: React.FC<{ att: Attachment }> = ({ att }) => {
+  const token = localStorage.getItem('token') || '';
+  const videoSrc = att.dataUrl.startsWith('blob:') || att.dataUrl.startsWith('data:')
+    ? att.dataUrl
+    : (att.dataUrl.includes('?')
+        ? `${att.dataUrl}&token=${encodeURIComponent(token)}`
+        : `${att.dataUrl}?token=${encodeURIComponent(token)}`);
+
+  return (
+    <div className="msg-video-wrap">
+      <video
+        src={videoSrc}
+        controls
+        preload="metadata"
+        className="msg-video"
+      />
+      <div className="msg-video-info">
+        <span className="msg-video-name">{att.name}</span>
+        <div className="msg-video-actions">
+          <span className="msg-video-size">{fmtSize(att.size)}</span>
+          <a
+            href={videoSrc}
+            download={att.name}
+            className="msg-video-dl"
+            title={`Download ${att.name}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Download size={13} />
+            <span>Download</span>
+          </a>
+        </div>
+      </div>
+    </div>
   );
 };
 
 /* Attachment bubble content */
-const AttachmentView: React.FC<{ att: Attachment; mine: boolean }> = ({ att, mine }) => {
+const AttachmentView: React.FC<{
+  att: Attachment;
+  mine: boolean;
+  onPreview?: (url: string, name: string) => void;
+}> = ({ att, mine, onPreview }) => {
   if (att.isImage) {
-    return <MessageImage att={att} />;
+    return <MessageImage att={att} onPreview={onPreview} />;
+  }
+  if (att.isVideo) {
+    return <MessageVideo att={att} />;
   }
   return (
     <a href={att.dataUrl} download={att.name} target="_blank" rel="noopener noreferrer" className={`msg-file-card${mine ? ' mine' : ''}`} title={`Download ${att.name}`}>

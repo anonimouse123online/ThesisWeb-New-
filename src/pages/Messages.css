@@ -907,19 +907,109 @@
 }
 
 /* in-bubble image */
+.msg-img-btn,
 .msg-img-link {
     display: block;
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    border-radius: 10px;
+    overflow: hidden;
+    line-height: 0;
+    text-align: inherit;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.msg-img-btn:hover,
+.msg-img-link:hover {
+    opacity: 0.94;
+    transform: scale(1.01);
 }
 
 .msg-img {
-    max-width: 220px;
-    max-height: 220px;
+    max-width: 280px;
+    max-height: 320px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
     border-radius: 10px;
     display: block;
 }
 
-.msg-bubble:has(.msg-img) {
+.msg-bubble:has(.msg-img),
+.msg-bubble:has(.msg-video-wrap) {
     padding: 4px;
+}
+
+/* in-bubble video */
+.msg-video-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 320px;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.msg-video {
+    width: 100%;
+    max-width: 320px;
+    max-height: 240px;
+    border-radius: 8px;
+    background: #000;
+    display: block;
+    outline: none;
+}
+
+.msg-video-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    opacity: 0.85;
+    padding: 0 4px 4px;
+    gap: 8px;
+}
+
+.msg-video-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 220px;
+    font-weight: 500;
+}
+
+.msg-video-size {
+    white-space: nowrap;
+    opacity: 0.75;
+}
+
+.msg-video-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.msg-video-dl {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #fff;
+    background: #f15a24;
+    padding: 3px 8px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 11px;
+    font-weight: 600;
+    transition: background 0.15s ease;
+    white-space: nowrap;
+}
+
+.msg-video-dl:hover {
+    background: #d64d1d;
 }
 
 /* in-bubble file card */
@@ -1303,4 +1393,112 @@
     font-size: 13px;
     font-weight: 500;
     color: #7C2D12;
+}
+
+/* ---- In-Screen Image Preview Modal --------------------------------------- */
+.msg-preview-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.88);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 2000;
+    overscroll-behavior: contain;
+    animation: msgFadeIn 0.2s ease-out;
+}
+
+@keyframes msgFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.msg-preview-container {
+    position: relative;
+    max-width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.msg-preview-close {
+    position: absolute;
+    top: -14px;
+    right: -14px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(30, 41, 59, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, transform 0.15s ease;
+    z-index: 10;
+}
+
+.msg-preview-close:hover {
+    background: #e11d48;
+    transform: scale(1.08);
+}
+
+.msg-preview-img {
+    max-width: 90vw;
+    max-height: 80vh;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 10px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.55);
+    display: block;
+    user-select: none;
+}
+
+.msg-preview-footer {
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    width: 100%;
+    max-width: 90vw;
+    padding: 8px 16px;
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: #fff;
+    font-size: 13px;
+    backdrop-filter: blur(8px);
+}
+
+.msg-preview-filename {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+}
+
+.msg-preview-dl {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #fff;
+    background: #f15a24;
+    padding: 6px 14px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 600;
+    transition: background 0.15s ease;
+    white-space: nowrap;
+}
+
+.msg-preview-dl:hover {
+    background: #d64d1d;
 }
