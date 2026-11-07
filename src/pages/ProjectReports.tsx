@@ -30,9 +30,20 @@ const REPORT_TYPES = [
   'Material Quality Audit',
 ] as const;
 
+interface SubtaskData {
+  id?: string;
+  title?: string;
+  status?: string;
+  progress?: number;
+  completed?: boolean;
+}
+
 interface ProjectReportItem {
   id: string;
   project_code: string;
+  task_id?: string;
+  task_subtasks?: SubtaskData[] | string;
+  task_progress_pct?: number;
   title: string;
   report_type: string;
   report_date: string;
@@ -145,7 +156,26 @@ const parseClientReport = (
       } else if (currentSection === 'work_progress') {
         workProgressLines.push(line);
       } else if (currentSection === 'ongoing_scope') {
-        ongoingScopeLines.push(line);
+        let formattedLine = line;
+        if (!formattedLine.includes('%')) {
+          const cleanName = formattedLine.replace(/^[-•*]\s*/, '').trim();
+          const subtasksList: SubtaskData[] = Array.isArray(report.task_subtasks)
+            ? report.task_subtasks
+            : (typeof report.task_subtasks === 'string'
+                ? (() => { try { return JSON.parse(report.task_subtasks); } catch { return []; } })()
+                : []);
+          const matched = subtasksList.find(
+            s => s && s.title && s.title.trim().toLowerCase() === cleanName.toLowerCase()
+          );
+          if (matched && matched.progress !== undefined && matched.progress !== null) {
+            formattedLine = `${cleanName}: ${matched.progress}% Ongoing`;
+          } else if (matched && matched.completed) {
+            formattedLine = `${cleanName}: 100% Completed`;
+          } else if (report.task_progress_pct !== undefined && report.task_progress_pct !== null && !cleanName.toLowerCase().startsWith('general site')) {
+            formattedLine = `${cleanName}: ${report.task_progress_pct}% Ongoing`;
+          }
+        }
+        ongoingScopeLines.push(formattedLine);
       }
     }
 
@@ -246,8 +276,23 @@ const parseClientReport = (
   const scopeLines: string[] = [];
   if (report.issues_highlighted) {
     report.issues_highlighted.split('\n').forEach(iss => {
-      const t = iss.trim().replace(/^[-•*]\s*/, '');
-      if (t) scopeLines.push(t);
+      let t = iss.trim().replace(/^[-•*]\s*/, '');
+      if (t) {
+        if (!t.includes('%')) {
+          const subtasksList: SubtaskData[] = Array.isArray(report.task_subtasks)
+            ? report.task_subtasks
+            : (typeof report.task_subtasks === 'string'
+                ? (() => { try { return JSON.parse(report.task_subtasks); } catch { return []; } })()
+                : []);
+          const matched = subtasksList.find(
+            s => s && s.title && s.title.trim().toLowerCase() === t.toLowerCase()
+          );
+          if (matched && matched.progress !== undefined && matched.progress !== null) {
+            t = `${t}: ${matched.progress}% Ongoing`;
+          }
+        }
+        scopeLines.push(t);
+      }
     });
   }
 
@@ -789,12 +834,9 @@ const ProjectReports: React.FC = () => {
                     </div>
 
                     <section className="client-doc-section" style={{ marginBottom: '16px' }}>
-                      <h2 className="client-doc-section-heading" style={{ fontSize: '18px' }}>
+                      <h2 className="client-doc-section-heading" style={{ fontSize: '18px', marginBottom: '16px' }}>
                         Site Images & Field Evidence
                       </h2>
-                      <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 18px 0' }}>
-                        Verified high-resolution job site inspection photographs and technical observations (showing full uncropped view).
-                      </p>
 
                       <div className="client-doc-full-gallery">
                         {viewReport.images.map((image, index) => (

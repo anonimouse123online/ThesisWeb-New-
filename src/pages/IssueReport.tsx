@@ -826,12 +826,9 @@ const IssueReport: React.FC = () => {
                   </div>
 
                   <section className="client-doc-section" style={{ marginBottom: '16px' }}>
-                    <h2 className="client-doc-section-heading" style={{ fontSize: '18px' }}>
+                    <h2 className="client-doc-section-heading" style={{ fontSize: '18px', marginBottom: '16px' }}>
                       Site Images & Field Evidence
                     </h2>
-                    <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 18px 0' }}>
-                      Verified high-resolution job site inspection photographs and technical observations (showing full uncropped view).
-                    </p>
 
                     <div className="client-doc-full-gallery">
                       {previewIssue.images.map((image, index) => (
