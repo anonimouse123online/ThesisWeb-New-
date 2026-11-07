@@ -1,4 +1,5 @@
 import React from 'react';
+import { Lock } from 'lucide-react';
 import './StatusBadge.css';
 
 import { getStatusVariant, type StatusVariant } from '../utils/status';
@@ -27,7 +28,11 @@ export default function StatusBadge({
       className={`sp-status-badge sp-status-badge--${finalVariant} ${className}`}
       style={style}
     >
-      {showDot && <span className="sp-status-badge__dot" />}
+      {finalVariant === 'locked' ? (
+        <Lock size={11} strokeWidth={2.4} className="sp-status-badge__icon" />
+      ) : (
+        showDot && <span className="sp-status-badge__dot" />
+      )}
       <span className="sp-status-badge__label">{status}</span>
     </span>
   );

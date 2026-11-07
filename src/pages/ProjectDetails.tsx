@@ -7,7 +7,7 @@ import { formatCurrency } from '../utils/currency';
 import { formatCalendarDate, toDateInputValue } from '../utils/dates';
 import ProfileDropdown from '../components/ProfileDropdown';
 import StatusBadge from '../components/StatusBadge';
-import { TaskWorkStatusBadge, SubtaskWorkSummary } from '../components/TaskWorkStatus';
+import { SubtaskWorkSummary } from '../components/TaskWorkStatus';
 import { getWorkStatus, getTaskProgress, isWorkCompleted, type SubTask, type WorkStatusFields } from '../utils/taskWorkStatus';
 import Dropdown from '../components/Dropdown';
 import { showToast } from '../utils/toast';
@@ -44,6 +44,8 @@ import {
   ShieldCheck,
   ShieldAlert,
   CalendarClock,
+  Calendar,
+  Lock,
   Pencil
 } from 'lucide-react';
 
@@ -102,6 +104,7 @@ interface TaskItem extends TaskPhaseFields, WorkStatusFields {
   id: string | number;
   task_name: string;
   assignee: string;
+  assignee_id?: string | null;
   start_date?: string;
   due_date: string;
   priority: 'High' | 'Medium' | 'Low';
@@ -355,6 +358,11 @@ const ProjectDetails: React.FC = () => {
     [teamMembers]
   );
 
+  const isProjectCompleted = useMemo(() => {
+    const s = (project?.status || '').trim().toLowerCase();
+    return s === 'completed' || s === 'done';
+  }, [project?.status]);
+
   // Modals for In-Workspace Actions
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [newTaskForm, setNewTaskForm] = useState({
@@ -394,6 +402,85 @@ const ProjectDetails: React.FC = () => {
   const [newSubtaskInputs, setNewSubtaskInputs] = useState<Record<string | number, string>>({});
   const [submittingSubtask, setSubmittingSubtask] = useState<Record<string | number, boolean>>({});
   const [addingTask, setAddingTask] = useState(false);
+
+  // Assign Engineer & Date Picker Modal State for Tasks Table
+  const [assignModalTask, setAssignModalTask] = useState<TaskItem | null>(null);
+  const [assigningEngineerId, setAssigningEngineerId] = useState<string | null>(null);
+  const [datePickerTask, setDatePickerTask] = useState<TaskItem | null>(null);
+  const [selectedDueDate, setSelectedDueDate] = useState<string>('');
+  const [savingTaskDueDate, setSavingTaskDueDate] = useState<boolean>(false);
+
+  const isTurnoverTask = useCallback((t: TaskItem) => {
+    return t.task_name.trim().toLowerCase() === 'turnover of the documents' ||
+      getTaskPhases(t).includes('Turnover Phase');
+  }, []);
+
+  const getEffectiveTaskStatus = useCallback((taskItem: TaskItem): string => {
+    if (isTurnoverTask(taskItem)) {
+      if (isWorkCompleted(taskItem)) return 'Completed';
+      const otherTasks = tasks.filter(t => t.id !== taskItem.id);
+      const allOtherCompleted = otherTasks.length > 0 && otherTasks.every(isWorkCompleted);
+      if (allOtherCompleted) {
+        return 'Ongoing';
+      }
+      return 'Locked';
+    }
+    return getWorkStatus(taskItem);
+  }, [isTurnoverTask, tasks]);
+
+  const handleOpenAssignModal = (task: TaskItem) => {
+    setAssignModalTask(task);
+  };
+
+  const handleAssignEngineer = async (taskId: string | number, engineerId: string, engineerName: string) => {
+    try {
+      setAssigningEngineerId(engineerId);
+      const res = await fetchWithAuth(`${API_URL}/tasks/${taskId}/assign`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assigneeId: engineerId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || data.message || 'Failed to assign engineer');
+      }
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, assignee: engineerName, assignee_id: engineerId } : t));
+      setAssignModalTask(null);
+      showToast(`Assigned ${engineerName} to "${assignModalTask?.task_name || 'task'}"`, 'success');
+    } catch (err: any) {
+      showToast(getErrorMessage(err), 'error');
+    } finally {
+      setAssigningEngineerId(null);
+    }
+  };
+
+  const handleOpenDatePicker = (task: TaskItem) => {
+    setDatePickerTask(task);
+    setSelectedDueDate(task.due_date ? toDateInputValue(task.due_date) || '' : '');
+  };
+
+  const handleSaveTaskDueDate = async (taskId: string | number, dateValue: string) => {
+    if (!dateValue) return;
+    try {
+      setSavingTaskDueDate(true);
+      const res = await fetchWithAuth(`${API_URL}/tasks/${taskId}/due-date`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dueDate: dateValue }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || data.message || 'Failed to update due date');
+      }
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, due_date: dateValue } : t));
+      setDatePickerTask(null);
+      showToast(`Due date saved: ${formatCalendarDate(dateValue)}`, 'success');
+    } catch (err: any) {
+      showToast(getErrorMessage(err), 'error');
+    } finally {
+      setSavingTaskDueDate(false);
+    }
+  };
 
   const [showAddResourceModal, setShowAddResourceModal] = useState(false);
   const [resourceForm, setResourceForm] = useState({
@@ -601,6 +688,7 @@ const ProjectDetails: React.FC = () => {
 
   // Add Subtask to Main Task in Table View
   const handleAddSubtask = async (taskId: string | number) => {
+    if (isProjectCompleted) return;
     const title = (newSubtaskInputs[taskId] || '').trim();
     if (!title) return;
 
@@ -648,6 +736,7 @@ const ProjectDetails: React.FC = () => {
 
   // Delete Subtask from Main Task
   const handleDeleteSubtask = async (taskId: string | number, subtaskId: string) => {
+    if (isProjectCompleted) return;
     const task = tasks.find(t => String(t.id) === String(taskId));
     if (!task) return;
 
@@ -748,6 +837,7 @@ const ProjectDetails: React.FC = () => {
   };
 
   const handleOpenAddTaskModal = (phaseName?: string) => {
+    if (isProjectCompleted) return;
     setNewTaskForm(prev => ({
       ...prev,
       taskName: '',
@@ -780,7 +870,7 @@ const ProjectDetails: React.FC = () => {
   // 6. Inline Add Task
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!project) return;
+    if (!project || isProjectCompleted) return;
     if (!newTaskForm.taskName.trim()) {
       showToast('Task name is required', 'warning');
       return;
@@ -1382,9 +1472,11 @@ const ProjectDetails: React.FC = () => {
                 <h2 className="pd-card-heading">Construction Phases &amp; Milestones</h2>
                 <p className="pd-card-sub">Track progress and tasks across all construction phases</p>
               </div>
-              <button className="pd-btn-primary" onClick={() => handleOpenAddTaskModal()}>
-                + Add Task to Phase
-              </button>
+              {!isProjectCompleted && (
+                <button className="pd-btn-primary" onClick={() => handleOpenAddTaskModal()}>
+                  + Add Task to Phase
+                </button>
+              )}
             </div>
 
             <div className="pd-phases-stepper">
@@ -1457,9 +1549,11 @@ const ProjectDetails: React.FC = () => {
                 prefix="Status"
                 size="md"
               />
-              <button className="pd-btn-primary" onClick={() => handleOpenAddTaskModal()}>
-                + New Task
-              </button>
+              {!isProjectCompleted && (
+                <button className="pd-btn-primary" onClick={() => handleOpenAddTaskModal()}>
+                  + New Task
+                </button>
+              )}
             </div>
           </div>
 
@@ -1469,22 +1563,24 @@ const ProjectDetails: React.FC = () => {
             <div className="pd-empty-card">
               <p className="pd-empty-title">No tasks created for this project yet</p>
               <p className="pd-empty-sub">Add tasks to organize daily construction activities across Site Development, Structural, and MEP categories.</p>
-              <button className="pd-btn-primary" onClick={() => handleOpenAddTaskModal()} style={{ marginTop: '12px' }}>
-                + Create First Task
-              </button>
+              {!isProjectCompleted && (
+                <button className="pd-btn-primary" onClick={() => handleOpenAddTaskModal()} style={{ marginTop: '12px' }}>
+                  + Create First Task
+                </button>
+              )}
             </div>
           ) : (
             <div className="pd-tasks-phase-list">
               {Object.keys(tasksByPhase).map(phaseName => {
                 const phaseTasks = (tasksByPhase[phaseName] || []).filter(t => {
                   const matchSearch = !taskSearch || t.task_name.toLowerCase().includes(taskSearch.toLowerCase()) || (t.assignee && t.assignee.toLowerCase().includes(taskSearch.toLowerCase()));
-                  const matchStatus = taskStatusFilter === 'All' || getWorkStatus(t).toLowerCase() === taskStatusFilter.toLowerCase();
+                  const matchStatus = taskStatusFilter === 'All' || getEffectiveTaskStatus(t).toLowerCase() === taskStatusFilter.toLowerCase();
                   return matchSearch && matchStatus;
                 });
 
                 if (phaseTasks.length === 0 && taskSearch) return null;
 
-                const completedInPhase = phaseTasks.filter(isWorkCompleted).length;
+                const completedInPhase = phaseTasks.filter(t => getEffectiveTaskStatus(t).toLowerCase() === 'completed').length;
 
                 return (
                   <div key={phaseName} className="pd-phase-group-card">
@@ -1496,12 +1592,14 @@ const ProjectDetails: React.FC = () => {
                           {completedInPhase} / {phaseTasks.length} completed
                         </span>
                       </div>
-                      <button
-                        className="pd-btn-link"
-                        onClick={() => handleOpenAddTaskModal(phaseName)}
-                      >
-                        + Add to {phaseName.replace(/^Phase\s*\d+\s*[-–:]\s*/i, '') || phaseName}
-                      </button>
+                      {!isProjectCompleted && (
+                        <button
+                          className="pd-btn-link"
+                          onClick={() => handleOpenAddTaskModal(phaseName)}
+                        >
+                          + Add to {phaseName.replace(/^Phase\s*\d+\s*[-–:]\s*/i, '') || phaseName}
+                        </button>
+                      )}
                     </div>
 
                     {phaseTasks.length === 0 ? (
@@ -1542,6 +1640,11 @@ const ProjectDetails: React.FC = () => {
                                       <span className="pd-task-name" onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}>
                                         {task.task_name}
                                       </span>
+                                      {getEffectiveTaskStatus(task) === 'Locked' && (
+                                        <span title="Task is Locked">
+                                          <Lock size={12} className="pd-locked-icon" />
+                                        </span>
+                                      )}
                                       <span className="task-phase-summary">{formatTaskPhases(task)}</span>
                                       {subtasks.length > 0 && (
                                         <span className="pd-subtask-pill" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
@@ -1550,15 +1653,68 @@ const ProjectDetails: React.FC = () => {
                                       )}
                                     </td>
                                     <td>
-                                      <div className="pd-assignee-cell">
-                                        <div className="pd-avatar-circle" style={{ background: avatarColor(task.assignee || 'Unassigned') }}>
-                                          {getInitials(task.assignee)}
+                                      {!task.assignee || task.assignee === 'Unassigned' ? (
+                                        <button
+                                          type="button"
+                                          className="pd-btn-assign-row"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleOpenAssignModal(task);
+                                          }}
+                                        >
+                                          <UserPlus size={13} />
+                                          <span>Assign</span>
+                                        </button>
+                                      ) : (
+                                        <div
+                                          className="pd-assignee-cell pd-assignee-cell--clickable"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleOpenAssignModal(task);
+                                          }}
+                                          title="Click to change assigned engineer"
+                                        >
+                                          <div className="pd-avatar-circle" style={{ background: avatarColor(task.assignee) }}>
+                                            {getInitials(task.assignee)}
+                                          </div>
+                                          <span>{task.assignee}</span>
+                                          <button
+                                            type="button"
+                                            className="pd-assignee-edit-icon"
+                                            title="Change assignee"
+                                          >
+                                            <Pencil size={11} />
+                                          </button>
                                         </div>
-                                        <span>{task.assignee || 'Unassigned'}</span>
-                                      </div>
+                                      )}
                                     </td>
-                                    <td className="pd-td-muted">
-                                      {task.due_date ? formatCalendarDate(task.due_date) : '—'}
+                                    <td>
+                                      {task.due_date ? (
+                                        <button
+                                          type="button"
+                                          className="pd-btn-date-row pd-btn-date-row--set"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleOpenDatePicker(task);
+                                          }}
+                                          title="Click to change due date"
+                                        >
+                                          <Calendar size={13} />
+                                          <span>{formatCalendarDate(task.due_date)}</span>
+                                        </button>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          className="pd-btn-date-row pd-btn-date-row--empty"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleOpenDatePicker(task);
+                                          }}
+                                        >
+                                          <Calendar size={13} />
+                                          <span>Select Date</span>
+                                        </button>
+                                      )}
                                     </td>
                                     <td>
                                       <span className={`pd-priority-badge pd-priority--${(task.priority || 'medium').toLowerCase()}`}>
@@ -1592,7 +1748,7 @@ const ProjectDetails: React.FC = () => {
                                       })()}
                                     </td>
                                     <td className="pd-task-status-cell">
-                                      <TaskWorkStatusBadge item={task} />
+                                      <StatusBadge status={getEffectiveTaskStatus(task)} />
                                     </td>
                                   </tr>
 
@@ -1617,6 +1773,13 @@ const ProjectDetails: React.FC = () => {
                                                 )}
                                               </div>
 
+                                              {getEffectiveTaskStatus(task) === 'Locked' && (
+                                                <div className="pd-turnover-locked-banner">
+                                                  <Lock size={14} />
+                                                  <span>This turnover task is locked and will automatically unlock once all other project tasks are completed.</span>
+                                                </div>
+                                              )}
+
                                               {subtasks.length === 0 ? (
                                                 <p className="pd-td-muted" style={{ fontSize: '12px', margin: '4px 0 12px' }}>
                                                   No subtasks defined yet. Break down this task into execution steps below.
@@ -1640,14 +1803,16 @@ const ProjectDetails: React.FC = () => {
                                                         </span>
                                                       </div>
                                                       <SubtaskWorkSummary subtask={st} />
-                                                      <button
-                                                        type="button"
-                                                        className="pd-subtask-delete-btn"
-                                                        title="Delete subtask"
-                                                        onClick={() => handleDeleteSubtask(task.id, st.id)}
-                                                      >
-                                                        <X size={12} />
-                                                      </button>
+                                                      {!isProjectCompleted && (
+                                                        <button
+                                                          type="button"
+                                                          className="pd-subtask-delete-btn"
+                                                          title="Delete subtask"
+                                                          onClick={() => handleDeleteSubtask(task.id, st.id)}
+                                                        >
+                                                          <X size={12} />
+                                                        </button>
+                                                      )}
                                                     </div>
                                                   ))}
                                                 </div>
@@ -1659,35 +1824,37 @@ const ProjectDetails: React.FC = () => {
                                                 </div>
                                               )}
 
-                                              {/* Create / Add Subtask Input Form — ALWAYS VISIBLE */}
-                                              <form
-                                                className="pd-add-subtask-form"
-                                                onSubmit={e => {
-                                                  e.preventDefault();
-                                                  handleAddSubtask(task.id);
-                                                }}
-                                              >
-                                                <input
-                                                  type="text"
-                                                  className="pd-add-subtask-input"
-                                                  placeholder="Add execution step or subtask (e.g. Rebar inspection, Pour footing)..."
-                                                  value={newSubtaskInputs[task.id] || ''}
-                                                  disabled={submittingSubtask[task.id]}
-                                                  onChange={e =>
-                                                    setNewSubtaskInputs(prev => ({
-                                                      ...prev,
-                                                      [task.id]: e.target.value,
-                                                    }))
-                                                  }
-                                                />
-                                                <button
-                                                  type="submit"
-                                                  className="pd-add-subtask-btn"
-                                                  disabled={!newSubtaskInputs[task.id]?.trim() || submittingSubtask[task.id]}
+                                              {/* Create / Add Subtask Input Form */}
+                                              {!isProjectCompleted && (
+                                                <form
+                                                  className="pd-add-subtask-form"
+                                                  onSubmit={e => {
+                                                    e.preventDefault();
+                                                    handleAddSubtask(task.id);
+                                                  }}
                                                 >
-                                                  {submittingSubtask[task.id] ? 'Adding…' : '+ Add Subtask'}
-                                                </button>
-                                              </form>
+                                                  <input
+                                                    type="text"
+                                                    className="pd-add-subtask-input"
+                                                    placeholder="Add execution step or subtask (e.g. Rebar inspection, Pour footing)..."
+                                                    value={newSubtaskInputs[task.id] || ''}
+                                                    disabled={submittingSubtask[task.id]}
+                                                    onChange={e =>
+                                                      setNewSubtaskInputs(prev => ({
+                                                        ...prev,
+                                                        [task.id]: e.target.value,
+                                                      }))
+                                                    }
+                                                  />
+                                                  <button
+                                                    type="submit"
+                                                    className="pd-add-subtask-btn"
+                                                    disabled={!newSubtaskInputs[task.id]?.trim() || submittingSubtask[task.id]}
+                                                  >
+                                                    {submittingSubtask[task.id] ? 'Adding…' : '+ Add Subtask'}
+                                                  </button>
+                                                </form>
+                                              )}
                                             </div>
 
                                             {/* Site Instructions & Materials */}
@@ -2019,7 +2186,7 @@ const ProjectDetails: React.FC = () => {
       {/* ═══════════════════════════════════════════════════════════════════════ */}
 
       {/* 1. Add Task Modal */}
-      {showAddTaskModal && (
+      {showAddTaskModal && !isProjectCompleted && (
         <div className="pm-overlay">
           <div className="pm-modal" onClick={e => e.stopPropagation()}>
             <h2 className="pm-modal-title">Create Task for {project.name}</h2>
@@ -2789,6 +2956,127 @@ const ProjectDetails: React.FC = () => {
               <footer className="gc-modal-footer"><button className="gc-cancel-btn" type="button" onClick={() => setShowDueDateModal(false)}>Cancel</button><button className="gc-generate-btn" type="submit" disabled={savingDueDate}>{savingDueDate ? 'Saving…' : 'Save Changes'}</button></footer>
             </form>
           </section>
+        </div>
+      )}
+      {/* 5. Assign Engineer Modal for Tasks Table */}
+      {assignModalTask && (
+        <div className="pm-overlay" onClick={() => setAssignModalTask(null)}>
+          <div className="pm-modal" style={{ maxWidth: '480px' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <div>
+                <h2 className="pm-modal-title" style={{ margin: 0, fontSize: '18px' }}>Assign Engineer</h2>
+                <p style={{ margin: '4px 0 0', fontSize: '12.5px', color: '#64748b' }}>
+                  Task: <strong>{assignModalTask.task_name}</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                className="pd-modal-close-btn"
+                onClick={() => setAssignModalTask(null)}
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="pd-assign-engineer-list">
+              {engineerMembers.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '24px 12px', color: '#64748b', fontSize: '13px' }}>
+                  <p style={{ fontWeight: 600, color: '#0f172a', marginBottom: '6px' }}>No engineers in this project yet</p>
+                  <p>Invite or add a site engineer to the project team to assign them tasks.</p>
+                </div>
+              ) : (
+                engineerMembers.map(engineer => {
+                  const isCurrent = assignModalTask.assignee_id === engineer.id || assignModalTask.assignee === engineer.name;
+                  return (
+                    <div
+                      key={engineer.id}
+                      className={`pd-assign-engineer-item ${isCurrent ? 'pd-assign-engineer-item--current' : ''}`}
+                      onClick={() => handleAssignEngineer(assignModalTask.id, engineer.id, engineer.name)}
+                    >
+                      <div className="pd-avatar-circle" style={{ background: avatarColor(engineer.name), width: '36px', height: '36px', fontSize: '13px' }}>
+                        {getInitials(engineer.name)}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontWeight: 700, fontSize: '13px', color: '#0f172a' }}>{engineer.name}</span>
+                          {isCurrent && <span className="pd-current-tag">Assigned</span>}
+                        </div>
+                        <span style={{ fontSize: '11.5px', color: '#64748b' }}>{engineer.email || engineer.role || 'Site Engineer'}</span>
+                      </div>
+                      <button
+                        type="button"
+                        className={isCurrent ? 'pd-btn-assigned' : 'pd-btn-select-engineer'}
+                        disabled={assigningEngineerId === engineer.id}
+                      >
+                        {assigningEngineerId === engineer.id ? 'Saving…' : isCurrent ? 'Current' : 'Select'}
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Select Task Due Date Modal */}
+      {datePickerTask && (
+        <div className="pm-overlay" onClick={() => setDatePickerTask(null)}>
+          <div className="pm-modal" style={{ maxWidth: '440px' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <div>
+                <h2 className="pm-modal-title" style={{ margin: 0, fontSize: '18px' }}>Select Due Date</h2>
+                <p style={{ margin: '4px 0 0', fontSize: '12.5px', color: '#64748b' }}>
+                  Task: <strong>{datePickerTask.task_name}</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                className="pd-modal-close-btn"
+                onClick={() => setDatePickerTask(null)}
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                Deadline Date
+              </label>
+              <input
+                type="date"
+                className="pm-input"
+                value={selectedDueDate}
+                onChange={e => setSelectedDueDate(e.target.value)}
+                min={projectMinDate || undefined}
+              />
+              {projectMaxDate && (
+                <span style={{ display: 'block', fontSize: '11px', color: '#64748b', marginTop: '6px' }}>
+                  Project target finish date is {formatCalendarDate(project.end_date)}.
+                </span>
+              )}
+            </div>
+
+            <div className="pm-modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                className="pd-btn-secondary"
+                onClick={() => setDatePickerTask(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="pd-btn-primary"
+                onClick={() => handleSaveTaskDueDate(datePickerTask.id, selectedDueDate)}
+                disabled={!selectedDueDate || savingTaskDueDate}
+              >
+                {savingTaskDueDate ? 'Saving…' : 'Save Date'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </main>

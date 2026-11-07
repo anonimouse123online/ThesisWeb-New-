@@ -55,6 +55,10 @@ export function getWorkStatus(item: WorkStatusFields): string {
     return 'Completed';
   }
 
+  if (normalized === 'locked') {
+    return 'Locked';
+  }
+
   const deadline = item.due_date || item.dueDate || item.end_date || item.endDate;
   if (deadline && isTaskOverdue(deadline)) {
     return 'Delayed';

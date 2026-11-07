@@ -52,6 +52,7 @@ interface Project {
   id: string;
   code: string;
   name: string;
+  status?: string;
   start_date?: string;
   end_date?: string;
 }
@@ -77,12 +78,14 @@ interface TaskDetailPanelProps {
   task: Task;
   onAddSubtask: (taskId: string | number, title: string) => void;
   onDeleteSubtask: (taskId: string | number, subtaskId: string) => void;
+  isProjectCompleted?: boolean;
 }
 
 function TaskDetailPanel({
   task,
   onAddSubtask,
   onDeleteSubtask,
+  isProjectCompleted = false,
 }: TaskDetailPanelProps) {
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
 
@@ -171,15 +174,17 @@ function TaskDetailPanel({
                     )}
                     <span className="tdp-subtask-title">{st.title}</span>
                     <SubtaskWorkSummary subtask={st} />
-                    <button
-                      type="button"
-                      className="tdp-subtask-delete-btn"
-                      onClick={() => onDeleteSubtask(task.id, st.id)}
-                      title="Delete step"
-                      aria-label="Delete step"
-                    >
-                      <X size={13} />
-                    </button>
+                    {!isProjectCompleted && (
+                      <button
+                        type="button"
+                        className="tdp-subtask-delete-btn"
+                        onClick={() => onDeleteSubtask(task.id, st.id)}
+                        title="Delete step"
+                        aria-label="Delete step"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -190,18 +195,20 @@ function TaskDetailPanel({
             )}
 
             {/* Add step form */}
-            <form className="tdp-add-subtask-form" onSubmit={handleAdd}>
-              <input
-                type="text"
-                className="tdp-add-subtask-input"
-                placeholder="Add new subtask or execution milestone (e.g., Rebar inspection approved)..."
-                value={newSubtaskTitle}
-                onChange={(e) => setNewSubtaskTitle(e.target.value)}
-              />
-              <button type="submit" className="tdp-add-subtask-btn">
-                + Add Subtask
-              </button>
-            </form>
+            {!isProjectCompleted && (
+              <form className="tdp-add-subtask-form" onSubmit={handleAdd}>
+                <input
+                  type="text"
+                  className="tdp-add-subtask-input"
+                  placeholder="Add new subtask or execution milestone (e.g., Rebar inspection approved)..."
+                  value={newSubtaskTitle}
+                  onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                />
+                <button type="submit" className="tdp-add-subtask-btn">
+                  + Add Subtask
+                </button>
+              </form>
+            )}
           </div>
 
           <div className="tdp-divider" />
@@ -444,6 +451,11 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
     if (!form.taskName.trim())          { setError("Task name is required."); return; }
     if (!form.phases.length)            { setError(taskPhaseRequiredMessage); return; }
     if (!form.projectId)                { setError("Please select a project."); return; }
+    const isProjDone = (selectedProject?.status || '').toLowerCase() === 'completed' || (selectedProject?.status || '').toLowerCase() === 'done';
+    if (isProjDone) {
+      setError("Cannot add tasks to a completed project.");
+      return;
+    }
     if (!form.assigneeId)               { setError("Please select an assignee engineer."); return; }
     if (!form.priority)                 { setError("Priority is required."); return; }
     if (!form.startDate)                { setError("Start date is required."); return; }
@@ -559,7 +571,12 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
                 fullWidth
                 disabled={projectsLoading}
                 searchable={projects.length > 5}
-                options={projects.map((p) => ({ value: p.id, label: `${p.code} — ${p.name}` }))}
+                options={projects
+                  .filter((p) => {
+                    const st = (p.status || '').toLowerCase();
+                    return st !== 'completed' && st !== 'done';
+                  })
+                  .map((p) => ({ value: p.id, label: `${p.code} — ${p.name}` }))}
                 value={form.projectId}
                 onChange={(val) => { setScheduleValidation(null); setForm((prev) => ({ ...prev, projectId: val })); }}
                 placeholder={projectsLoading ? "Loading projects…" : "Select a project"}
@@ -861,6 +878,18 @@ export default function Tasks() {
   const [projects, setProjects]               = useState<Project[]>([]);
   const [filterProjectId, setFilterProjectId] = useState<string>("");
 
+  const isProjectDone = useCallback((projectIdentifier?: string | null) => {
+    if (!projectIdentifier) return false;
+    const p = projects.find(item => String(item.id) === String(projectIdentifier) || item.code === projectIdentifier);
+    const s = (p?.status || '').toLowerCase();
+    return s === 'completed' || s === 'done';
+  }, [projects]);
+
+  const isSelectedProjectCompleted = useMemo(() => {
+    if (!filterProjectId) return false;
+    return isProjectDone(filterProjectId);
+  }, [filterProjectId, isProjectDone]);
+
   useEffect(() => {
     (async () => {
       try {
@@ -903,6 +932,7 @@ export default function Tasks() {
   const handleAddSubtask = async (taskId: string | number, title: string) => {
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
+    if (isProjectDone(task.project_id || task.project_code)) return;
 
     const newSub: SubTask = {
       id: `${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
@@ -939,6 +969,7 @@ export default function Tasks() {
   const handleDeleteSubtask = async (taskId: string | number, subtaskId: string) => {
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
+    if (isProjectDone(task.project_id || task.project_code)) return;
 
     const currentSubs: SubTask[] = Array.isArray(task.subtasks) ? task.subtasks : [];
     const updatedSubs = currentSubs.filter((s) => s.id !== subtaskId);
@@ -1057,15 +1088,17 @@ export default function Tasks() {
           <h1 className="tasks-page-title">Task and Subtask Management</h1>
           <p className="tasks-page-subtitle">Create, organize, and track real-time execution steps</p>
         </div>
-        <button
-          className="tasks-create-btn"
-          onClick={() => {
-            setCreateTaskPhase("");
-            setShowCreate(true);
-          }}
-        >
-          + Create Task
-        </button>
+        {!isSelectedProjectCompleted && (
+          <button
+            className="tasks-create-btn"
+            onClick={() => {
+              setCreateTaskPhase("");
+              setShowCreate(true);
+            }}
+          >
+            + Create Task
+          </button>
+        )}
       </div>
 
       <div className="tasks-stats">
@@ -1123,17 +1156,19 @@ export default function Tasks() {
                 <p style={{ margin: '0 0 12px', fontSize: '12px', color: '#64748b' }}>
                   No tasks scheduled in this phase yet. Click below to add the first task.
                 </p>
-                <button
-                  type="button"
-                  className="tdp-add-subtask-btn"
-                  onClick={() => {
-                    setCreateTaskPhase(phase);
-                    setShowCreate(true);
-                  }}
-                  style={{ padding: '6px 16px', fontSize: '12px' }}
-                >
-                  + Add Task to {phase.split(' - ')[1] || phase}
-                </button>
+                {!isSelectedProjectCompleted && (
+                  <button
+                    type="button"
+                    className="tdp-add-subtask-btn"
+                    onClick={() => {
+                      setCreateTaskPhase(phase);
+                      setShowCreate(true);
+                    }}
+                    style={{ padding: '6px 16px', fontSize: '12px' }}
+                  >
+                    + Add Task to {phase.split(' - ')[1] || phase}
+                  </button>
+                )}
               </div>
             ) : (
               <table className="tasks-table">
@@ -1230,6 +1265,7 @@ export default function Tasks() {
                             task={task}
                             onAddSubtask={handleAddSubtask}
                             onDeleteSubtask={handleDeleteSubtask}
+                            isProjectCompleted={isProjectDone(task.project_id || task.project_code)}
                           />
                         )}
                       </Fragment>

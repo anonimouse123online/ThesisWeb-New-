@@ -4,11 +4,17 @@ export type StatusVariant =
   | 'planning'
   | 'pending'
   | 'delayed'
+  | 'locked'
   | 'neutral';
 
 export function getStatusVariant(status?: string): StatusVariant {
   if (!status) return 'neutral';
   const s = status.toLowerCase().trim();
+
+  // Locked
+  if (s === 'locked') {
+    return 'locked';
+  }
 
   // Completed / Resolved / Active / Available / In Stock
   if (

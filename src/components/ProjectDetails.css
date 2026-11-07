@@ -1489,6 +1489,206 @@
   display: inline-block;
 }
 
+/* Assignee Cell Interactive & Buttons */
+.pd-assignee-cell--clickable {
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: background-color 0.15s ease;
+}
+
+.pd-assignee-cell--clickable:hover {
+  background: #f1f5f9;
+}
+
+.pd-assignee-edit-icon {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  padding: 2px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 2px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.pd-assignee-cell--clickable:hover .pd-assignee-edit-icon {
+  opacity: 1;
+}
+
+.pd-assignee-edit-icon:hover {
+  color: #ea580c;
+}
+
+.pd-btn-assign-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: #fff7ed;
+  border: 1px dashed #fdba74;
+  color: #ea580c;
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pd-btn-assign-row:hover {
+  background: #ffedd5;
+  border-color: #ea580c;
+  transform: translateY(-1px);
+}
+
+/* Due Date Buttons */
+.pd-btn-date-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pd-btn-date-row--empty {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  color: #64748b;
+}
+
+.pd-btn-date-row--empty:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #334155;
+}
+
+.pd-btn-date-row--set {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  font-weight: 600;
+}
+
+.pd-btn-date-row--set:hover {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+}
+
+.pd-locked-icon {
+  display: inline-block;
+  margin-left: 6px;
+  color: #64748b;
+  vertical-align: middle;
+}
+
+.pd-turnover-locked-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid #64748b;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #475569;
+}
+
+/* Assign Engineer Modal List */
+.pd-assign-engineer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 380px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.pd-assign-engineer-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pd-assign-engineer-item:hover {
+  border-color: #fdba74;
+  background: #fff7ed;
+}
+
+.pd-assign-engineer-item--current {
+  border-color: #fed7aa;
+  background: #fffaf5;
+}
+
+.pd-current-tag {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.pd-btn-select-engineer {
+  padding: 5px 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: #0f172a;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.pd-btn-select-engineer:hover {
+  opacity: 0.9;
+}
+
+.pd-btn-assigned {
+  padding: 5px 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  cursor: default;
+}
+
+.pd-modal-close-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pd-modal-close-btn:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
 /* Task Percent Progress in Table */
 .pd-task-progress-cell {
   display: flex;
