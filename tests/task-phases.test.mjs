@@ -19,7 +19,7 @@ function moduleUrl(path, stubUseId = false) {
   return `data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`;
 }
 
-const { TASK_PHASE_CATEGORIES, getTaskPhases, formatTaskPhases, groupTasksByPhase, taskPhasePayload, taskPhaseRequiredMessage } =
+const { TASK_PHASE_CATEGORIES, CREATABLE_TASK_PHASE_CATEGORIES, getTaskPhases, formatTaskPhases, groupTasksByPhase, taskPhasePayload, taskPhaseRequiredMessage } =
   await import(moduleUrl(new URL('../src/utils/taskPhases.ts', import.meta.url)));
 const { default: TaskPhaseChecklist } = await import(moduleUrl(new URL('../src/components/TaskPhaseChecklist.tsx', import.meta.url)));
 
@@ -122,15 +122,15 @@ test('unknown and missing legacy phases stay visible without being falsely assig
   assert.equal(formatTaskPhases({}), 'Not specified');
 });
 
-test('checklist renders all seven categories as labeled native checkboxes with existing selections checked', () => {
+test('checklist renders creatable categories as labeled native checkboxes, excluding Turnover Phase', () => {
   const markup = renderToStaticMarkup(createElement(TaskPhaseChecklist, {
     value: ['Site Development', 'Structural'], onChange: () => assert.fail('Rendering must not change selection'),
   }));
   assert.match(markup, /<legend>Construction Phase Category \*<\/legend>/);
-  assert.equal((markup.match(/type="checkbox"/g) || []).length, 7);
+  assert.equal((markup.match(/type="checkbox"/g) || []).length, 6);
   assert.equal((markup.match(/checked=""/g) || []).length, 2);
-  for (const category of TASK_PHASE_CATEGORIES) assert.ok(markup.includes(category.replaceAll('&', '&amp;')), category);
-  assert.doesNotMatch(markup, /Foundation|Finishing|<select/);
+  for (const category of CREATABLE_TASK_PHASE_CATEGORIES) assert.ok(markup.includes(category.replaceAll('&', '&amp;')), category);
+  assert.doesNotMatch(markup, /Turnover Phase|Foundation|Finishing|<select/);
   const emptyMarkup = renderToStaticMarkup(createElement(TaskPhaseChecklist, { value: [], onChange() {} }));
   assert.doesNotMatch(emptyMarkup, /checked=""/);
 });

@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import './Dropdown.css';
-import { LayoutDashboard, FolderClosed, CheckSquare, Users, Settings, LogOut, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, FolderClosed, Users, Settings, LogOut, ChevronDown } from 'lucide-react';
 
 const BACKEND_URL = API_BASE_URL;
 
@@ -167,15 +167,6 @@ export const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
           >
             <FolderClosed size={16} />
             <span>Projects Hub</span>
-          </button>
-
-          <button
-            type="button"
-            className="sp-profile-action"
-            onClick={() => { setIsOpen(false); navigate('/tasks'); }}
-          >
-            <CheckSquare size={16} />
-            <span>Task Management</span>
           </button>
 
           <button

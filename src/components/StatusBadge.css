@@ -107,3 +107,26 @@
   display: inline-block;
   color: #64748b;
 }
+
+/* ── 8. Extended ── */
+.sp-status-badge--extended {
+  background-color: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+.sp-status-badge--extended .sp-status-badge__dot {
+  background-color: #2563eb;
+}
+.sp-status-badge--extended .sp-status-badge__icon {
+  flex-shrink: 0;
+  display: inline-block;
+  color: #2563eb;
+}
+
+/* ── Task Status Stack (for status cell with optional extended badge) ── */
+.sp-task-status-stack {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}

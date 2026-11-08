@@ -7,6 +7,10 @@ export interface WorkStatusFields {
   dueDate?: string | null;
   end_date?: string | null;
   endDate?: string | null;
+  original_due_date?: string | null;
+  originalDueDate?: string | null;
+  is_extended?: boolean;
+  isExtended?: boolean;
 }
 
 export interface SubTask extends WorkStatusFields {
@@ -94,4 +98,26 @@ export function getTaskProgress(task: WorkStatusFields & { subtasks?: SubTask[] 
     ? Math.round(subtasks.filter(isWorkCompleted).length / subtasks.length * 100)
     : (isWorkCompleted(task) ? 100 : 0);
   return getWorkProgress(task, legacyProgress);
+}
+
+export function isTaskExtended(item: WorkStatusFields): boolean {
+  const original = item.original_due_date || item.originalDueDate;
+  const current = item.due_date || item.dueDate || item.end_date || item.endDate;
+  if (!original || !current) return false;
+  const origStr = String(original).slice(0, 10);
+  const currStr = String(current).slice(0, 10);
+  // Extended ONLY when current due date is strictly after (>) the original given due date
+  return currStr > origStr;
+}
+
+export function getTaskExtensionDays(item: WorkStatusFields): number {
+  const original = item.original_due_date || item.originalDueDate;
+  const current = item.due_date || item.dueDate || item.end_date || item.endDate;
+  if (!original || !current) return 0;
+  const origStr = String(original).slice(0, 10);
+  const currStr = String(current).slice(0, 10);
+  const origTime = new Date(`${origStr}T00:00:00`).getTime();
+  const currTime = new Date(`${currStr}T00:00:00`).getTime();
+  if (isNaN(origTime) || isNaN(currTime) || currTime <= origTime) return 0;
+  return Math.round((currTime - origTime) / (1000 * 60 * 60 * 24));
 }

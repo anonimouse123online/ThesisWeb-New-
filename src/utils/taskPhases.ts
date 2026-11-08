@@ -8,6 +8,15 @@ export const TASK_PHASE_CATEGORIES = [
   'Turnover Phase',
 ] as const;
 
+export const CREATABLE_TASK_PHASE_CATEGORIES = [
+  'Site Development',
+  'Structural',
+  'Electrical & Utilities',
+  'Plumbing & MEP',
+  'Architectural',
+  'Construction Phase',
+] as const;
+
 export interface TaskPhaseFields {
   phase?: string | null;
   phases?: string[] | null;

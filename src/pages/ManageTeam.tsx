@@ -1,7 +1,6 @@
 import { getErrorMessage } from '../utils/errors';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import AddMemberModal from './add-member';
 import '../components/manage-team.css';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import ProfileDropdown from '../components/ProfileDropdown';
@@ -26,6 +25,17 @@ interface AvailableUser {
   role: string;
 }
 
+const ROLE_SUGGESTIONS = [
+  'Site Engineer',
+  'Project Engineer',
+  'Safety Officer',
+  'QA/QC Engineer',
+  'Lead Architect',
+  'MEP Coordinator',
+  'Structural Engineer',
+  'Foreman',
+];
+
 const ManageTeam: React.FC = () => {
   const { projectCode } = useParams<{ projectCode: string }>();
   const navigate = useNavigate();
@@ -37,13 +47,14 @@ const ManageTeam: React.FC = () => {
   const [searchQuery, setSearchQuery]             = useState('');
   const [loading, setLoading]                     = useState(true);
   const [error, setError]                         = useState<string | null>(null);
-  const [showAddModal, setShowAddModal]           = useState(false);
   const [showInviteModal, setShowInviteModal]     = useState(false);
   const [inviteCode, setInviteCode]               = useState<string | null>(null);
   const [inviteLoading, setInviteLoading]         = useState(false);
   const [copied, setCopied]                       = useState(false);
   const [removingId, setRemovingId]               = useState<string | null>(null);
-  const [addingId, setAddingId]                   = useState<string | null>(null);
+  const [roleModalUser, setRoleModalUser]         = useState<AvailableUser | null>(null);
+  const [memberRoleInput, setMemberRoleInput]     = useState<string>('');
+  const [submittingRole, setSubmittingRole]       = useState(false);
 
   // Read logged-in user from localStorage
   const storedUser = localStorage.getItem('user');
@@ -112,24 +123,42 @@ const ManageTeam: React.FC = () => {
     }
   };
 
-  // Add registered user directly to project
-  const handleAddDirect = async (user: AvailableUser) => {
-    setAddingId(user.id);
+  // Open role assignment modal when clicking "+ Add to Project"
+  const handleOpenRoleModal = (user: AvailableUser) => {
+    setRoleModalUser(user);
+    const sysRole = (user.role || '').toLowerCase();
+    const defaultRole = sysRole.includes('engineer')
+      ? 'Site Engineer'
+      : sysRole.includes('architect')
+        ? 'Lead Architect'
+        : sysRole.includes('admin')
+          ? 'Project Manager'
+          : user.role || 'Site Engineer';
+    setMemberRoleInput(defaultRole);
+  };
+
+  // Submit role and add user to project
+  const handleConfirmAddRole = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!roleModalUser) return;
+    const roleToAssign = memberRoleInput.trim() || roleModalUser.role || 'Member';
+    setSubmittingRole(true);
     try {
       const res = await fetchWithAuth(`${API_URL}/projects/${projectCode}/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id, role: user.role }),
+        body: JSON.stringify({ userId: roleModalUser.id, role: roleToAssign }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to add member');
 
-      showToast(`${user.name} added to project!`, 'success');
+      showToast(`${roleModalUser.name} added as ${roleToAssign}!`, 'success');
+      setRoleModalUser(null);
       await fetchRoster();
     } catch (err: unknown) {
       showToast(getErrorMessage(err, '') || 'Error adding member.', 'error');
     } finally {
-      setAddingId(null);
+      setSubmittingRole(false);
     }
   };
 
@@ -224,9 +253,6 @@ const ManageTeam: React.FC = () => {
         <div className="mt-actions-group">
           <button className="mt-invite-btn" onClick={handleOpenInviteModal} title="Generate or share invite code" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
             <UserPlus size={14} /> Invite Code
-          </button>
-          <button className="mt-add-btn" onClick={() => setShowAddModal(true)}>
-            + Add Member
           </button>
         </div>
       </div>
@@ -421,10 +447,10 @@ const ManageTeam: React.FC = () => {
                       <td style={{ textAlign: 'right' }}>
                         <button
                           className="mt-add-direct-btn"
-                          onClick={() => handleAddDirect(u)}
-                          disabled={addingId === u.id}
+                          onClick={() => handleOpenRoleModal(u)}
+                          disabled={submittingRole && roleModalUser?.id === u.id}
                         >
-                          {addingId === u.id ? 'Adding…' : '+ Add to Project'}
+                          + Add to Project
                         </button>
                       </td>
                     </tr>
@@ -436,13 +462,134 @@ const ManageTeam: React.FC = () => {
         )}
       </div>
 
-      {/* Add Member Modal */}
-      {showAddModal && projectCode && (
-        <AddMemberModal
-          projectCode={projectCode}
-          onClose={() => setShowAddModal(false)}
-          onAdded={fetchRoster}
-        />
+      {/* Role Assignment Modal when adding from Available Accounts */}
+      {roleModalUser && (
+        <div className="mt-overlay" onClick={() => !submittingRole && setRoleModalUser(null)}>
+          <div
+            className="mt-modal mt-modal--role"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="role-modal-title"
+          >
+            <div className="mt-modal-header">
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{
+                    width: '30px',
+                    height: '30px',
+                    borderRadius: '8px',
+                    background: '#fff7ed',
+                    border: '1px solid #ffedd5',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#ea580c',
+                  }}>
+                    <ShieldCheck size={17} />
+                  </div>
+                  <h2 className="mt-modal-title" id="role-modal-title">Assign Project Role</h2>
+                </div>
+                <p className="mt-modal-subtitle">Designate this member's project position and responsibility.</p>
+              </div>
+              <button
+                type="button"
+                className="mt-modal-close"
+                onClick={() => setRoleModalUser(null)}
+                aria-label="Close"
+                disabled={submittingRole}
+              >
+                <X size={15} />
+              </button>
+            </div>
+            <form onSubmit={handleConfirmAddRole}>
+              <div className="mt-modal-body">
+                {/* Member Preview Card */}
+                <div className="mt-role-user-card">
+                  <span
+                    className="mt-role-avatar"
+                    style={{ background: getAvatarColor(roleModalUser.name) }}
+                  >
+                    {getInitials(roleModalUser.name)}
+                  </span>
+                  <div className="mt-role-user-info">
+                    <span className="mt-role-user-name">{roleModalUser.name}</span>
+                    <span className="mt-role-user-email">{roleModalUser.email}</span>
+                  </div>
+                  <span className="mt-role-system-badge">
+                    {roleModalUser.role || 'Member'}
+                  </span>
+                </div>
+
+                {/* Role Input */}
+                <div className="mt-field">
+                  <label className="mt-label" htmlFor="member-role-input">
+                    Project Role / Position <span className="mt-required">*</span>
+                  </label>
+                  <input
+                    id="member-role-input"
+                    type="text"
+                    className="mt-role-input"
+                    placeholder="e.g. Site Engineer, Lead Architect, QA/QC Inspector..."
+                    value={memberRoleInput}
+                    onChange={(e) => setMemberRoleInput(e.target.value)}
+                    autoFocus
+                    required
+                  />
+                  <span className="mt-field-hint">
+                    This role will appear in the project roster, assignments, and reports.
+                  </span>
+                </div>
+
+                {/* Role Suggestions */}
+                <div className="mt-field">
+                  <span className="mt-suggestions-header">Quick Role Suggestions</span>
+                  <div className="mt-role-pills-wrap">
+                    {ROLE_SUGGESTIONS.map((role) => {
+                      const isSelected = memberRoleInput.trim().toLowerCase() === role.toLowerCase();
+                      return (
+                        <button
+                          key={role}
+                          type="button"
+                          className={`mt-role-pill-btn ${isSelected ? 'mt-role-pill-btn--active' : ''}`}
+                          onClick={() => setMemberRoleInput(role)}
+                        >
+                          {isSelected && <Check size={12} strokeWidth={2.5} />}
+                          {role}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-modal-footer">
+                <button
+                  type="button"
+                  className="mt-role-btn-cancel"
+                  onClick={() => setRoleModalUser(null)}
+                  disabled={submittingRole}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="mt-role-btn-submit"
+                  disabled={submittingRole || !memberRoleInput.trim()}
+                >
+                  {submittingRole ? (
+                    'Adding…'
+                  ) : (
+                    <>
+                      <UserPlus size={14} />
+                      + Add to Project
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* Invite Code Modal */}

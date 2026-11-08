@@ -8,7 +8,7 @@ import { formatCalendarDate, toDateInputValue } from '../utils/dates';
 import ProfileDropdown from '../components/ProfileDropdown';
 import StatusBadge from '../components/StatusBadge';
 import { SubtaskWorkSummary } from '../components/TaskWorkStatus';
-import { getWorkStatus, getTaskProgress, isWorkCompleted, type SubTask, type WorkStatusFields } from '../utils/taskWorkStatus';
+import { getWorkStatus, getTaskProgress, isWorkCompleted, isTaskExtended, getTaskExtensionDays, type SubTask, type WorkStatusFields } from '../utils/taskWorkStatus';
 import Dropdown from '../components/Dropdown';
 import { showToast } from '../utils/toast';
 import TaskPhaseChecklist from '../components/TaskPhaseChecklist';
@@ -472,7 +472,19 @@ const ProjectDetails: React.FC = () => {
       if (!res.ok) {
         throw new Error(data.error || data.message || 'Failed to update due date');
       }
-      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, due_date: dateValue } : t));
+      setTasks(prev => prev.map(t => {
+        if (t.id !== taskId) return t;
+        const currentDueDate = t.due_date ? String(t.due_date).slice(0, 10) : null;
+        const origDueDate = t.original_due_date ? String(t.original_due_date).slice(0, 10) : currentDueDate;
+        // Extended ONLY if new due date is strictly after (>) the original given due date
+        const isExtended = Boolean(origDueDate && dateValue > origDueDate);
+        return {
+          ...t,
+          original_due_date: origDueDate || dateValue,
+          due_date: dateValue,
+          is_extended: isExtended,
+        };
+      }));
       setDatePickerTask(null);
       showToast(`Due date saved: ${formatCalendarDate(dateValue)}`, 'success');
     } catch (err: any) {
@@ -838,10 +850,13 @@ const ProjectDetails: React.FC = () => {
 
   const handleOpenAddTaskModal = (phaseName?: string) => {
     if (isProjectCompleted) return;
+    const initialPhases = (phaseName && phaseName !== 'Turnover Phase')
+      ? getTaskPhases({ phase: phaseName }).filter(p => p !== 'Turnover Phase')
+      : [];
     setNewTaskForm(prev => ({
       ...prev,
       taskName: '',
-      phases: phaseName ? getTaskPhases({ phase: phaseName }) : [],
+      phases: initialPhases,
       startDate: '',
       dueDate: '',
       assigneeId: engineerMembers[0]?.id || '',
@@ -1543,6 +1558,7 @@ const ProjectDetails: React.FC = () => {
                   { value: 'Ongoing', label: 'Ongoing' },
                   { value: 'Completed', label: 'Completed' },
                   { value: 'Delayed', label: 'Delayed' },
+                  { value: 'Extended', label: 'Extended' },
                 ]}
                 value={taskStatusFilter}
                 onChange={setTaskStatusFilter}
@@ -1574,7 +1590,8 @@ const ProjectDetails: React.FC = () => {
               {Object.keys(tasksByPhase).map(phaseName => {
                 const phaseTasks = (tasksByPhase[phaseName] || []).filter(t => {
                   const matchSearch = !taskSearch || t.task_name.toLowerCase().includes(taskSearch.toLowerCase()) || (t.assignee && t.assignee.toLowerCase().includes(taskSearch.toLowerCase()));
-                  const matchStatus = taskStatusFilter === 'All' || getEffectiveTaskStatus(t).toLowerCase() === taskStatusFilter.toLowerCase();
+                  const matchStatus = taskStatusFilter === 'All' ||
+                    (taskStatusFilter.toLowerCase() === 'extended' ? isTaskExtended(t) : getEffectiveTaskStatus(t).toLowerCase() === taskStatusFilter.toLowerCase());
                   return matchSearch && matchStatus;
                 });
 
@@ -1592,7 +1609,7 @@ const ProjectDetails: React.FC = () => {
                           {completedInPhase} / {phaseTasks.length} completed
                         </span>
                       </div>
-                      {!isProjectCompleted && (
+                      {!isProjectCompleted && phaseName !== 'Turnover Phase' && (
                         <button
                           className="pd-btn-link"
                           onClick={() => handleOpenAddTaskModal(phaseName)}
@@ -1630,14 +1647,29 @@ const ProjectDetails: React.FC = () => {
                                     <td>
                                       <button
                                         className="pd-expand-btn"
-                                        onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
+                                        onClick={() => {
+                                          if (getEffectiveTaskStatus(task) === 'Locked') {
+                                            showToast('This Turnover task is locked until all other project tasks are completed.', 'warning');
+                                            return;
+                                          }
+                                          setExpandedTaskId(isExpanded ? null : task.id);
+                                        }}
                                         aria-label={isExpanded ? 'Collapse subtasks' : 'Expand subtasks'}
                                       >
                                         {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                                       </button>
                                     </td>
                                     <td>
-                                      <span className="pd-task-name" onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}>
+                                      <span
+                                        className="pd-task-name"
+                                        onClick={() => {
+                                          if (getEffectiveTaskStatus(task) === 'Locked') {
+                                            showToast('This Turnover task is locked until all other project tasks are completed.', 'warning');
+                                            return;
+                                          }
+                                          setExpandedTaskId(isExpanded ? null : task.id);
+                                        }}
+                                      >
                                         {task.task_name}
                                       </span>
                                       {getEffectiveTaskStatus(task) === 'Locked' && (
@@ -1748,7 +1780,16 @@ const ProjectDetails: React.FC = () => {
                                       })()}
                                     </td>
                                     <td className="pd-task-status-cell">
-                                      <StatusBadge status={getEffectiveTaskStatus(task)} />
+                                      <div className="pd-task-status-stack">
+                                        <StatusBadge status={getEffectiveTaskStatus(task)} />
+                                        {isTaskExtended(task) && (
+                                          <StatusBadge
+                                            status={getTaskExtensionDays(task) > 0 ? `Extended (+${getTaskExtensionDays(task)}d)` : 'Extended'}
+                                            variant="extended"
+                                            title={task.original_due_date ? `Due date extended from ${formatCalendarDate(task.original_due_date)} to ${formatCalendarDate(task.due_date)} (+${getTaskExtensionDays(task)}d)` : 'Due date extended'}
+                                          />
+                                        )}
+                                      </div>
                                     </td>
                                   </tr>
 

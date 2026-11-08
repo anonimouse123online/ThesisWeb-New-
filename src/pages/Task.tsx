@@ -311,7 +311,7 @@ const EMPTY_FORM = {
 function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: CreateTaskFormProps) {
   const [form, setForm] = useState({
     ...EMPTY_FORM,
-    phases: initialPhase ? getTaskPhases({ phase: initialPhase }) : [],
+    phases: (initialPhase && initialPhase !== 'Turnover Phase') ? getTaskPhases({ phase: initialPhase }).filter(p => p !== 'Turnover Phase') : [],
     projectId: initialProjectId || "",
   });
   const [loading, setLoading]                 = useState(false);
@@ -391,8 +391,8 @@ function CreateTaskForm({ initialPhase, initialProjectId, onClose, onCreated }: 
   }, [selectedProject]);
 
   useEffect(() => {
-    if (initialPhase) {
-      setForm((prev) => ({ ...prev, phases: getTaskPhases({ phase: initialPhase }) }));
+    if (initialPhase && initialPhase !== 'Turnover Phase') {
+      setForm((prev) => ({ ...prev, phases: getTaskPhases({ phase: initialPhase }).filter(p => p !== 'Turnover Phase') }));
     }
   }, [initialPhase]);
 
@@ -835,9 +835,16 @@ function EditTaskScheduleForm({ task, tasks, projects, onClose, onSaved }: {
       if (validation?.status === 'WARNING') showToast('Task schedule saved with warnings. Review the schedule.', 'warning');
       else if (validation?.status === 'INSUFFICIENT_DATA') showToast('Task schedule saved. More information is needed for full feasibility validation.', 'warning');
       else showToast('Task schedule updated.', 'success');
-      onSaved({ ...task, ...updated, start_date: updated.start_date ?? startDate,
-        due_date: updated.due_date ?? dueDate, estimated_duration_days: updated.estimated_duration_days ?? (durationDays ? Number(durationDays) : null),
-        predecessor_task_ids: updated.predecessor_task_ids ?? predecessorIds });
+      onSaved({
+        ...task,
+        ...updated,
+        original_due_date: updated.original_due_date ?? task.original_due_date ?? task.due_date,
+        is_extended: Boolean((updated.original_due_date ?? task.original_due_date ?? task.due_date?.slice(0, 10)) && (updated.due_date ?? dueDate)?.slice(0, 10) > (updated.original_due_date ?? task.original_due_date ?? task.due_date?.slice(0, 10))),
+        start_date: updated.start_date ?? startDate,
+        due_date: updated.due_date ?? dueDate,
+        estimated_duration_days: updated.estimated_duration_days ?? (durationDays ? Number(durationDays) : null),
+        predecessor_task_ids: updated.predecessor_task_ids ?? predecessorIds,
+      });
       onClose();
     } catch (caught) { setError(getErrorMessage(caught)); }
     finally { setSaving(false); }
@@ -1156,7 +1163,7 @@ export default function Tasks() {
                 <p style={{ margin: '0 0 12px', fontSize: '12px', color: '#64748b' }}>
                   No tasks scheduled in this phase yet. Click below to add the first task.
                 </p>
-                {!isSelectedProjectCompleted && (
+                {!isSelectedProjectCompleted && phase !== 'Turnover Phase' && (
                   <button
                     type="button"
                     className="tdp-add-subtask-btn"
@@ -1206,7 +1213,15 @@ export default function Tasks() {
                       <Fragment key={task.id}>
                         <tr
                           className={`tasks-tr${expandedIds.has(task.id) ? " tasks-tr--expanded" : ""}`}
-                          onClick={() => toggleExpand(task.id)}
+                          onClick={() => {
+                            const isLocked = (task.status || '').toLowerCase() === 'locked' ||
+                              ((task.phase || '').toLowerCase().includes('turnover') && (task.status || '').toLowerCase() === 'locked');
+                            if (isLocked) {
+                              showToast('This Turnover task is locked until all other project tasks are completed.', 'warning');
+                              return;
+                            }
+                            toggleExpand(task.id);
+                          }}
                         >
                           <td className="tasks-td tasks-td--toggle">
                             <span className={`tasks-chevron${expandedIds.has(task.id) ? " tasks-chevron--open" : ""}`}>›</span>

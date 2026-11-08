@@ -1824,6 +1824,13 @@
   white-space: nowrap;
 }
 
+.pd-task-status-stack {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
 .pd-task-table-dropdown .sp-dropdown-trigger {
   min-width: 110px;
   padding: 4px 10px;

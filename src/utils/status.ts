@@ -5,11 +5,17 @@ export type StatusVariant =
   | 'pending'
   | 'delayed'
   | 'locked'
+  | 'extended'
   | 'neutral';
 
 export function getStatusVariant(status?: string): StatusVariant {
   if (!status) return 'neutral';
   const s = status.toLowerCase().trim();
+
+  // Extended
+  if (s.includes('extended')) {
+    return 'extended';
+  }
 
   // Locked
   if (s === 'locked') {

@@ -19,6 +19,17 @@ interface AddMemberModalProps {
   onAdded: () => void; // refetch members after adding
 }
 
+const ROLE_SUGGESTIONS = [
+  'Site Engineer',
+  'Project Engineer',
+  'Safety Officer',
+  'QA/QC Engineer',
+  'Lead Architect',
+  'MEP Coordinator',
+  'Structural Engineer',
+  'Foreman',
+];
+
 const AddMemberModal: React.FC<AddMemberModalProps> = ({
   projectCode,
   onClose,
@@ -28,6 +39,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [roleInput, setRoleInput]   = useState<string>('');
   const [adding, setAdding]         = useState(false);
 
   // ── Fetch available users (not yet in this project) ──
@@ -59,6 +71,25 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
     return acc;
   }, {});
 
+  // ── Handle user selection ──
+  const handleSelectUser = (user: AvailableUser) => {
+    if (selectedId === user.id) {
+      setSelectedId(null);
+      setRoleInput('');
+    } else {
+      setSelectedId(user.id);
+      const sysRole = (user.role || '').toLowerCase();
+      const defaultRole = sysRole.includes('engineer')
+        ? 'Site Engineer'
+        : sysRole.includes('architect')
+          ? 'Lead Architect'
+          : sysRole.includes('admin')
+            ? 'Project Manager'
+            : user.role || 'Site Engineer';
+      setRoleInput(defaultRole);
+    }
+  };
+
   // ── Add selected user to project ──
   const handleAdd = async () => {
     if (!selectedId) return;
@@ -69,7 +100,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: selectedId }),
+          body: JSON.stringify({ userId: selectedId, role: roleInput.trim() }),
         }
       );
       const data = await res.json();
@@ -116,10 +147,9 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
                 {members.map((user) => (
                   <button
                     key={user.id}
+                    type="button"
                     className={`am-user-row ${selectedId === user.id ? 'am-user-row--selected' : ''}`}
-                    onClick={() =>
-                      setSelectedId((prev) => (prev === user.id ? null : user.id))
-                    }
+                    onClick={() => handleSelectUser(user)}
                   >
                     <span className="am-user-name">{user.name}</span>
                     <span className="am-user-email">{user.email}</span>
@@ -128,6 +158,53 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
                 ))}
               </div>
             ))
+          )}
+
+          {selectedId && (
+            <div style={{ marginTop: '16px', padding: '12px 14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
+                Project Role / Position <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Site Engineer, Lead Architect, QA/QC Inspector..."
+                value={roleInput}
+                onChange={(e) => setRoleInput(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: '8px',
+                  border: '1.5px solid #cbd5e1',
+                  fontSize: '13.5px',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '8px' }}>
+                {ROLE_SUGGESTIONS.map((role) => {
+                  const isSelected = roleInput.trim().toLowerCase() === role.toLowerCase();
+                  return (
+                    <button
+                      key={role}
+                      type="button"
+                      onClick={() => setRoleInput(role)}
+                      style={{
+                        fontSize: '11px',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        border: isSelected ? '1px solid #ea580c' : '1px solid #e2e8f0',
+                        background: isSelected ? '#fff7ed' : '#ffffff',
+                        color: isSelected ? '#c2410c' : '#475569',
+                        cursor: 'pointer',
+                        fontWeight: isSelected ? 700 : 500,
+                      }}
+                    >
+                      {role}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           )}
         </div>
 
@@ -139,7 +216,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
           <button
             className="am-btn-add"
             onClick={handleAdd}
-            disabled={!selectedId || adding}
+            disabled={!selectedId || !roleInput.trim() || adding}
           >
             {adding ? 'Adding…' : 'Add Member'}
           </button>

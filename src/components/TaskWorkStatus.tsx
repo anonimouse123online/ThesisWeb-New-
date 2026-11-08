@@ -1,9 +1,31 @@
 import StatusBadge from './StatusBadge';
-import { getWorkProgress, getWorkStatus, type WorkStatusFields } from '../utils/taskWorkStatus';
+import {
+  getWorkProgress,
+  getWorkStatus,
+  isTaskExtended,
+  getTaskExtensionDays,
+  type WorkStatusFields,
+} from '../utils/taskWorkStatus';
 import './TaskWorkStatus.css';
 
 export function TaskWorkStatusBadge({ item }: { item: WorkStatusFields }) {
-  return <StatusBadge status={getWorkStatus(item)} />;
+  const isExtended = isTaskExtended(item);
+  const extDays = getTaskExtensionDays(item);
+
+  if (!isExtended) {
+    return <StatusBadge status={getWorkStatus(item)} />;
+  }
+
+  return (
+    <div className="sp-task-status-stack">
+      <StatusBadge status={getWorkStatus(item)} />
+      <StatusBadge
+        status={extDays > 0 ? `Extended (+${extDays}d)` : 'Extended'}
+        variant="extended"
+        title={item.original_due_date ? `Due date extended from ${item.original_due_date} to ${item.due_date || item.dueDate}` : 'Due date extended'}
+      />
+    </div>
+  );
 }
 
 export function SubtaskWorkSummary({ subtask }: { subtask: WorkStatusFields }) {
