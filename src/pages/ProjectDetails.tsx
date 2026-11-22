@@ -791,10 +791,13 @@ const ProjectDetails: React.FC = () => {
     );
   };
 
-  const handleLocationPicked = (lat: number, lng: number) => {
+  const handleLocationPicked = (lat: number, lng: number, newRadius?: number) => {
     setGeofenceLat(lat.toFixed(7));
     setGeofenceLng(lng.toFixed(7));
-    showToast(`Updated site coordinates: ${lat.toFixed(6)}, ${lng.toFixed(6)}`, 'success');
+    if (newRadius) {
+      setGeofenceRadius(newRadius);
+    }
+    showToast(`Updated site location: ${lat.toFixed(6)}, ${lng.toFixed(6)}${newRadius ? ` (${newRadius}m radius)` : ''}`, 'success');
   };
 
   const handleTestGeofence = () => {
