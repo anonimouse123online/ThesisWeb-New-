@@ -1,5 +1,5 @@
-﻿import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight, Clock3, GitBranch, ListChecks, LockKeyhole, Rows3 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Activity, BarChart2, Calendar, CalendarDays, ChevronLeft, ChevronRight, Clock3, GitBranch, ListChecks, LockKeyhole, Printer, Rows3, TrendingDown, TrendingUp } from 'lucide-react';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import { getErrorMessage } from '../utils/errors';
 import { formatCalendarDate, toDateInputValue } from '../utils/dates';
@@ -9,7 +9,7 @@ import './Schedule.css';
 
 type Task = { id: string | number; task_name: string; start_date?: string; due_date?: string; status?: string; assignee?: string; description?: string; site_instructions?: string; progress_pct?: number; completion_percentage?: number; estimated_duration_days?: number | null; predecessor_task_ids?: string[]; project_id?: string | number; project_name?: string; project_code?: string; priority?: string; };
 type Project = { id: string | number; name: string; code?: string; start_date?: string; end_date?: string };
-type View = 'Gantt Chart' | 'Calendar' | 'Simulator' | 'Resource View';
+type View = 'Gantt Chart' | 'S-Curve' | 'Calendar' | 'Simulator' | 'Resource View';
 type ScenarioType = 'Task Date Change' | 'Task delay' | 'Additional manpower' | 'Overtime' | 'Material delay' | 'Weather delay' | 'Construction resequencing' | 'Combined recovery scenario';
 type EngineCapabilities = { available?: boolean; status?: string; scheduleRead?: boolean; taskDateSimulation?: boolean; dependencySimulation?: boolean; scenarioPersistence?: boolean; scenarioComparison?: boolean; changeApproval?: boolean; criticalPath?: boolean; manpowerSimulation?: boolean; overtimeSimulation?: boolean; materialDelaySimulation?: boolean; manualWeatherSimulation?: boolean; recovery?: { available?: boolean }; requiresScheduleVersion?: boolean; unavailableReason?: string | null };
 type EngineTask = { id: string; name: string; startDate: string; endDate: string; duration: number; progress: number; status?: string; totalFloat?: number; critical?: boolean; warnings?: string[] };
@@ -18,7 +18,7 @@ type EngineSchedule = { scheduleVersion: string; completionDate?: string | null;
 type EngineSimulation = { scenarioId: string; status: string; originalCompletion?: string; simulatedCompletion?: string; delayWorkingDays?: number | null; affectedTasks?: Array<Record<string, unknown>>; criticalPathBefore?: string[]; criticalPathAfter?: string[]; criticalPathChanges?: {added?: string[];removed?: string[]}; constraintWarnings?: Array<{message?: string}>; scheduleVersion: string; data?: { original?: EngineSchedule; proposed?: EngineSchedule; forecastCompletionDate?: string; durationDifferenceWorkingDays?: number | null; affectedTasks?: Array<Record<string, unknown>>; criticalPathChanges?: {added?: string[];removed?: string[]}; costImpact?: {status?: string;amount?: number|null;currency?: string|null}; explanations?: Array<Record<string, unknown>>; resourceResults?: Array<Record<string, unknown>> } };
 type SavedScenario = { id: string; name: string; scenario_type: string; status: string; forecast_completion_date?: string; created_at?: string; modification_reason?: string; task_id?: string; task_name?: string; working_day_difference?: number };
 type SavedBaseline = { id: string; version: number; project_completion_date?: string; approved_at?: string };
-const tabs: View[] = ['Gantt Chart', 'Calendar', 'Simulator', 'Resource View'];
+const tabs: View[] = ['Gantt Chart', 'S-Curve', 'Calendar', 'Simulator', 'Resource View'];
 const dayMs = 86400000;
 const parseDay = (value?: string) => { const normalized = toDateInputValue(value); return normalized ? new Date(`${normalized}T12:00:00`) : null; };
 const keyDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -47,6 +47,533 @@ function GanttDependencySvg({ tasks, axisStart, scale, unitWidth, selectedId }: 
     return from < 0 || !start || !end || !nextStart ? [] : [{ key: `${id}-${successor.id}`, from, to, x1: offset(end) + span(start, end), x2: offset(nextStart), selected: String(selectedId) === String(id) || String(selectedId) === String(successor.id) }];
   }));
   return <svg className="gantt-dependency-svg" width="100%" height={tasks.length * 59} aria-hidden="true"><defs><marker id="schedule-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#9aa8b1"/></marker><marker id="schedule-arrow-active" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#df793d"/></marker></defs>{edges.map(edge=>{const y1=edge.from*59+29,y2=edge.to*59+29,mid=(edge.x1+edge.x2)/2;return <path key={edge.key} d={`M ${edge.x1} ${y1} H ${mid} V ${y2} H ${edge.x2}`} fill="none" stroke={edge.selected?'#df793d':'#9aa8b1'} strokeWidth={edge.selected?2:1.4} markerEnd={edge.selected?'url(#schedule-arrow-active)':'url(#schedule-arrow)'}/>})}</svg>;
+}
+
+interface SCurvePoint {
+  date: Date;
+  dateKey: string;
+  label: string;
+  isToday: boolean;
+  isPastOrToday: boolean;
+  plannedPct: number;
+  actualPct: number | null;
+  variance: number | null;
+  spi: number | null;
+  status: 'ahead' | 'ontrack' | 'delayed' | 'planned';
+}
+
+function SCurveSection({
+  tasks,
+  project,
+  summaryStart,
+  summaryEnd,
+  labelDate,
+}: {
+  tasks: Task[];
+  project?: Project;
+  summaryStart: Date | null;
+  summaryEnd: Date | null;
+  labelDate: (value?: string | null) => string;
+}) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
+  const datedTasks = useMemo(() => tasks.filter(t => taskStart(t) && taskEnd(t)), [tasks]);
+
+  const sCurveData = useMemo(() => {
+    if (datedTasks.length === 0) return null;
+
+    const earliestDate = datedTasks.reduce<Date>((min, t) => {
+      const s = taskStart(t)!;
+      return s < min ? s : min;
+    }, taskStart(datedTasks[0])!);
+
+    const latestDate = datedTasks.reduce<Date>((max, t) => {
+      const e = taskEnd(t)!;
+      return e > max ? e : max;
+    }, taskEnd(datedTasks[0])!);
+
+    const pStart = summaryStart && summaryStart < earliestDate ? summaryStart : earliestDate;
+    const pEnd = summaryEnd && summaryEnd > latestDate ? summaryEnd : latestDate;
+    const totalDays = Math.max(1, daysBetween(pStart, pEnd) + 1);
+
+    const taskWeights = datedTasks.map(t => {
+      const s = taskStart(t)!;
+      const e = taskEnd(t)!;
+      const dur = Math.max(1, daysBetween(s, e) + 1);
+      const progress = getTaskProgress(t);
+      return { task: t, start: s, end: e, duration: dur, progress };
+    });
+
+    const totalDurationWeight = taskWeights.reduce((sum, item) => sum + item.duration, 0) || 1;
+
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+
+    const sampleCount = Math.min(24, Math.max(12, Math.floor(totalDays / 5)));
+    const step = Math.max(1, Math.floor(totalDays / (sampleCount - 1)));
+
+    const dateMap = new Map<string, Date>();
+    dateMap.set(keyDay(pStart), pStart);
+    dateMap.set(keyDay(pEnd), pEnd);
+
+    for (let i = 1; i < sampleCount - 1; i++) {
+      const sampleDate = addDays(pStart, i * step);
+      if (sampleDate < pEnd) {
+        dateMap.set(keyDay(sampleDate), sampleDate);
+      }
+    }
+
+    if (today >= pStart && today <= pEnd) {
+      dateMap.set(keyDay(today), today);
+    }
+
+    const sortedDates = Array.from(dateMap.values()).sort((a, b) => a.getTime() - b.getTime());
+
+    const points: SCurvePoint[] = sortedDates.map(date => {
+      const dKey = keyDay(date);
+      const isToday = dKey === keyDay(today);
+      const isPastOrToday = date <= today;
+
+      let plannedWeightedSum = 0;
+      for (const tw of taskWeights) {
+        let taskPlanned = 0;
+        if (date < tw.start) {
+          taskPlanned = 0;
+        } else if (date >= tw.end) {
+          taskPlanned = 100;
+        } else {
+          const elapsed = daysBetween(tw.start, date) + 1;
+          taskPlanned = Math.min(100, Math.max(0, (elapsed / tw.duration) * 100));
+        }
+        plannedWeightedSum += (tw.duration / totalDurationWeight) * taskPlanned;
+      }
+      const plannedPct = Math.min(100, Math.max(0, plannedWeightedSum));
+
+      let actualPct: number | null = null;
+      let variance: number | null = null;
+      let spi: number | null = null;
+      let status: 'ahead' | 'ontrack' | 'delayed' | 'planned' = 'planned';
+
+      if (isPastOrToday) {
+        let actualWeightedSum = 0;
+        for (const tw of taskWeights) {
+          let taskActual = 0;
+          if (date < tw.start) {
+            taskActual = 0;
+          } else if (isToday || date >= today) {
+            taskActual = tw.progress;
+          } else {
+            if (tw.progress > 0) {
+              const daysToToday = Math.max(1, daysBetween(tw.start, today) + 1);
+              const daysToDate = Math.max(1, daysBetween(tw.start, date) + 1);
+              taskActual = Math.min(tw.progress, (daysToDate / daysToToday) * tw.progress);
+            } else {
+              taskActual = 0;
+            }
+          }
+          actualWeightedSum += (tw.duration / totalDurationWeight) * taskActual;
+        }
+        actualPct = Math.min(100, Math.max(0, actualWeightedSum));
+        variance = actualPct - plannedPct;
+        spi = plannedPct > 0 ? actualPct / plannedPct : 1.0;
+
+        if (variance >= 1.0) status = 'ahead';
+        else if (variance >= -2.0) status = 'ontrack';
+        else status = 'delayed';
+      }
+
+      return {
+        date,
+        dateKey: dKey,
+        label: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        isToday,
+        isPastOrToday,
+        plannedPct,
+        actualPct,
+        variance,
+        spi,
+        status,
+      };
+    });
+
+    let currentPlanned = 0;
+    let currentActual = 0;
+    for (const tw of taskWeights) {
+      let tp = 0;
+      if (today < tw.start) tp = 0;
+      else if (today >= tw.end) tp = 100;
+      else tp = Math.min(100, Math.max(0, ((daysBetween(tw.start, today) + 1) / tw.duration) * 100));
+      currentPlanned += (tw.duration / totalDurationWeight) * tp;
+      currentActual += (tw.duration / totalDurationWeight) * tw.progress;
+    }
+    currentPlanned = Math.min(100, Math.max(0, currentPlanned));
+    currentActual = Math.min(100, Math.max(0, currentActual));
+
+    const currentVariance = currentActual - currentPlanned;
+    const currentSpi = currentPlanned > 0 ? currentActual / currentPlanned : 1.0;
+
+    return {
+      pStart,
+      pEnd,
+      today,
+      totalDays,
+      points,
+      currentPlanned,
+      currentActual,
+      currentVariance,
+      currentSpi,
+      totalTasks: datedTasks.length,
+      completedTasks: datedTasks.filter(t => getTaskProgress(t) === 100).length,
+      inProgressTasks: datedTasks.filter(t => {
+        const p = getTaskProgress(t);
+        return p > 0 && p < 100;
+      }).length,
+    };
+  }, [datedTasks, summaryStart, summaryEnd]);
+
+  if (!sCurveData || datedTasks.length === 0) {
+    return (
+      <section className="scurve-empty">
+        <BarChart2 size={44} color="#94a3b8" />
+        <h3>No Task Schedule Dates Recorded</h3>
+        <p>
+          The S-Curve requires tasks with valid start and finish dates to compute cumulative planned and actual progress. Add dates to your activities in this project to generate the Earned Value S-Curve.
+        </p>
+      </section>
+    );
+  }
+
+  const {
+    points,
+    today,
+    currentPlanned,
+    currentActual,
+    currentVariance,
+    currentSpi,
+    totalTasks,
+    completedTasks,
+  } = sCurveData;
+
+  const getX = (date: Date) => {
+    if (sCurveData.totalDays <= 0) return 55;
+    const elapsed = daysBetween(sCurveData.pStart, date);
+    const ratio = Math.max(0, Math.min(1, elapsed / sCurveData.totalDays));
+    return 55 + ratio * 910;
+  };
+
+  const getY = (pct: number) => {
+    const clamped = Math.max(0, Math.min(100, pct));
+    return 25 + 310 * (1 - clamped / 100);
+  };
+
+  const plannedPolyline = points.map(p => `${getX(p.date).toFixed(1)},${getY(p.plannedPct).toFixed(1)}`).join(' ');
+  const plannedArea = `55,335 ${plannedPolyline} ${getX(points[points.length - 1].date).toFixed(1)},335`;
+
+  const actualPoints = points.filter(p => p.actualPct !== null);
+  const actualPolyline = actualPoints.map(p => `${getX(p.date).toFixed(1)},${getY(p.actualPct!).toFixed(1)}`).join(' ');
+  const actualArea = actualPoints.length > 0 ? `${getX(actualPoints[0].date).toFixed(1)},335 ${actualPolyline} ${getX(actualPoints[actualPoints.length - 1].date).toFixed(1)},335` : '';
+
+  const todayX = getX(today);
+  const showTodayLine = todayX >= 55 && todayX <= 965;
+
+  const activePoint = hoveredIndex !== null && points[hoveredIndex] ? points[hoveredIndex] : points.find(p => p.isToday) || points[points.length - 1];
+
+  const overallStatus = currentVariance >= 1.0 ? 'Ahead of Schedule' : currentVariance >= -2.0 ? 'On Track' : 'Behind Schedule';
+  const overallStatusClass = currentVariance >= 1.0 ? 'ahead' : currentVariance >= -2.0 ? 'ontrack' : 'delayed';
+
+  return (
+    <section className="scurve-workspace">
+      {/* EVM KPI Cards */}
+      <div className="scurve-kpi-grid">
+        <article className="scurve-kpi-card">
+          <div className="scurve-kpi-header">
+            <span>Planned Progress (PV)</span>
+            <div className="scurve-kpi-icon planned">
+              <Calendar size={18} />
+            </div>
+          </div>
+          <div className="scurve-kpi-body">
+            <span className="scurve-kpi-value">{currentPlanned.toFixed(1)}%</span>
+            <span className="scurve-kpi-badge ontrack">Target</span>
+          </div>
+          <div className="scurve-kpi-footer">
+            Cumulative scheduled progress as of {labelDate(keyDay(today))}
+          </div>
+        </article>
+
+        <article className="scurve-kpi-card">
+          <div className="scurve-kpi-header">
+            <span>Actual Accomplished (EV)</span>
+            <div className="scurve-kpi-icon actual">
+              <BarChart2 size={18} />
+            </div>
+          </div>
+          <div className="scurve-kpi-body">
+            <span className="scurve-kpi-value">{currentActual.toFixed(1)}%</span>
+            <span className={`scurve-kpi-badge ${overallStatusClass}`}>
+              {completedTasks}/{totalTasks} Done
+            </span>
+          </div>
+          <div className="scurve-kpi-footer">
+            Cumulative physical completion earned to date
+          </div>
+        </article>
+
+        <article className="scurve-kpi-card">
+          <div className="scurve-kpi-header">
+            <span>Schedule Variance (SV)</span>
+            <div className={`scurve-kpi-icon variance-${currentVariance >= 0 ? 'ahead' : 'delayed'}`}>
+              {currentVariance >= 0 ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
+            </div>
+          </div>
+          <div className="scurve-kpi-body">
+            <span className={`scurve-kpi-value ${currentVariance >= 0 ? 'ahead' : 'delayed'}`}>
+              {currentVariance >= 0 ? '+' : ''}{currentVariance.toFixed(1)}%
+            </span>
+            <span className={`scurve-kpi-badge ${overallStatusClass}`}>
+              {overallStatus}
+            </span>
+          </div>
+          <div className="scurve-kpi-footer">
+            Earned Value vs. Planned Value differential
+          </div>
+        </article>
+
+        <article className="scurve-kpi-card">
+          <div className="scurve-kpi-header">
+            <span>Performance Index (SPI)</span>
+            <div className="scurve-kpi-icon spi">
+              <Activity size={18} />
+            </div>
+          </div>
+          <div className="scurve-kpi-body">
+            <span className="scurve-kpi-value">{currentSpi.toFixed(2)}</span>
+            <span className={`scurve-kpi-badge ${overallStatusClass}`}>
+              {currentSpi >= 1.0 ? 'Efficient' : 'Slippage'}
+            </span>
+          </div>
+          <div className="scurve-kpi-footer">
+            {currentSpi >= 1.0 ? 'Progressing at or above planned pace' : 'Schedule slippage detected; intervention advised'}
+          </div>
+        </article>
+      </div>
+
+      {/* S-Curve Interactive Chart Card */}
+      <div className="scurve-chart-card">
+        <header className="scurve-chart-toolbar">
+          <div className="scurve-chart-title">
+            <h2>Earned Value S-Curve Analysis</h2>
+            <p>
+              Cumulative Planned Value (PV) vs. Actual Earned Progress (EV) across {project?.name || 'All project tasks'}
+            </p>
+          </div>
+          <div className="scurve-chart-legend">
+            <div className="scurve-legend-item">
+              <span className="scurve-legend-line planned" />
+              <span>Planned Progress (PV)</span>
+            </div>
+            <div className="scurve-legend-item">
+              <span className="scurve-legend-line actual" />
+              <span>Actual Accomplishment (EV)</span>
+            </div>
+            {showTodayLine && (
+              <div className="scurve-legend-item">
+                <span className="scurve-legend-line today-marker" />
+                <span>Today (Data Date)</span>
+              </div>
+            )}
+            <button className="scurve-print-btn" onClick={() => window.print()} title="Print or export S-Curve report">
+              <Printer size={13} /> Export Report
+            </button>
+          </div>
+        </header>
+
+        {/* Milestone Inspector Banner */}
+        {activePoint && (
+          <div className="scurve-hover-inspector">
+            <div className="scurve-hover-date">
+              Milestone: {labelDate(activePoint.dateKey)} {activePoint.isToday && '(Today / Current)'}
+            </div>
+            <div className="scurve-hover-stat">
+              Planned (PV): <strong>{activePoint.plannedPct.toFixed(1)}%</strong>
+            </div>
+            <div className="scurve-hover-stat">
+              Actual (EV):{' '}
+              <strong>{activePoint.actualPct !== null ? `${activePoint.actualPct.toFixed(1)}%` : 'Pending (Future)'}</strong>
+            </div>
+            <div className="scurve-hover-stat">
+              Variance:{' '}
+              <strong style={{ color: activePoint.variance !== null && activePoint.variance >= 0 ? '#059669' : activePoint.variance !== null ? '#dc2626' : '#64748b' }}>
+                {activePoint.variance !== null ? `${activePoint.variance >= 0 ? '+' : ''}${activePoint.variance.toFixed(1)}%` : '—'}
+              </strong>
+            </div>
+            <div className="scurve-hover-stat">
+              SPI: <strong>{activePoint.spi !== null ? activePoint.spi.toFixed(2) : '—'}</strong>
+            </div>
+            <span className={`scurve-pill ${activePoint.status}`}>
+              {activePoint.status === 'ahead' ? 'Ahead' : activePoint.status === 'ontrack' ? 'On Track' : activePoint.status === 'delayed' ? 'Delayed' : 'Scheduled'}
+            </span>
+          </div>
+        )}
+
+        {/* SVG Curve */}
+        <div className="scurve-svg-container">
+          <svg viewBox="0 0 1000 380" aria-label="Earned Value S-Curve Graph">
+            <defs>
+              <linearGradient id="scurve-planned-gradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#4f46e5" stopOpacity="0.25" />
+                <stop offset="100%" stopColor="#4f46e5" stopOpacity="0.0" />
+              </linearGradient>
+              <linearGradient id="scurve-actual-gradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#ea580c" stopOpacity="0.30" />
+                <stop offset="100%" stopColor="#ea580c" stopOpacity="0.0" />
+              </linearGradient>
+            </defs>
+
+            {/* Grid Lines and Y-Axis Labels */}
+            {[0, 20, 40, 60, 80, 100].map(pct => {
+              const y = getY(pct);
+              return (
+                <g key={pct}>
+                  <line x1="55" y1={y} x2="965" y2={y} stroke="#e2e8f0" strokeDasharray={pct === 0 || pct === 100 ? undefined : '3,3'} strokeWidth={pct === 0 || pct === 100 ? '1.5' : '1'} />
+                  <text x="47" y={y + 4} fill="#82919c" fontSize="10" fontWeight="600" textAnchor="end">
+                    {pct}%
+                  </text>
+                </g>
+              );
+            })}
+
+            {/* Area Fills */}
+            <polygon points={plannedArea} fill="url(#scurve-planned-gradient)" />
+            {actualArea && <polygon points={actualArea} fill="url(#scurve-actual-gradient)" />}
+
+            {/* Today Line */}
+            {showTodayLine && (
+              <g>
+                <line x1={todayX} y1={25} x2={todayX} y2={335} stroke="#ea580c" strokeWidth="1.8" strokeDasharray="4,4" />
+                <rect x={todayX - 38} y={10} width="76" height="18" rx="4" fill="#ea580c" />
+                <text x={todayX} y={22} fill="#ffffff" fontSize="9" fontWeight="800" textAnchor="middle" letterSpacing="0.4">
+                  TODAY
+                </text>
+              </g>
+            )}
+
+            {/* Planned Line */}
+            <polyline points={plannedPolyline} fill="none" stroke="#4f46e5" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
+
+            {/* Actual Line */}
+            {actualPoints.length > 0 && (
+              <polyline points={actualPolyline} fill="none" stroke="#ea580c" strokeWidth="3.8" strokeLinecap="round" strokeLinejoin="round" />
+            )}
+
+            {/* Nodes and Hit Targets */}
+            {points.map((p, idx) => {
+              const cx = getX(p.date);
+              const cyPlanned = getY(p.plannedPct);
+              const cyActual = p.actualPct !== null ? getY(p.actualPct) : null;
+              const isHovered = hoveredIndex === idx;
+
+              return (
+                <g key={p.dateKey}>
+                  {/* Planned Node */}
+                  <circle cx={cx} cy={cyPlanned} r={isHovered ? 6 : p.isToday ? 5 : 3.5} fill="#4f46e5" stroke="#ffffff" strokeWidth="2" />
+
+                  {/* Actual Node */}
+                  {cyActual !== null && (
+                    <circle cx={cx} cy={cyActual} r={isHovered ? 7 : p.isToday ? 6 : 4} fill="#ea580c" stroke="#ffffff" strokeWidth="2.5" />
+                  )}
+
+                  {/* Highlight bar if hovered */}
+                  {isHovered && (
+                    <line x1={cx} y1={25} x2={cx} y2={335} stroke="#64748b" strokeWidth="1" strokeDasharray="2,2" opacity="0.7" />
+                  )}
+
+                  {/* Transparent hover hit target */}
+                  <rect
+                    x={cx - 15}
+                    y={25}
+                    width={30}
+                    height={310}
+                    fill="transparent"
+                    style={{ cursor: 'pointer' }}
+                    onMouseEnter={() => setHoveredIndex(idx)}
+                  />
+                </g>
+              );
+            })}
+
+            {/* X-Axis Milestone Dates */}
+            {points.filter((_, idx, arr) => {
+              if (idx === 0 || idx === arr.length - 1) return true;
+              const step = Math.max(2, Math.floor(arr.length / 7));
+              return idx % step === 0;
+            }).map(p => {
+              const x = getX(p.date);
+              return (
+                <g key={p.dateKey}>
+                  <line x1={x} y1="335" x2={x} y2="340" stroke="#cbd5e1" strokeWidth="1" />
+                  <text x={x} y="354" fill="#64748b" fontSize="9" fontWeight="600" textAnchor="middle">
+                    {p.label}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      </div>
+
+      {/* Milestone Progress Breakdown Table */}
+      <div className="scurve-table-card">
+        <header className="scurve-table-head">
+          <div>
+            <h3>Milestone Progress Breakdown</h3>
+            <span>Periodic tracking of Planned Value (PV) vs. Actual Earned Accomplishment (EV)</span>
+          </div>
+          <span className="scurve-pill ontrack">{points.length} Milestones Tracked</span>
+        </header>
+
+        <div className="scurve-table-scroll">
+          <table className="scurve-table">
+            <thead>
+              <tr>
+                <th>Milestone Date</th>
+                <th>Planned Progress (PV)</th>
+                <th>Actual Progress (EV)</th>
+                <th>Schedule Variance (SV)</th>
+                <th>SPI</th>
+                <th>Variance Assessment</th>
+              </tr>
+            </thead>
+            <tbody>
+              {points.map((p, idx) => (
+                <tr
+                  key={p.dateKey}
+                  className={p.isToday ? 'today-row' : ''}
+                  onMouseEnter={() => setHoveredIndex(idx)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <td>
+                    <strong>{labelDate(p.dateKey)}</strong> {p.isToday && <span className="scurve-pill ontrack">Data Date</span>}
+                  </td>
+                  <td>{p.plannedPct.toFixed(1)}%</td>
+                  <td>{p.actualPct !== null ? `${p.actualPct.toFixed(1)}%` : '—'}</td>
+                  <td style={{ color: p.variance !== null && p.variance >= 0 ? '#059669' : p.variance !== null ? '#dc2626' : 'inherit' }}>
+                    {p.variance !== null ? `${p.variance >= 0 ? '+' : ''}${p.variance.toFixed(1)}%` : '—'}
+                  </td>
+                  <td>{p.spi !== null ? p.spi.toFixed(2) : '—'}</td>
+                  <td>
+                    <span className={`scurve-pill ${p.status}`}>
+                      {p.status === 'ahead' ? 'Ahead of Schedule' : p.status === 'ontrack' ? 'On Track' : p.status === 'delayed' ? 'Delayed / Slippage' : 'Scheduled Future'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 export default function Schedule() {
@@ -228,7 +755,7 @@ export default function Schedule() {
   return <main className="main-content schedule-page">
     <header className="schedule-heading"><div><div className="schedule-eyebrow">PROJECT CONTROLS <span>/</span> PLANNING</div><h1>Schedule</h1><p>Coordinate site activities and track the critical path.</p></div><label className="schedule-project-select">Project<select value={projectId} onChange={e=>{setProjectId(e.target.value);setSelected(null);}}><option value="">All projects</option>{projects.map(p=><option key={p.id} value={p.id}>{p.code ? `${p.code} · ` : ''}{p.name}</option>)}</select></label></header>
     <section className="schedule-summary"><div className="schedule-project-mark"><CalendarDays size={20}/></div><div className="schedule-summary-name"><span>{project ? 'PROJECT SCHEDULE' : 'PORTFOLIO OVERVIEW'}</span><strong>{project?.name || 'All project schedules'}</strong></div><div className="schedule-summary-item"><span>{project ? 'PROJECT START' : 'EARLIEST TASK START'}</span><strong>{startDate || '—'}</strong></div><div className="schedule-summary-item"><span>{project ? 'TARGET COMPLETION' : 'LATEST TASK FINISH'}</span><strong>{endDate || '—'}</strong></div><div className="schedule-summary-item"><span>{project ? 'PROJECT DURATION' : 'SCHEDULE SPAN'}</span><strong>{duration ? `${duration} days` : '—'}</strong></div><div className="schedule-summary-status"><i/> {visibleTasks.length ? 'Schedule active' : 'No scheduled tasks'}</div></section>
-    <nav className="schedule-tabs" aria-label="Schedule views">{tabs.map(name=><button key={name} className={tab===name?'active':''} onClick={()=>setTab(name)}>{name==='Gantt Chart'?<Rows3 size={16}/>:name==='Calendar'?<CalendarDays size={16}/>:name==='Simulator'?<GitBranch size={16}/>:<ListChecks size={16}/>} {name}</button>)}</nav>
+    <nav className="schedule-tabs" aria-label="Schedule views">{tabs.map(name=><button key={name} className={tab===name?'active':''} onClick={()=>setTab(name)}>{name==='Gantt Chart'?<Rows3 size={16}/>:name==='S-Curve'?<TrendingUp size={16}/>:name==='Calendar'?<CalendarDays size={16}/>:name==='Simulator'?<GitBranch size={16}/>:<ListChecks size={16}/>} {name}</button>)}</nav>
     {loading ? <div className="schedule-state">Loading project schedule...</div> : error ? <div className="schedule-state error">{error}</div> : visibleTasks.length===0 ? <div className="schedule-state"><strong>No tasks to schedule yet</strong><span>Tasks with dates will appear here once they are added to this project.</span></div> : <>
       {tab==='Calendar' && <section className="schedule-card"><div className="schedule-toolbar"><div><h2>Project calendar</h2><span>{visibleTasks.length} activities</span></div><div className="schedule-controls"><button onClick={()=>changeCursor(-1)} aria-label="Previous period"><ChevronLeft/></button><strong>{title}</strong><button onClick={()=>changeCursor(1)} aria-label="Next period"><ChevronRight/></button><button className="today-button" onClick={()=>setCursor(new Date())}>Today</button><div className="view-switch">{(['Month','Week','Day'] as const).map(v=><button key={v} className={calendarView===v?'selected':''} onClick={()=>setCalendarView(v)}>{v}</button>)}</div></div></div>
         <div className={`schedule-calendar ${calendarView.toLowerCase()}`}><div className="calendar-weekdays">{(calendarView==='Day'?[cursor]:calendarDays.slice(0,7)).map(d=><div key={keyDay(d)}>{d.toLocaleDateString(undefined,{weekday:'short'})}<b>{calendarView==='Day'?d.toLocaleDateString(undefined,{month:'short',day:'numeric'}):''}</b></div>)}</div><div className="calendar-grid" style={{gridTemplateColumns:`repeat(${calendarDays.length},minmax(0,1fr))`}}>{calendarDays.map(day=>{const inMonth=day.getMonth()===cursor.getMonth();const today=keyDay(day)===keyDay(new Date());const items=visibleTasks.filter(t=>taskStart(t)&&taskEnd(t)&&taskStart(t)!<=day&&taskEnd(t)!>=day);return <div className={`calendar-cell ${!inMonth&&calendarView==='Month'?'outside':''} ${today?'today':''}`} key={keyDay(day)}><button className="calendar-date" onClick={()=>{setCursor(day);setCalendarView('Day');}}>{day.getDate()}</button>{items.map(t=><button key={t.id} className={`calendar-task ${statusClass(taskStatus(t))} ${String(selected)===String(t.id)?'is-selected':''} ${selected!==null&&related.has(String(t.id))?'is-related':''}`} onClick={()=>setSelected(t.id)} title={`${t.task_name}: ${labelDate(t.start_date)} – ${labelDate(t.due_date)}`}><i/><span>{t.task_name}</span></button>)}</div>})}</div></div>
@@ -237,6 +764,7 @@ export default function Schedule() {
       {tab==='Gantt Chart' && <section className="schedule-card"><div className="schedule-toolbar"><div><h2>Gantt timeline</h2><span>{dated.length} scheduled activities · {visibleTasks.length-dated.length} without dates</span></div><div className="schedule-controls"><button onClick={()=>setGanttCursor(d=>addDays(d,ganttScale==='Day'?-28:ganttScale==='Week'?-168:-730))} aria-label="Previous timeline">{'<'}</button><button onClick={()=>setGanttCursor(new Date())} className="today-button">Today</button><button onClick={()=>setGanttCursor(d=>addDays(d,ganttScale==='Day'?28:ganttScale==='Week'?168:730))} aria-label="Next timeline">{'>'}</button><div className="view-switch">{(['Day','Week','Month'] as const).map(s=><button key={s} className={ganttScale===s?'selected':''} onClick={()=>setGanttScale(s)}>{s}</button>)}</div><button onClick={()=>setZoom(z=>Math.max(18,z-4))} aria-label="Zoom out">-</button><span className="zoom-label">{zoom}px</span><button onClick={()=>setZoom(z=>Math.min(52,z+4))} aria-label="Zoom in">+</button></div></div>
       {dated.length===0 ? <div className="gantt-empty">No task dates are available for this schedule yet.</div> : (()=>{const unitDates=getScheduleTimelineUnits(ganttCursor,ganttScale);const unitWidth=zoom*(ganttScale==='Day'?1:ganttScale==='Week'?3:4);const axisStart=unitDates[0]||ganttCursor;const totalWidth=unitDates.length*unitWidth;const offset=(date:Date)=>ganttScale==='Day'?daysBetween(axisStart,date)*unitWidth:ganttScale==='Week'?Math.floor(daysBetween(axisStart,date)/7)*unitWidth:((date.getFullYear()-axisStart.getFullYear())*12+date.getMonth()-axisStart.getMonth())*unitWidth;const spanWidth=(a:Date,b:Date)=>Math.max(14, (ganttScale==='Day'?daysBetween(a,b)+1:ganttScale==='Week'?Math.floor(daysBetween(a,b)/7)+1:((b.getFullYear()-a.getFullYear())*12+b.getMonth()-a.getMonth())+1)*unitWidth-4);return <div className="gantt-layout"><div className="gantt-info"><div className="gantt-info-head"><span>ID</span><span>ACTIVITY</span><span>DUR.</span><span>PROGRESS</span></div>{visibleTasks.map(t=>{const a=taskStart(t),b=taskEnd(t),span=a&&b?daysBetween(a,b)+1:0;return <button key={t.id} className={`gantt-info-row ${String(selected)===String(t.id)?'is-selected':''} ${selected!==null&&related.has(String(t.id))?'is-related':''}`} onClick={()=>setSelected(t.id)}><span title={String(t.id)}>{String(t.id).slice(0,8)}</span><span><b>{t.task_name}</b><small>{a?keyDay(a):'No start'} · {b?keyDay(b):'No finish'}</small></span><span>{span?`${span}d`:'—'}</span><span>{getTaskProgress(t)}%</span></button>})}</div><div className="gantt-scroll"><div className="gantt-timeline" style={{'--unit-width':`${unitWidth}px`,width:`${totalWidth}px`} as React.CSSProperties}><div className="gantt-axis">{unitDates.map((d,i)=><div key={i} className={keyDay(d)===keyDay(new Date())?'today':''}><b>{ganttScale==='Month'?d.toLocaleDateString(undefined,{month:'short'}):ganttScale==='Week'?`W${Math.ceil(d.getDate()/7)}`:d.getDate()}</b><span>{ganttScale==='Day'?d.toLocaleDateString(undefined,{month:'short'}):d.getFullYear()}</span></div>)}</div><GanttDependencySvg tasks={ganttTasks} axisStart={axisStart} scale={ganttScale} unitWidth={unitWidth} selectedId={selected}/>{visibleTasks.map(t=>{const a=taskStart(t),b=taskEnd(t),pct=getTaskProgress(t);return <div className={`gantt-lane ${String(selected)===String(t.id)?'is-selected':''}`} key={t.id} onClick={()=>setSelected(t.id)}>{keyDay(new Date())>=keyDay(axisStart)&&keyDay(new Date())<keyDay(addDays(axisStart,ganttScale==='Day'?unitDates.length:ganttScale==='Week'?unitDates.length*7:900))&&<i className="gantt-today-line" style={{left:`${offset(new Date())+unitWidth/2}px`}}/>}{a&&b&&<button className={`gantt-bar ${statusClass(taskStatus(t))}`} style={{left:`${offset(a)}px`,width:`${spanWidth(a,b)}px`}} aria-label={`${t.task_name}, ${daysBetween(a,b)+1} days, ${pct}% complete`} title={`${t.task_name} · ${keyDay(a)} to ${keyDay(b)} · ${pct}%`} onClick={e=>{e.stopPropagation();setSelected(t.id);}}><i style={{width:`${pct}%`}}/><span>{daysBetween(a,b)>2?t.task_name:''}</span></button>}</div>})}</div></div></div>})()}
       <div className="schedule-footnote">Select an activity to inspect dependencies. Timeline includes surrounding dates; use the scale and navigation controls to explore longer schedules. Dependency data is shown in the activity panel when provided by the task API.</div></section>}
+      {tab==='S-Curve' && <SCurveSection tasks={visibleTasks} project={project} summaryStart={summaryStart} summaryEnd={summaryEnd} labelDate={labelDate}/>}
       {tab==='Simulator' && <section className={`simulator-workspace ${engineCapabilities?.available&&engineCapabilities.taskDateSimulation&&engineSchedule?'engine-ready':''}`}>
       {engineLoading ? <div className="simulator-diagnostic"><h2>Checking Smart Schedule Engine…</h2><p>Loading this project’s capabilities and current schedule version.</p></div> : engineError ? <div className="simulator-diagnostic error"><h2>Simulator connection failed</h2><p>{engineError}</p><button onClick={()=>setEngineReload(value=>value+1)}>Retry</button></div> : !projectId ? <div className="simulator-diagnostic"><h2>Select a project</h2><p>Choose one project to check its Smart Schedule Engine capabilities and schedule version.</p></div> : !engineCapabilities?.available ? <div className="simulator-diagnostic"><h2>Smart Schedule Engine unavailable</h2><p>{engineCapabilities?.unavailableReason||'The backend reports that this project does not have the required scheduling capabilities.'}</p><p>Capability status: {engineCapabilities?.status||'unknown'}. Check the project scheduling migration, then retry.</p><button onClick={()=>setEngineReload(value=>value+1)}>Retry</button></div> : !engineCapabilities?.taskDateSimulation ? <div className="simulator-diagnostic"><h2>Task simulation capability unavailable</h2><p>The backend did not enable task date simulation for this project.</p><button onClick={()=>setEngineReload(value=>value+1)}>Retry</button></div> : !engineSchedule ? <div className="simulator-diagnostic"><h2>Schedule data unavailable</h2><p>The engine is available, but the project schedule could not be loaded.</p><button onClick={()=>setEngineReload(value=>value+1)}>Retry</button></div> : null}
       <aside className="sim-task-list"><header><strong>Which activity needs a deadline adjustment?</strong><span>{engineSchedule?.tasks.length||0}</span></header><input aria-label="Search activities" value={activitySearch} onChange={e=>setActivitySearch(e.target.value)} placeholder="Search activity"/><div>{(engineSchedule?.tasks||[]).filter(task=>task.name.toLowerCase().includes(activitySearch.toLowerCase())||task.id.toLowerCase().includes(activitySearch.toLowerCase())).map(task=>{const source=visibleTasks.find(t=>String(t.id)===String(task.id));const depCount=engineSchedule?.dependencies.filter(d=>String(d.predecessorTaskId)===task.id||String(d.successorTaskId)===task.id).length||0;return <button key={task.id} className={String(selected)===task.id?'active':''} onClick={()=>setSelected(task.id)}><span><b title={task.id}>{task.id.slice(0,8)}</b><b title={task.name}>{task.name}</b></span><small>{labelDate(task.startDate)} → {labelDate(task.endDate)}</small><small>{task.duration} working days ? {task.progress}% · {source?getWorkStatus(source):task.status||'Unknown'} {depCount?`· ${depCount} dependencies`:''} {task.critical?'· Critical':''}</small></button>})}</div></aside><div className="simulator-main"><div className="simulator-workspace-head"><div><span className="detail-kicker">SCHEDULE DEADLINE PLANNING</span><h2>Smart Schedule Simulator</h2><p>Adjust an activity expected finish date and preview the project impact. Approved dates remain unchanged until approval.</p></div><span className="scenario-badge">DRAFT · NOT SIMULATED</span></div><ol className="deadline-steps" aria-label="Deadline adjustment steps"><li><b>1</b> Choose activity</li><li><b>2</b> Set new finish</li><li><b>3</b> Explain change</li><li><b>4</b> Preview impact</li></ol><div className="simulator-columns"><section className="sim-config"><h3>When should this activity finish?</h3><p className="deadline-intro">Adjust the expected finish and preview the project schedule impact.</p><label>Activity<select value={selected===null?'':String(selected)} onChange={e=>setSelected(e.target.value||null)}><option value="">Select an activity</option>{visibleTasks.map(t=><option key={t.id} value={String(t.id)}>{t.task_name} · {String(t.id).slice(0,8)}</option>)}</select></label>
@@ -261,7 +789,7 @@ export default function Schedule() {
 <section className="schedule-history"><h4>Schedule History</h4>{scheduleHistory.length===0?<small>No schedule history available.</small>:scheduleHistory.slice(0,8).map(item=><article key={String(item.id)}><b>{String(item.action||item.change_type||'Schedule change')}</b><small>{String(item.actor_name||item.actor_id||'User')} · {labelDate(String(item.created_at||''))}</small><span>{String(item.previous_start_date||'—')} → {String(item.new_start_date||'—')} · {String(item.reason||'')}</span></article>)}</section></aside></section>}
       {tab==='Resource View' && <section className="schedule-card"><div className="schedule-toolbar"><div><h2>Resource allocation</h2><span>Activities grouped by assigned team</span></div></div><div className="resource-list">{Array.from(new Set(visibleTasks.map(t=>t.assignee?.trim()||'Unassigned'))).map(person=><section key={person}><header><div className="resource-avatar">{person==='Unassigned'?'?':person.slice(0,1).toUpperCase()}</div><strong>{person}</strong><span>{visibleTasks.filter(t=>(t.assignee?.trim()||'Unassigned')===person).length} activities</span></header>{visibleTasks.filter(t=>(t.assignee?.trim()||'Unassigned')===person).map(t=><button key={t.id} onClick={()=>{setSelected(t.id);setTab('Gantt Chart')}}><b>{t.task_name}</b><span>{labelDate(t.start_date)} → {labelDate(t.due_date)}</span></button>)}</section>)}</div></section>}
     </>}
-    {chosen && tab!=='Simulator' && <aside className="schedule-quick-panel"><div className="quick-panel-head"><div><span className="detail-kicker">QUICK SIMULATOR · DRAFT</span><h2>{chosen.task_name}</h2><small title={String(chosen.id)}>ID {String(chosen.id).slice(0,8)}...</small></div><button className="detail-close" onClick={()=>setSelected(null)} aria-label="Close task simulator">x</button></div><div className="quick-task-facts"><span>{getWorkStatus(chosen)}</span><span>{getTaskProgress(chosen)}% complete</span><span>{taskStart(chosen)&&taskEnd(chosen)?`${daysBetween(taskStart(chosen)!,taskEnd(chosen)!)+1} days`:'Duration unavailable'}</span></div><div className="quick-date-facts"><span>Original start <b><LockKeyhole size={13}/> Locked</b><strong>{labelDate(lockedStartDate)}</strong></span><span>Current approved finish<strong>{labelDate(currentFinishDate)}</strong></span></div><label>New Expected Finish Date<input type="date" min={lockedStartDate||undefined} value={proposedEnd} onChange={e=>{setProposedEnd(e.target.value);setSimulation(null);}} disabled={getWorkStatus(chosen).toLowerCase()==='completed'}/></label>{proposedEnd&&proposedEnd<keyDay(new Date())&&<p className="date-warning" role="status">This date is in the past.</p>}{proposedEnd&&proposedEnd===currentFinishDate&&<p className="date-note">No deadline change has been proposed.</p>}<label>Reason category<select value={reasonCategory} onChange={e=>{setReasonCategory(e.target.value);setSimulation(null);}}>{['Material delivery delay','Weather interruption','Insufficient manpower','Equipment breakdown','Additional construction work','Client-requested change','Other'].map(reason=><option key={reason}>{reason}</option>)}</select></label><label>Modification reason <b>Required</b><textarea value={changeReason} onChange={e=>{setChangeReason(e.target.value);setSimulation(null);}} rows={3} placeholder="Reason for this proposed change" disabled={getWorkStatus(chosen).toLowerCase()==='completed'}/></label><label>Additional remarks<textarea value={changeRemarks} onChange={e=>{setChangeRemarks(e.target.value);setSimulation(null);}} rows={2} placeholder="Optional notes"/></label><div className="quick-dependencies"><strong>Dependencies</strong><span>{predecessors.length} predecessor · {successors.length} successor</span><button onClick={()=>setTab('Simulator')}>Open full simulator</button></div><p className="sim-unavailable">Draft values are separate from the approved schedule.</p><button className="sim-run" onClick={runSimulation} disabled={simulationLoading||!engineCapabilities?.taskDateSimulation||!chosen||!changeReason.trim()||proposedEnd===currentFinishDate||getWorkStatus(chosen).toLowerCase()==='completed'} title={!engineCapabilities?.taskDateSimulation?'Task simulation is unavailable for this project':proposedEnd===currentFinishDate?'Choose a different finish date':'Preview this proposal with the schedule engine'}>{simulationLoading?'Calculating impact…':'Preview Impact'}</button></aside>}
+    {chosen && tab!=='Simulator' && tab!=='S-Curve' && <aside className="schedule-quick-panel"><div className="quick-panel-head"><div><span className="detail-kicker">QUICK SIMULATOR · DRAFT</span><h2>{chosen.task_name}</h2><small title={String(chosen.id)}>ID {String(chosen.id).slice(0,8)}...</small></div><button className="detail-close" onClick={()=>setSelected(null)} aria-label="Close task simulator">x</button></div><div className="quick-task-facts"><span>{getWorkStatus(chosen)}</span><span>{getTaskProgress(chosen)}% complete</span><span>{taskStart(chosen)&&taskEnd(chosen)?`${daysBetween(taskStart(chosen)!,taskEnd(chosen)!)+1} days`:'Duration unavailable'}</span></div><div className="quick-date-facts"><span>Original start <b><LockKeyhole size={13}/> Locked</b><strong>{labelDate(lockedStartDate)}</strong></span><span>Current approved finish<strong>{labelDate(currentFinishDate)}</strong></span></div><label>New Expected Finish Date<input type="date" min={lockedStartDate||undefined} value={proposedEnd} onChange={e=>{setProposedEnd(e.target.value);setSimulation(null);}} disabled={getWorkStatus(chosen).toLowerCase()==='completed'}/></label>{proposedEnd&&proposedEnd<keyDay(new Date())&&<p className="date-warning" role="status">This date is in the past.</p>}{proposedEnd&&proposedEnd===currentFinishDate&&<p className="date-note">No deadline change has been proposed.</p>}<label>Reason category<select value={reasonCategory} onChange={e=>{setReasonCategory(e.target.value);setSimulation(null);}}>{['Material delivery delay','Weather interruption','Insufficient manpower','Equipment breakdown','Additional construction work','Client-requested change','Other'].map(reason=><option key={reason}>{reason}</option>)}</select></label><label>Modification reason <b>Required</b><textarea value={changeReason} onChange={e=>{setChangeReason(e.target.value);setSimulation(null);}} rows={3} placeholder="Reason for this proposed change" disabled={getWorkStatus(chosen).toLowerCase()==='completed'}/></label><label>Additional remarks<textarea value={changeRemarks} onChange={e=>{setChangeRemarks(e.target.value);setSimulation(null);}} rows={2} placeholder="Optional notes"/></label><div className="quick-dependencies"><strong>Dependencies</strong><span>{predecessors.length} predecessor · {successors.length} successor</span><button onClick={()=>setTab('Simulator')}>Open full simulator</button></div><p className="sim-unavailable">Draft values are separate from the approved schedule.</p><button className="sim-run" onClick={runSimulation} disabled={simulationLoading||!engineCapabilities?.taskDateSimulation||!chosen||!changeReason.trim()||proposedEnd===currentFinishDate||getWorkStatus(chosen).toLowerCase()==='completed'} title={!engineCapabilities?.taskDateSimulation?'Task simulation is unavailable for this project':proposedEnd===currentFinishDate?'Choose a different finish date':'Preview this proposal with the schedule engine'}>{simulationLoading?'Calculating impact…':'Preview Impact'}</button></aside>}
     {chosen && tab==='Simulator' && <aside className="schedule-detail"><div><div><span className="detail-kicker">ACTIVITY DETAILS</span><h2>{chosen.task_name}</h2></div><button className="detail-close" onClick={()=>setSelected(null)} aria-label="Close details">x</button></div><p>{chosen.description||chosen.site_instructions||'No task description provided.'}</p><div className="detail-stats"><span>Start<strong>{labelDate(chosen.start_date)}</strong></span><span>Finish<strong>{labelDate(chosen.due_date)}</strong></span><span>Duration<strong>{taskStart(chosen)&&taskEnd(chosen)?`${daysBetween(taskStart(chosen)!,taskEnd(chosen)!)+1} days`:'Not set'}</strong></span><span>Progress<strong>{getTaskProgress(chosen)}%</strong></span></div><div className="detail-status"><span className={`status-dot ${statusClass(taskStatus(chosen))}`}/>{taskStatus(chosen)} {chosen.priority==='High'&&<b>High priority</b>}</div><h3>Dependencies</h3>{predecessors.length||successors.length?<><div className="dependency-list">{predecessors.map(id=>{const t=visibleTasks.find(x=>String(x.id)===String(id));return <button key={id} onClick={()=>t&&setSelected(t.id)}><span>PREDECESSOR</span><b>{t?.task_name||`Task ${id}`}</b><small>{t?labelDate(t.due_date):'Date unavailable'}</small><i>→</i></button>})}{successors.map(t=><button key={t.id} onClick={()=>setSelected(t.id)}><span>SUCCESSOR</span><b>{t.task_name}</b><small>{labelDate(t.start_date)}</small><i>→</i></button>)}</div></>:<p className="dependency-none">No predecessor or successor relationships are recorded.</p>}<div className="detail-assignee"><Clock3 size={15}/><span>Assigned team</span><b>{chosen.assignee||'Not assigned'}</b></div></aside>}
   </main>;
 }

@@ -280,10 +280,10 @@
   margin: 0 0 12px;
 }
 
-/* Grid for manpower two-column */
+/* Grid for site conditions, recorded activity, and geofence alerts */
 .detail-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 8px 24px;
 }
 

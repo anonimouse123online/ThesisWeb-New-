@@ -16,6 +16,8 @@ interface RawLog {
   project_name?: string | null;
   engineer_name?: string | null;
   date?: string | null;
+  time_in?: string | null;
+  time_out?: string | null;
 
   work_on_site?: number | string | null;
   supervisors?: number | string | null;
@@ -47,6 +49,8 @@ interface LogEntry {
   engineerName: string;
 
   date: string;
+  timeIn?: string | null;
+  timeOut?: string | null;
   createdAt: string | null;
 
   phase: string | null;
@@ -168,26 +172,68 @@ const formatTime = (
 };
 
 const formatHours = (
-  value: number | string | null | undefined
+  value: number | string | null | undefined,
+  timeIn?: string | null,
+  timeOut?: string | null,
+  explicitDuration?: string | null
 ): string => {
-  if (
-    value === null ||
-    value === undefined ||
-    value === ""
-  ) {
+  // 1. Prioritize explicit duration tag if valid (e.g. from [Duration: 00h 02m 15s])
+  if (explicitDuration && explicitDuration.trim()) {
+    const trimmed = explicitDuration.trim();
+    if (/^\d{1,2}h\s*\d{1,2}m\s*\d{1,2}s$/i.test(trimmed)) {
+      return trimmed;
+    }
+  }
+
+  if (value === null || value === undefined || value === "") {
+    return "00h 00m 00s";
+  }
+
+  const text = String(value).trim();
+  if (!text || text === "—") {
     return "—";
   }
 
-  const text =
-    String(value).trim();
-
-  if (!text) {
-    return "—";
+  // 2. Check if already formatted as HHh MMm SSs (e.g. "00h 02m 15s", "1h 30m 45s")
+  const hmsMatch = text.match(/^(?:(\d+)\s*h(?:ours?)?)?\s*(?:(\d+)\s*m(?:in(?:utes?)?)?)?\s*(?:(\d+)\s*s(?:ec(?:onds?)?)?)?$/i);
+  if (hmsMatch && (hmsMatch[1] !== undefined || hmsMatch[2] !== undefined || hmsMatch[3] !== undefined)) {
+    const h = parseInt(hmsMatch[1] || "0", 10);
+    const m = parseInt(hmsMatch[2] || "0", 10);
+    const s = parseInt(hmsMatch[3] || "0", 10);
+    if (!isNaN(h) && !isNaN(m) && !isNaN(s) && (h > 0 || m > 0 || s > 0 || text.includes("00s") || text.includes("0s"))) {
+      return `${String(h).padStart(2, "0")}h ${String(m).padStart(2, "0")}m ${String(s).padStart(2, "0")}s`;
+    }
   }
 
-  return /h(ours?)?$/i.test(text)
-    ? text
-    : `${text}h`;
+  // 3. Check if formatted as HH:mm:ss
+  const colonMatch = text.match(/^(\d{1,2}):(\d{2}):(\d{2})$/);
+  if (colonMatch) {
+    const h = parseInt(colonMatch[1], 10);
+    const m = parseInt(colonMatch[2], 10);
+    const s = parseInt(colonMatch[3], 10);
+    return `${String(h).padStart(2, "0")}h ${String(m).padStart(2, "0")}m ${String(s).padStart(2, "0")}s`;
+  }
+
+  // 4. If timeIn and timeOut are identical (e.g. "02:17 PM" and "02:17 PM") and value is small (<= 0.1),
+  // this is a test shift where mobile clamped duration to 0.1 hrs
+  if (timeIn && timeOut && timeIn.trim().toLowerCase() === timeOut.trim().toLowerCase()) {
+    const num = parseFloat(text.replace(/[^0-9.]/g, ""));
+    if (!isNaN(num) && num <= 0.1) {
+      return "00h 00m 00s";
+    }
+  }
+
+  // 5. Numeric / decimal hours (e.g. "8", "8.5", "0.1", "0.1 hrs", "0.1 hrsh", "8 hrs")
+  const cleanNumeric = parseFloat(text.replace(/[^0-9.]/g, ""));
+  if (!isNaN(cleanNumeric) && isFinite(cleanNumeric)) {
+    const totalSeconds = Math.round(cleanNumeric * 3600);
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    return `${String(h).padStart(2, "0")}h ${String(m).padStart(2, "0")}m ${String(s).padStart(2, "0")}s`;
+  }
+
+  return text;
 };
 
 const formatTemperature = (
@@ -211,6 +257,152 @@ const formatTemperature = (
   return /°\s*c|celsius/i.test(text)
     ? text
     : `${text}°C`;
+};
+
+// ============================================================
+// LOG METADATA PARSER (Location, Geofencing, Offline Status)
+// ============================================================
+
+interface GeofenceAlertInfo {
+  leftTime: string;
+  returnTime: string;
+  duration?: string;
+}
+
+interface ParsedLogNotes {
+  location: string | null;
+  geofence: string | null;
+  isGeofenceVerified: boolean;
+  offlineRecord: string | null;
+  timeIn: string | null;
+  timeOut: string | null;
+  geofenceAlert: GeofenceAlertInfo | null;
+  geofenceAlerts: GeofenceAlertInfo[];
+  duration: string | null;
+  cleanNotes: string;
+}
+
+const parseLogNotes = (
+  rawNotes?: string | null,
+  fallbackTime?: string | null
+): ParsedLogNotes => {
+  if (!rawNotes) {
+    return {
+      location: null,
+      geofence: null,
+      isGeofenceVerified: false,
+      offlineRecord: null,
+      timeIn: null,
+      timeOut: null,
+      geofenceAlert: null,
+      geofenceAlerts: [],
+      duration: null,
+      cleanNotes: "",
+    };
+  }
+
+  let text = rawNotes;
+  let location: string | null = null;
+  let geofence: string | null = null;
+  let isGeofenceVerified = false;
+  let offlineRecord: string | null = null;
+  let timeIn: string | null = null;
+  let timeOut: string | null = null;
+  const geofenceAlerts: GeofenceAlertInfo[] = [];
+  let duration: string | null = null;
+
+  // Extract Duration: [Duration: ...]
+  const durationMatch = text.match(/\[Duration:\s*([^\]]+)\]/i);
+  if (durationMatch) {
+    duration = durationMatch[1].trim();
+    text = text.replace(durationMatch[0], "");
+  }
+
+  // Extract Time In: [Time In: ...]
+  const timeInMatch = text.match(/\[Time In:\s*([^\]]+)\]/i);
+  if (timeInMatch) {
+    timeIn = timeInMatch[1].trim();
+    text = text.replace(timeInMatch[0], "");
+  }
+
+  // Extract Time Out: [Time Out: ...]
+  const timeOutMatch = text.match(/\[Time Out:\s*([^\]]+)\]/i);
+  if (timeOutMatch) {
+    timeOut = timeOutMatch[1].trim();
+    text = text.replace(timeOutMatch[0], "");
+  }
+
+  // Extract all Geofence Alerts: [Geofence Alert: ...] or [Alert: ...]
+  const alertRegex = /\[(?:Geofence\s*)?Alert(?:\s*#?\d+)?:?\s*([^\]]+)\]/gi;
+  let alertExecMatch: RegExpExecArray | null;
+  while ((alertExecMatch = alertRegex.exec(text)) !== null) {
+    const rawAlertContent = alertExecMatch[1].trim();
+    const leftMatch = rawAlertContent.match(/left(?:\s*at|\s*zone)?[:\s]+([0-9]{1,2}:[0-9]{2}(?:\s*[AaPp][Mm])?)/i);
+    const returnMatch = rawAlertContent.match(/return(?:ed)?(?:\s*at|\s*to\s*(?:site|zone))?[:\s]+([0-9]{1,2}:[0-9]{2}(?:\s*[AaPp][Mm])?)/i);
+
+    const leftTime = leftMatch ? leftMatch[1].trim() : "";
+    const returnTime = returnMatch ? returnMatch[1].trim() : (rawAlertContent.toLowerCase().includes("outside") ? "Still Outside" : "—");
+
+    if (leftTime || returnTime !== "—") {
+      geofenceAlerts.push({
+        leftTime: leftTime || "Recorded Outside",
+        returnTime: returnTime,
+      });
+    } else {
+      geofenceAlerts.push({
+        leftTime: rawAlertContent,
+        returnTime: "—",
+      });
+    }
+  }
+  text = text.replace(alertRegex, "");
+
+  // Extract Offline Record: [Offline Record: ...]
+  const offlineMatch = text.match(/\[Offline Record:\s*([^\]]+)\]/i);
+  if (offlineMatch) {
+    const rawOffline = offlineMatch[1].trim();
+    if (rawOffline.toLowerCase() === "queued for sync") {
+      offlineRecord = fallbackTime ? `${fallbackTime} (Queued Offline)` : "Queued Offline";
+    } else {
+      offlineRecord = rawOffline.replace(/^recorded offline at\s*/i, "");
+    }
+    text = text.replace(offlineMatch[0], "");
+  }
+
+  // Extract Geofence: [Geofence: ...]
+  const geofenceMatch = text.match(/\[Geofence:\s*([^\]]+)\]/i);
+  if (geofenceMatch) {
+    geofence = geofenceMatch[1].trim();
+    isGeofenceVerified = geofence.toLowerCase().includes("verified");
+    text = text.replace(geofenceMatch[0], "");
+  }
+
+  // Extract Location: Location: ...
+  const locationMatch = text.match(/Location:\s*([^•\[]+)/i);
+  if (locationMatch) {
+    location = locationMatch[1].trim();
+    text = text.replace(locationMatch[0], "");
+  }
+
+  // Clean up notes: remove bullets, trim
+  const cleanNotes = text
+    .split("•")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join(" • ");
+
+  return {
+    location,
+    geofence,
+    isGeofenceVerified,
+    offlineRecord,
+    timeIn,
+    timeOut,
+    geofenceAlert: geofenceAlerts[0] || null,
+    geofenceAlerts,
+    duration,
+    cleanNotes,
+  };
 };
 
 // ============================================================
@@ -370,6 +562,14 @@ const TimeLog: React.FC = () => {
                 r.created_at
               ),
 
+            timeIn:
+              r.time_in?.trim() ||
+              null,
+
+            timeOut:
+              r.time_out?.trim() ||
+              null,
+
             createdAt:
               r.created_at ||
               null,
@@ -387,7 +587,9 @@ const TimeLog: React.FC = () => {
 
               totalWorkHours:
                 formatHours(
-                  r.total_work_hours
+                  r.total_work_hours,
+                  r.time_in,
+                  r.time_out
                 ),
             },
 
@@ -1320,6 +1522,19 @@ const TimeLog: React.FC = () => {
                                             log.progressPct
                                           );
 
+                                        const fallbackTimestamp = `${formatPrettyDate(
+                                          log.createdAt || log.date
+                                        )}${
+                                          log.createdAt
+                                            ? ` • ${formatTime(log.createdAt)}`
+                                            : ""
+                                        }`;
+
+                                        const meta = parseLogNotes(
+                                          log.additionalNotes,
+                                          fallbackTimestamp
+                                        );
+
                                         return (
                                           <div
                                             key={log.id}
@@ -1562,6 +1777,82 @@ const TimeLog: React.FC = () => {
                                                         {log.conditions.temperature}
                                                       </span>
                                                     </div>
+
+                                                    {/* Location */}
+                                                    {meta.location && (
+                                                      <div className="detail-row">
+                                                        <span className="detail-label">
+                                                          Location:
+                                                        </span>
+                                                        <span
+                                                          className="detail-value"
+                                                          style={{
+                                                            wordBreak: "break-word",
+                                                            fontSize: "12px",
+                                                          }}
+                                                        >
+                                                          {meta.location}
+                                                        </span>
+                                                      </div>
+                                                    )}
+
+                                                    {/* Geofencing */}
+                                                    {meta.geofence && (
+                                                      <div className="detail-row">
+                                                        <span className="detail-label">
+                                                          Geofencing:
+                                                        </span>
+                                                        <span className="detail-value">
+                                                          <span
+                                                            style={{
+                                                              display: "inline-block",
+                                                              padding: "2px 8px",
+                                                              borderRadius: "4px",
+                                                              fontSize: "11px",
+                                                              fontWeight: 600,
+                                                              background: meta.isGeofenceVerified
+                                                                ? "#ecfdf5"
+                                                                : "#fef2f2",
+                                                              color: meta.isGeofenceVerified
+                                                                ? "#065f46"
+                                                                : "#991b1b",
+                                                              border: `1px solid ${
+                                                                meta.isGeofenceVerified
+                                                                  ? "#a7f3d0"
+                                                                  : "#fecaca"
+                                                              }`,
+                                                            }}
+                                                          >
+                                                            {meta.geofence}
+                                                          </span>
+                                                        </span>
+                                                      </div>
+                                                    )}
+
+                                                    {/* Offline Record with timestamp - only displays if logged offline */}
+                                                    {meta.offlineRecord && (
+                                                      <div className="detail-row">
+                                                        <span className="detail-label">
+                                                          Offline Record:
+                                                        </span>
+                                                        <span className="detail-value">
+                                                          <span
+                                                            style={{
+                                                              display: "inline-block",
+                                                              padding: "2px 8px",
+                                                              borderRadius: "4px",
+                                                              fontSize: "11px",
+                                                              fontWeight: 600,
+                                                              background: "#fffbeb",
+                                                              color: "#92400e",
+                                                              border: "1px solid #fde68a",
+                                                            }}
+                                                          >
+                                                            {meta.offlineRecord}
+                                                          </span>
+                                                        </span>
+                                                      </div>
+                                                    )}
                                                   </div>
 
                                                   <div className="detail-col">
@@ -1598,12 +1889,219 @@ const TimeLog: React.FC = () => {
 
                                                     <div className="detail-row">
                                                       <span className="detail-label">
+                                                        Time In:
+                                                      </span>
+                                                      <span className="detail-value">
+                                                        {meta.timeIn || log.timeIn || "—"}
+                                                      </span>
+                                                    </div>
+
+                                                    <div className="detail-row">
+                                                      <span className="detail-label">
+                                                        Time Out:
+                                                      </span>
+                                                      <span className="detail-value">
+                                                        {meta.timeOut || log.timeOut || "—"}
+                                                      </span>
+                                                    </div>
+
+                                                    <div className="detail-row">
+                                                      <span className="detail-label">
                                                         Work Hours:
                                                       </span>
                                                       <span className="detail-value">
-                                                        {log.manpower.totalWorkHours}
+                                                        {formatHours(
+                                                          meta.duration || log.manpower.totalWorkHours,
+                                                          meta.timeIn || log.timeIn,
+                                                          meta.timeOut || log.timeOut,
+                                                          meta.duration
+                                                        )}
                                                       </span>
                                                     </div>
+                                                  </div>
+
+                                                  {/* GEOFENCE ALERT COLUMN (PERIMETER MONITORING) */}
+                                                  <div className="detail-col">
+                                                    <h4 className="section-title">
+                                                      <span
+                                                        style={{
+                                                          display: "inline-flex",
+                                                          alignItems: "center",
+                                                          gap: "6px",
+                                                          background: meta.geofenceAlerts.length > 0
+                                                            ? "#fee2e2"
+                                                            : "#f1f5f9",
+                                                          color: meta.geofenceAlerts.length > 0
+                                                            ? "#dc2626"
+                                                            : "#475569",
+                                                          padding: "2px 8px",
+                                                          borderRadius: "4px",
+                                                          fontSize: "12px",
+                                                          fontWeight: 800,
+                                                          border: `1px solid ${
+                                                            meta.geofenceAlerts.length > 0
+                                                              ? "#fca5a5"
+                                                              : "#cbd5e1"
+                                                          }`,
+                                                          letterSpacing: "0.5px",
+                                                        }}
+                                                      >
+                                                        ALERT
+                                                        {meta.geofenceAlerts.length > 0 && (
+                                                          <span
+                                                            style={{
+                                                              fontSize: "10px",
+                                                              fontWeight: 700,
+                                                              background: "#dc2626",
+                                                              color: "#ffffff",
+                                                              padding: "0 6px",
+                                                              borderRadius: "999px",
+                                                              minWidth: "16px",
+                                                              textAlign: "center",
+                                                              lineHeight: "16px",
+                                                            }}
+                                                          >
+                                                            {meta.geofenceAlerts.length}
+                                                          </span>
+                                                        )}
+                                                      </span>
+                                                    </h4>
+
+                                                    {meta.geofenceAlerts.length > 0 ? (
+                                                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                                                        {meta.geofenceAlerts.map((alert, idx) => (
+                                                          <div
+                                                            key={idx}
+                                                            style={{
+                                                              background: "#fff1f2",
+                                                              border: "1.5px solid #fecdd3",
+                                                              borderRadius: "8px",
+                                                              padding: "10px 12px",
+                                                              display: "flex",
+                                                              flexDirection: "column",
+                                                              gap: "4px",
+                                                            }}
+                                                          >
+                                                            <div
+                                                              style={{
+                                                                fontSize: "11px",
+                                                                fontWeight: 700,
+                                                                color: "#9f1239",
+                                                                textTransform: "uppercase",
+                                                                letterSpacing: "0.5px",
+                                                                display: "flex",
+                                                                justifyContent: "space-between",
+                                                                alignItems: "center",
+                                                              }}
+                                                            >
+                                                              <span>Outside Geofencing Zone</span>
+                                                              {meta.geofenceAlerts.length > 1 && (
+                                                                <span
+                                                                  style={{
+                                                                    fontSize: "10px",
+                                                                    fontWeight: 800,
+                                                                    color: "#9f1239",
+                                                                    background: "#ffe4e6",
+                                                                    border: "1px solid #fecdd3",
+                                                                    padding: "1px 6px",
+                                                                    borderRadius: "999px",
+                                                                  }}
+                                                                >
+                                                                  Incident #{idx + 1}
+                                                                </span>
+                                                              )}
+                                                            </div>
+
+                                                            <div className="detail-row" style={{ marginTop: "2px" }}>
+                                                              <span
+                                                                className="detail-label"
+                                                                style={{
+                                                                  color: "#be123c",
+                                                                  fontWeight: 600,
+                                                                  minWidth: "125px",
+                                                                }}
+                                                              >
+                                                                Left Geofence Zone:
+                                                              </span>
+                                                              <span
+                                                                className="detail-value"
+                                                                style={{
+                                                                  fontWeight: 700,
+                                                                  color: "#9f1239",
+                                                                }}
+                                                              >
+                                                                {alert.leftTime}
+                                                              </span>
+                                                            </div>
+
+                                                            <div className="detail-row">
+                                                              <span
+                                                                className="detail-label"
+                                                                style={{
+                                                                  color: "#047857",
+                                                                  fontWeight: 600,
+                                                                  minWidth: "125px",
+                                                                }}
+                                                              >
+                                                                Returned to Zone:
+                                                              </span>
+                                                              <span
+                                                                className="detail-value"
+                                                                style={{
+                                                                  fontWeight: 700,
+                                                                  color: "#065f46",
+                                                                }}
+                                                              >
+                                                                {alert.returnTime}
+                                                              </span>
+                                                            </div>
+
+                                                            {alert.duration && (
+                                                              <div
+                                                                style={{
+                                                                  fontSize: "10px",
+                                                                  color: "#881337",
+                                                                  marginTop: "2px",
+                                                                }}
+                                                              >
+                                                                Duration Outside: {alert.duration}
+                                                              </div>
+                                                            )}
+                                                          </div>
+                                                        ))}
+                                                      </div>
+                                                    ) : (
+                                                      <div
+                                                        style={{
+                                                          background: "#f8fafc",
+                                                          border: "1px solid #e2e8f0",
+                                                          borderRadius: "8px",
+                                                          padding: "10px 12px",
+                                                          display: "flex",
+                                                          flexDirection: "column",
+                                                          gap: "4px",
+                                                        }}
+                                                      >
+                                                        <div
+                                                          style={{
+                                                            fontSize: "11px",
+                                                            fontWeight: 600,
+                                                            color: "#166534",
+                                                          }}
+                                                        >
+                                                          • Monitored Shift
+                                                        </div>
+                                                        <div
+                                                          style={{
+                                                            fontSize: "11px",
+                                                            color: "#64748b",
+                                                            lineHeight: "15px",
+                                                          }}
+                                                        >
+                                                          No geofence violations detected. Engineer remained on-site during active work hours.
+                                                        </div>
+                                                      </div>
+                                                    )}
                                                   </div>
                                                 </div>
 
@@ -1661,7 +2159,7 @@ const TimeLog: React.FC = () => {
                                                   </h4>
 
                                                   <div className="detail-box">
-                                                    {log.additionalNotes}
+                                                    {meta.cleanNotes || "None"}
                                                   </div>
                                                 </div>
                                               </div>

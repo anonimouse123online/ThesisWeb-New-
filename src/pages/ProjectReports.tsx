@@ -74,6 +74,7 @@ interface ClientReportParsed {
   } | null;
   workProgress: string[];
   ongoingScope: string[];
+  siteNotes?: string[];
 }
 
 function AuthenticatedReportImage({ url, alt }: { url: string; alt: string }) {
@@ -114,11 +115,12 @@ const parseClientReport = (
     let date = '';
     let projectName = '';
     let location = '';
-    let currentSection: 'header' | 'manpower' | 'work_progress' | 'ongoing_scope' = 'header';
+    let currentSection: 'header' | 'manpower' | 'work_progress' | 'ongoing_scope' | 'site_notes' = 'header';
 
     const manpowerLines: string[] = [];
     const workProgressLines: string[] = [];
     const ongoingScopeLines: string[] = [];
+    const siteNotesLines: string[] = [];
 
     for (const raw of rawLines) {
       const line = raw.trim();
@@ -142,6 +144,24 @@ const parseClientReport = (
         currentSection = 'ongoing_scope';
         continue;
       }
+      if (
+        lower === 'site notes' ||
+        lower === 'site note' ||
+        lower === 'site observations' ||
+        lower === 'field notes' ||
+        lower.startsWith('site notes:') ||
+        lower.startsWith('site note:') ||
+        lower.startsWith('site observations:') ||
+        lower.startsWith('field notes:') ||
+        lower.startsWith('site notes -')
+      ) {
+        currentSection = 'site_notes';
+        const inline = line.replace(/^(site notes?|site observations|field notes)[:\-]?\s*/i, '').trim();
+        if (inline) {
+          siteNotesLines.push(inline);
+        }
+        continue;
+      }
 
       if (currentSection === 'header') {
         if (lower.startsWith('date:')) {
@@ -156,6 +176,24 @@ const parseClientReport = (
       } else if (currentSection === 'work_progress') {
         workProgressLines.push(line);
       } else if (currentSection === 'ongoing_scope') {
+        if (
+          lower === 'site notes' ||
+          lower === 'site note' ||
+          lower === 'site observations' ||
+          lower === 'field notes' ||
+          lower.startsWith('site notes:') ||
+          lower.startsWith('site note:') ||
+          lower.startsWith('site observations:') ||
+          lower.startsWith('field notes:')
+        ) {
+          currentSection = 'site_notes';
+          const inline = line.replace(/^(site notes?|site observations|field notes)[:\-]?\s*/i, '').trim();
+          if (inline) {
+            siteNotesLines.push(inline);
+          }
+          continue;
+        }
+
         let formattedLine = line;
         if (!formattedLine.includes('%')) {
           const cleanName = formattedLine.replace(/^[-•*]\s*/, '').trim();
@@ -171,11 +209,22 @@ const parseClientReport = (
             formattedLine = `${cleanName}: ${matched.progress}% Ongoing`;
           } else if (matched && matched.completed) {
             formattedLine = `${cleanName}: 100% Completed`;
-          } else if (report.task_progress_pct !== undefined && report.task_progress_pct !== null && !cleanName.toLowerCase().startsWith('general site')) {
+          } else if (
+            report.task_progress_pct !== undefined &&
+            report.task_progress_pct !== null &&
+            !cleanName.toLowerCase().startsWith('general site') &&
+            !cleanName.toLowerCase().startsWith('site note') &&
+            !cleanName.toLowerCase().startsWith('engineer note') &&
+            !cleanName.toLowerCase().startsWith('field note') &&
+            !cleanName.toLowerCase().startsWith('daily note') &&
+            !cleanName.toLowerCase().startsWith('observation')
+          ) {
             formattedLine = `${cleanName}: ${report.task_progress_pct}% Ongoing`;
           }
         }
         ongoingScopeLines.push(formattedLine);
+      } else if (currentSection === 'site_notes') {
+        siteNotesLines.push(line);
       }
     }
 
@@ -217,7 +266,8 @@ const parseClientReport = (
       location,
       manpower,
       workProgress: workProgressLines.length > 0 ? workProgressLines : ['Site Inspection: 100% Completed'],
-      ongoingScope: ongoingScopeLines.length > 0 ? ongoingScopeLines : ['General Site Operations']
+      ongoingScope: ongoingScopeLines.length > 0 ? ongoingScopeLines : ['General Site Operations'],
+      siteNotes: siteNotesLines.length > 0 ? siteNotesLines : undefined
     };
   }
 
@@ -791,6 +841,20 @@ const ProjectReports: React.FC = () => {
                       ))}
                     </div>
                   </section>
+
+                  {/* Site Notes section */}
+                  {doc.siteNotes && doc.siteNotes.length > 0 && (
+                    <section className="client-doc-section">
+                      <h2 className="client-doc-section-heading">Site Notes</h2>
+                      <div className="client-doc-list">
+                        {doc.siteNotes.map((item, idx) => (
+                          <div key={idx} className="client-doc-list-item" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                            {item}
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  )}
 
                   {/* Attachment note on Page 1 if images exist */}
                   {viewReport.images && viewReport.images.length > 0 && (

@@ -46,7 +46,11 @@ import {
   CalendarClock,
   Calendar,
   Lock,
-  Pencil
+  Pencil,
+  MapPin,
+  Crosshair,
+  Navigation,
+  Radio
 } from 'lucide-react';
 
 const API_URL = API_BASE_URL;
@@ -79,6 +83,10 @@ interface Project {
   project_type?: string;
   construction_method?: string;
   schedule_risk_level?: 'low' | 'moderate' | 'high' | 'critical' | null;
+  geofence_latitude?: number | string | null;
+  geofence_longitude?: number | string | null;
+  geofence_radius?: number | string | null;
+  geofence_enabled?: boolean | null;
 }
 
 interface TeamMember {
@@ -313,6 +321,16 @@ const ProjectDetails: React.FC = () => {
   const [dueDateDraft, setDueDateDraft] = useState('');
   const [dueDateReason, setDueDateReason] = useState('');
   const [savingDueDate, setSavingDueDate] = useState(false);
+
+  // Geofence States
+  const [geofenceLat, setGeofenceLat] = useState<string>('');
+  const [geofenceLng, setGeofenceLng] = useState<string>('');
+  const [geofenceRadius, setGeofenceRadius] = useState<number>(200);
+  const [geofenceEnabled, setGeofenceEnabled] = useState<boolean>(false);
+  const [savingGeofence, setSavingGeofence] = useState<boolean>(false);
+  const [isGettingLocation, setIsGettingLocation] = useState<boolean>(false);
+  const [geofenceTestResult, setGeofenceTestResult] = useState<{ isInside: boolean; message: string } | null>(null);
+  const [testingGeofence, setTestingGeofence] = useState<boolean>(false);
 
   // Tab Data States
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -696,6 +714,143 @@ const ProjectDetails: React.FC = () => {
     } finally {
       setSavingDueDate(false);
     }
+  };
+
+  // Sync geofence state from project
+  useEffect(() => {
+    if (project) {
+      setGeofenceLat(project.geofence_latitude != null ? String(project.geofence_latitude) : '');
+      setGeofenceLng(project.geofence_longitude != null ? String(project.geofence_longitude) : '');
+      setGeofenceRadius(project.geofence_radius != null ? Number(project.geofence_radius) : 200);
+      setGeofenceEnabled(Boolean(project.geofence_enabled));
+      setGeofenceTestResult(null);
+    }
+  }, [project?.id, project?.geofence_latitude, project?.geofence_longitude, project?.geofence_radius, project?.geofence_enabled]);
+
+  const handleSaveGeofence = async () => {
+    if (!project) return;
+    setSavingGeofence(true);
+    setGeofenceTestResult(null);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/projects/${project.code}/geofence`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          latitude: geofenceLat ? parseFloat(geofenceLat) : null,
+          longitude: geofenceLng ? parseFloat(geofenceLng) : null,
+          radius: Number(geofenceRadius) || 200,
+          enabled: geofenceEnabled,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('Site Geofence updated successfully!', 'success');
+        setProject(prev => prev ? {
+          ...prev,
+          geofence_latitude: data.data.geofence_latitude,
+          geofence_longitude: data.data.geofence_longitude,
+          geofence_radius: data.data.geofence_radius,
+          geofence_enabled: data.data.geofence_enabled,
+        } : prev);
+      } else {
+        showToast(data.message || 'Failed to update geofence.', 'error');
+      }
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err, 'Error updating geofence.'), 'error');
+    } finally {
+      setSavingGeofence(false);
+    }
+  };
+
+  const handleUseCurrentLocation = () => {
+    if (isGettingLocation) return;
+    if (!navigator.geolocation) {
+      showToast('Geolocation is not supported by this browser.', 'error');
+      return;
+    }
+    setIsGettingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsGettingLocation(false);
+        setGeofenceLat(pos.coords.latitude.toFixed(6));
+        setGeofenceLng(pos.coords.longitude.toFixed(6));
+        showToast(`Captured GPS: ${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`, 'success');
+      },
+      (err) => {
+        setIsGettingLocation(false);
+        const reason = err.code === 1
+          ? 'Location permission denied by browser settings.'
+          : err.code === 2
+          ? 'Browser location unavailable on this computer. You can enter site coordinates manually or use sample coordinates.'
+          : 'Location request timed out. Please enter coordinates manually.';
+        showToast(reason, 'error');
+      },
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+    );
+  };
+
+  const handleSetSampleCoordinates = () => {
+    setGeofenceLat('9.8822420');
+    setGeofenceLng('123.5995640');
+    showToast('Applied sample coordinates (9.8822420, 123.5995640)', 'info');
+  };
+
+  const handleTestGeofence = () => {
+    if (!project || testingGeofence) return;
+    if (!geofenceLat || !geofenceLng) {
+      showToast('Please enter site latitude and longitude first.', 'error');
+      return;
+    }
+    if (!navigator.geolocation) {
+      showToast('Geolocation is not supported by this browser.', 'error');
+      return;
+    }
+    setTestingGeofence(true);
+    setGeofenceTestResult(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const res = await fetchWithAuth(`${API_URL}/projects/${project.code}/geofence/verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+            }),
+          });
+          const data = await res.json();
+          if (res.ok && data.success && data.data) {
+            setGeofenceTestResult({
+              isInside: Boolean(data.data.is_inside),
+              message: data.data.message || 'Verified successfully'
+            });
+          } else {
+            setGeofenceTestResult({
+              isInside: false,
+              message: data.message || 'Verification failed.'
+            });
+          }
+        } catch (err: unknown) {
+          setGeofenceTestResult({
+            isInside: false,
+            message: `Verification error: ${getErrorMessage(err)}`
+          });
+        } finally {
+          setTestingGeofence(false);
+        }
+      },
+      (err) => {
+        setTestingGeofence(false);
+        const reason = err.code === 1
+          ? 'Location permission denied by browser.'
+          : err.code === 2
+          ? 'Browser GPS unavailable on this computer. Use Android phone to test on-site GPS verification.'
+          : 'Location request timed out.';
+        showToast(reason, 'error');
+      },
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+    );
   };
 
   // Add Subtask to Main Task in Table View
@@ -1530,6 +1685,265 @@ const ProjectDetails: React.FC = () => {
               <p style={{ fontSize: '14px', color: '#475569', lineHeight: '1.6' }}>{project.scope}</p>
             </div>
           )}
+
+          {/* Site Geofencing & Boundary Verification Module */}
+          <div className="pd-section-card" style={{ marginTop: '16px', background: '#ffffff', borderRadius: '14px', border: '1px solid #e2e8f0', padding: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: geofenceEnabled ? '#fff7ed' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: geofenceEnabled ? '#f15a24' : '#94a3b8' }}>
+                  <Radio size={22} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#1e293b' }}>
+                    Site Geofencing &amp; Boundary Verification
+                  </h3>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '13px', color: '#64748b' }}>
+                    Automatic site boundary verification for field attendance (Time-In/Out) and report submissions
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '4px 10px',
+                  borderRadius: '20px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  background: geofenceEnabled ? '#ecfdf5' : '#f1f5f9',
+                  color: geofenceEnabled ? '#059669' : '#64748b'
+                }}>
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: geofenceEnabled ? '#10b981' : '#94a3b8' }} />
+                  {geofenceEnabled ? 'Geofence Active' : 'Geofence Disabled'}
+                </span>
+
+                <label style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', gap: '6px', fontSize: '13px', fontWeight: 600, color: '#334155' }}>
+                  <input
+                    type="checkbox"
+                    checked={geofenceEnabled}
+                    onChange={(e) => setGeofenceEnabled(e.target.checked)}
+                    style={{ width: '18px', height: '18px', accentColor: '#f15a24', cursor: 'pointer' }}
+                  />
+                  Enable Restriction
+                </label>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>
+                  Site Center Latitude *
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    placeholder="e.g. 14.599512"
+                    value={geofenceLat}
+                    onChange={(e) => setGeofenceLat(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px 10px 36px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '14px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  <MapPin size={16} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>
+                  Site Center Longitude *
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    placeholder="e.g. 120.984222"
+                    value={geofenceLng}
+                    onChange={(e) => setGeofenceLng(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px 10px 36px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '14px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  <Crosshair size={16} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>
+                  Perimeter Radius (Meters) *
+                </label>
+                <select
+                  value={geofenceRadius}
+                  onChange={(e) => setGeofenceRadius(Number(e.target.value))}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '14px',
+                    outline: 'none',
+                    background: '#fff',
+                    boxSizing: 'border-box',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value={50}>50 meters (Compact Site)</option>
+                  <option value={100}>100 meters (Standard Lot)</option>
+                  <option value={200}>200 meters (Recommended)</option>
+                  <option value={350}>350 meters (Medium Compound)</option>
+                  <option value={500}>500 meters (Large Subdivision)</option>
+                  <option value={1000}>1,000 meters (Civil / Highway)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Verification Test Result Banner */}
+            {geofenceTestResult && (
+              <div style={{
+                marginBottom: '16px',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                fontSize: '13px',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                background: geofenceTestResult.isInside ? '#ecfdf5' : '#fef2f2',
+                color: geofenceTestResult.isInside ? '#065f46' : '#991b1b',
+                border: `1px solid ${geofenceTestResult.isInside ? '#a7f3d0' : '#fecaca'}`
+              }}>
+                {geofenceTestResult.isInside ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
+                <span>{geofenceTestResult.message}</span>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', paddingTop: '8px', borderTop: '1px solid #f1f5f9' }}>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={handleUseCurrentLocation}
+                  disabled={isGettingLocation}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    background: '#f8fafc',
+                    color: isGettingLocation ? '#94a3b8' : '#334155',
+                    border: '1px solid #cbd5e1',
+                    cursor: isGettingLocation ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  <Navigation size={14} color="#f15a24" />
+                  {isGettingLocation ? 'Capturing GPS...' : 'Use Current Location'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSetSampleCoordinates}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    background: '#f8fafc',
+                    color: '#334155',
+                    border: '1px solid #cbd5e1',
+                    cursor: 'pointer'
+                  }}
+                  title="Fills in sample site coordinates (14.599512, 120.984222)"
+                >
+                  <MapPin size={14} color="#6366f1" />
+                  Sample Coordinates
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleTestGeofence}
+                  disabled={testingGeofence || !geofenceLat || !geofenceLng}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    background: '#f8fafc',
+                    color: testingGeofence ? '#94a3b8' : '#334155',
+                    border: '1px solid #cbd5e1',
+                    cursor: testingGeofence ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  <Crosshair size={14} color="#059669" />
+                  {testingGeofence ? 'Testing GPS...' : 'Test Location Status'}
+                </button>
+
+                {geofenceLat && geofenceLng && (
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${geofenceLat},${geofenceLng}`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '8px 12px',
+                      fontSize: '12px',
+                      color: '#2563eb',
+                      textDecoration: 'none',
+                      fontWeight: 600
+                    }}
+                  >
+                    View on Google Maps ↗
+                  </a>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSaveGeofence}
+                disabled={savingGeofence}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '9px 20px',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  background: '#f15a24',
+                  color: '#ffffff',
+                  border: 'none',
+                  cursor: savingGeofence ? 'not-allowed' : 'pointer',
+                  opacity: savingGeofence ? 0.7 : 1
+                }}
+              >
+                <Check size={16} />
+                {savingGeofence ? 'Saving...' : 'Save Geofence Settings'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
