@@ -15,6 +15,7 @@ import TaskPhaseChecklist from '../components/TaskPhaseChecklist';
 import { TASK_PHASE_CATEGORIES, formatTaskPhases, getTaskPhases, groupTasksByPhase, taskPhasePayload, taskPhaseRequiredMessage, type TaskPhaseFields } from '../utils/taskPhases';
 import TaskScheduleFeedback from '../components/TaskScheduleFeedback';
 import AssigneeWorkloadAlert from '../components/AssigneeWorkloadAlert';
+import LocationPickerModal from '../components/LocationPickerModal';
 import { scheduleFieldMessage, scheduleMessage, scheduleValidationFromPayload, type ScheduleValidation } from '../utils/taskSchedule';
 import {
   LayoutDashboard,
@@ -331,6 +332,7 @@ const ProjectDetails: React.FC = () => {
   const [isGettingLocation, setIsGettingLocation] = useState<boolean>(false);
   const [geofenceTestResult, setGeofenceTestResult] = useState<{ isInside: boolean; message: string } | null>(null);
   const [testingGeofence, setTestingGeofence] = useState<boolean>(false);
+  const [showLocationPicker, setShowLocationPicker] = useState<boolean>(false);
 
   // Tab Data States
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -789,10 +791,10 @@ const ProjectDetails: React.FC = () => {
     );
   };
 
-  const handleSetSampleCoordinates = () => {
-    setGeofenceLat('9.8822420');
-    setGeofenceLng('123.5995640');
-    showToast('Applied sample coordinates (9.8822420, 123.5995640)', 'info');
+  const handleLocationPicked = (lat: number, lng: number) => {
+    setGeofenceLat(lat.toFixed(7));
+    setGeofenceLng(lng.toFixed(7));
+    showToast(`Updated site coordinates: ${lat.toFixed(6)}, ${lng.toFixed(6)}`, 'success');
   };
 
   const handleTestGeofence = () => {
@@ -1857,7 +1859,7 @@ const ProjectDetails: React.FC = () => {
 
                 <button
                   type="button"
-                  onClick={handleSetSampleCoordinates}
+                  onClick={() => setShowLocationPicker(true)}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -1867,14 +1869,15 @@ const ProjectDetails: React.FC = () => {
                     fontSize: '13px',
                     fontWeight: 600,
                     background: '#f8fafc',
-                    color: '#334155',
+                    color: '#0f172a',
                     border: '1px solid #cbd5e1',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
                   }}
-                  title="Fills in sample site coordinates (14.599512, 120.984222)"
+                  title="Open interactive map to choose site coordinates and view geofence boundary"
                 >
-                  <MapPin size={14} color="#6366f1" />
-                  Sample Coordinates
+                  <MapPin size={14} color="#f15a24" />
+                  Choose on Map
                 </button>
 
                 <button
@@ -3534,6 +3537,17 @@ const ProjectDetails: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* 5. Geofence Location Picker Map Modal */}
+      <LocationPickerModal
+        isOpen={showLocationPicker}
+        onClose={() => setShowLocationPicker(false)}
+        initialLat={geofenceLat}
+        initialLng={geofenceLng}
+        radiusMeters={geofenceRadius}
+        projectName={project?.name}
+        onConfirm={handleLocationPicked}
+      />
     </main>
   );
 };
