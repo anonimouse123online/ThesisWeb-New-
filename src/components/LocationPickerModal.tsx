@@ -13,13 +13,11 @@ import {
   Crosshair, 
   Satellite, 
   Globe, 
-  Sparkles,
-  Sliders,
-  Compass
+  Sliders
 } from 'lucide-react';
 import './LocationPickerModal.css';
 
-export type MapTileMode = 'satellite' | 'streets' | 'light' | 'dark';
+export type MapTileMode = 'satellite' | 'streets';
 
 interface LocationPickerModalProps {
   isOpen: boolean;
@@ -179,24 +177,6 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
         {
           maxZoom: 19,
           attribution: '&copy; OpenStreetMap contributors'
-        }
-      ).addTo(map);
-    } else if (mode === 'light') {
-      // CartoDB Positron (Architectural clean)
-      baseTileLayerRef.current = L.tileLayer(
-        'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-        {
-          maxZoom: 19,
-          attribution: '&copy; OpenStreetMap, &copy; CartoDB'
-        }
-      ).addTo(map);
-    } else if (mode === 'dark') {
-      // CartoDB Dark Matter (Command Center)
-      baseTileLayerRef.current = L.tileLayer(
-        'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-        {
-          maxZoom: 19,
-          attribution: '&copy; OpenStreetMap, &copy; CartoDB'
         }
       ).addTo(map);
     }
@@ -401,11 +381,6 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
     );
   };
 
-  // Preset Site Jumps
-  const handlePresetJump = (lat: number, lng: number) => {
-    panToCoords(lat, lng);
-  };
-
   const handleConfirm = () => {
     onConfirm(selectedLat, selectedLng, activeRadius);
     onClose();
@@ -512,27 +487,6 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
               {isGettingGPS ? <Loader2 size={12} className="animate-spin" /> : <Navigation size={12} color="#0284c7" />}
               My GPS
             </button>
-            <button
-              type="button"
-              className="lpm-chip"
-              onClick={() => handlePresetJump(9.882242, 123.599564)}
-            >
-              📍 Argao Site
-            </button>
-            <button
-              type="button"
-              className="lpm-chip"
-              onClick={() => handlePresetJump(10.315699, 123.885437)}
-            >
-              🏙️ Cebu City
-            </button>
-            <button
-              type="button"
-              className="lpm-chip"
-              onClick={() => handlePresetJump(14.599512, 120.984222)}
-            >
-              🏛️ Manila
-            </button>
           </div>
 
           {/* Search Dropdown Results */}
@@ -593,22 +547,6 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
             >
               <Globe size={13} />
               Streets
-            </button>
-            <button
-              type="button"
-              className={`lpm-layer-btn ${mapMode === 'light' ? 'active' : ''}`}
-              onClick={() => setTileMode('light')}
-            >
-              <Sparkles size={13} />
-              Clean Light
-            </button>
-            <button
-              type="button"
-              className={`lpm-layer-btn ${mapMode === 'dark' ? 'active' : ''}`}
-              onClick={() => setTileMode('dark')}
-            >
-              <Compass size={13} />
-              Dark HUD
             </button>
           </div>
 
