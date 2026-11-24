@@ -11,6 +11,8 @@ export interface WorkStatusFields {
   originalDueDate?: string | null;
   is_extended?: boolean;
   isExtended?: boolean;
+  modification_reason?: string | null;
+  modificationReason?: string | null;
 }
 
 export interface SubTask extends WorkStatusFields {
@@ -101,6 +103,14 @@ export function getTaskProgress(task: WorkStatusFields & { subtasks?: SubTask[] 
 }
 
 export function isTaskExtended(item: WorkStatusFields): boolean {
+  // If explicitly flagged as not extended, or if the task was moved/cascaded rather than extended
+  if (item.is_extended === false || item.isExtended === false) return false;
+  if (typeof item.modification_reason === 'string' && item.modification_reason.startsWith('Cascaded:')) {
+    return false;
+  }
+  if (typeof item.modificationReason === 'string' && item.modificationReason.startsWith('Cascaded:')) {
+    return false;
+  }
   const original = item.original_due_date || item.originalDueDate;
   const current = item.due_date || item.dueDate || item.end_date || item.endDate;
   if (!original || !current) return false;
@@ -111,6 +121,7 @@ export function isTaskExtended(item: WorkStatusFields): boolean {
 }
 
 export function getTaskExtensionDays(item: WorkStatusFields): number {
+  if (!isTaskExtended(item)) return 0;
   const original = item.original_due_date || item.originalDueDate;
   const current = item.due_date || item.dueDate || item.end_date || item.endDate;
   if (!original || !current) return 0;
