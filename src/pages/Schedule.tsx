@@ -7,7 +7,7 @@ import { getTaskProgress, getWorkStatus } from '../utils/taskWorkStatus';
 import { getScheduleTimelineUnits, projectTaskMatches } from '../utils/scheduleTimeline';
 import './Schedule.css';
 
-type Task = { id: string | number; task_name: string; start_date?: string; due_date?: string; status?: string; assignee?: string; description?: string; site_instructions?: string; progress_pct?: number; completion_percentage?: number; estimated_duration_days?: number | null; predecessor_task_ids?: string[]; project_id?: string | number; project_name?: string; project_code?: string; priority?: string; };
+type Task = { id: string | number; task_name: string; start_date?: string; due_date?: string; status?: string; assignee?: string; description?: string; site_instructions?: string; progress_pct?: number; completion_percentage?: number; estimated_duration_days?: number | null; predecessor_task_ids?: string[]; project_id?: string | number; project_name?: string; project_code?: string; priority?: string; created_at?: string; };
 type Project = { id: string | number; name: string; code?: string; start_date?: string; end_date?: string };
 type View = 'Gantt Chart' | 'S-Curve' | 'Calendar' | 'Simulator' | 'Resource View';
 type ScenarioType = 'Task Date Change' | 'Task delay' | 'Additional manpower' | 'Overtime' | 'Material delay' | 'Weather delay' | 'Construction resequencing' | 'Combined recovery scenario';
@@ -28,6 +28,19 @@ const taskStart = (t: Task) => parseDay(t.start_date) || parseDay(t.due_date);
 const taskEnd = (t: Task) => parseDay(t.due_date) || taskStart(t);
 const statusClass = (status: string) => status.toLowerCase().replace(/\s+/g, '-');
 
+function computeGanttEdgePath(x1: number, y1: number, x2: number, y2: number): string {
+  // If successor starts cleanly after predecessor finishes (with comfortable gap for arrow)
+  if (x2 >= x1 + 14) {
+    const midX = Math.round((x1 + x2) / 2);
+    return `M ${x1} ${y1} H ${midX} V ${y2} H ${x2}`;
+  }
+  // If successor starts before or very close to predecessor finish (loop around lanes)
+  const exitX = x1 + 10;
+  const entryX = x2 - 10;
+  const midY = y1 === y2 ? y1 - 24 : Math.round((y1 + y2) / 2);
+  return `M ${x1} ${y1} H ${exitX} V ${midY} H ${entryX} V ${y2} H ${x2}`;
+}
+
 function GanttDependencySvg({ tasks, axisStart, scale, unitWidth, selectedId }: { tasks: Task[]; axisStart: Date; scale: 'Day'|'Week'|'Month'; unitWidth: number; selectedId: string | number | null }) {
   const offset = (date: Date) => scale === 'Day'
     ? daysBetween(axisStart, date) * unitWidth
@@ -44,9 +57,41 @@ function GanttDependencySvg({ tasks, axisStart, scale, unitWidth, selectedId }: 
     const predecessor = tasks[from];
     const start = predecessor && taskStart(predecessor), end = predecessor && taskEnd(predecessor);
     const nextStart = taskStart(successor);
-    return from < 0 || !start || !end || !nextStart ? [] : [{ key: `${id}-${successor.id}`, from, to, x1: offset(end) + span(start, end), x2: offset(nextStart), selected: String(selectedId) === String(id) || String(selectedId) === String(successor.id) }];
+    return from < 0 || !start || !end || !nextStart ? [] : [{
+      key: `${id}-${successor.id}`,
+      from,
+      to,
+      x1: offset(start) + span(start, end),
+      x2: offset(nextStart),
+      selected: String(selectedId) === String(id) || String(selectedId) === String(successor.id)
+    }];
   }));
-  return <svg className="gantt-dependency-svg" width="100%" height={tasks.length * 59} aria-hidden="true"><defs><marker id="schedule-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#9aa8b1"/></marker><marker id="schedule-arrow-active" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#df793d"/></marker></defs>{edges.map(edge=>{const y1=edge.from*59+29,y2=edge.to*59+29,mid=(edge.x1+edge.x2)/2;return <path key={edge.key} d={`M ${edge.x1} ${y1} H ${mid} V ${y2} H ${edge.x2}`} fill="none" stroke={edge.selected?'#df793d':'#9aa8b1'} strokeWidth={edge.selected?2:1.4} markerEnd={edge.selected?'url(#schedule-arrow-active)':'url(#schedule-arrow)'}/>})}</svg>;
+  return (
+    <svg className="gantt-dependency-svg" width="100%" height={tasks.length * 59} aria-hidden="true">
+      <defs>
+        <marker id="schedule-arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+          <path d="M0,0.5 L5,3 L0,5.5 Z" fill="#9aa8b1"/>
+        </marker>
+        <marker id="schedule-arrow-active" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+          <path d="M0,0.5 L5,3 L0,5.5 Z" fill="#df793d"/>
+        </marker>
+      </defs>
+      {edges.map(edge => {
+        const y1 = edge.from * 59 + 29.5;
+        const y2 = edge.to * 59 + 29.5;
+        return (
+          <path
+            key={edge.key}
+            d={computeGanttEdgePath(edge.x1, y1, edge.x2, y2)}
+            fill="none"
+            stroke={edge.selected ? '#df793d' : '#9aa8b1'}
+            strokeWidth={edge.selected ? 2 : 1.5}
+            markerEnd={edge.selected ? 'url(#schedule-arrow-active)' : 'url(#schedule-arrow)'}
+          />
+        );
+      })}
+    </svg>
+  );
 }
 
 interface SCurvePoint {
@@ -645,7 +690,16 @@ export default function Schedule() {
     if (active) { setProjects(projectList); setTasks(taskList); }
   } catch (e) { if (active) setError(getErrorMessage(e)); } finally { if (active) setLoading(false); } })(); return () => { active = false; }; }, []);
 
-  const visibleTasks = useMemo(() => { const selectedProject=projects.find(p=>String(p.id)===projectId);return tasks.filter(t => projectTaskMatches(t, selectedProject)); }, [tasks, projectId, projects]);
+  const visibleTasks = useMemo(() => {
+    const selectedProject = projects.find(p => String(p.id) === projectId);
+    const filtered = tasks.filter(t => projectTaskMatches(t, selectedProject));
+    return [...filtered].sort((a, b) => {
+      const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+      if (aTime && bTime && aTime !== bTime) return aTime - bTime;
+      return 0;
+    });
+  }, [tasks, projectId, projects]);
   const project = projects.find(p => String(p.id) === projectId);
   const chosen = visibleTasks.find(t => String(t.id) === String(selected));
   const chosenEngineTask = engineSchedule?.tasks.find(task=>String(task.id)===String(chosen?.id));
