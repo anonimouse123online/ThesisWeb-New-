@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, BarChart2, Calendar, CalendarDays, ChevronLeft, ChevronRight, Clock3, GitBranch, ListChecks, LockKeyhole, Printer, Rows3, TrendingDown, TrendingUp } from 'lucide-react';
+import { Activity, ArrowRight, BarChart2, Calendar, CalendarDays, ChevronLeft, ChevronRight, Clock3, GitBranch, History, ListChecks, LockKeyhole, Printer, Rows3, TrendingDown, TrendingUp, User, X } from 'lucide-react';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import { getErrorMessage } from '../utils/errors';
 import { formatCalendarDate, toDateInputValue } from '../utils/dates';
@@ -654,6 +654,8 @@ export default function Schedule() {
   const [savedScenarios, setSavedScenarios] = useState<SavedScenario[]>([]);
   const [changeRequests, setChangeRequests] = useState<Array<Record<string, unknown>>>([]);
   const [scheduleHistory, setScheduleHistory] = useState<Array<Record<string, unknown>>>([]);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historySearch, setHistorySearch] = useState('');
   const [baselines, setBaselines] = useState<SavedBaseline[]>([]);
   const [recoveryResult, setRecoveryResult] = useState<Record<string, unknown> | null>(null);
   const [currentWorkers, setCurrentWorkers] = useState('');
@@ -806,10 +808,139 @@ export default function Schedule() {
   const simulateRecovery = async () => {if(!engineBase||!engineCapabilities?.recovery?.available||!simulation?.simulatedCompletion)return;const option=scenarioType==='Additional manpower'?{id:'crew-option',type:'MANPOWER_CHANGE',changes:[{taskId:String(chosen?.id),resourceAssumptions:{currentWorkers:Number(currentWorkers),proposedWorkers:Number(proposedWorkers),currentTeamOutputPerDay:Number(currentOutput),proposedTeamOutputPerDay:Number(proposedOutput),remainingQuantity:Number(remainingQuantity),laborCostPerWorkerDay:laborCostPerWorkerDay?Number(laborCostPerWorkerDay):undefined,currency:'PHP'}}]}:null;if(scenarioType==='Additional manpower'&&!currentWorkers||scenarioType==='Additional manpower'&&!proposedWorkers||scenarioType==='Additional manpower'&&!currentOutput||scenarioType==='Additional manpower'&&!proposedOutput||scenarioType==='Additional manpower'&&!remainingQuantity){setSimulationError('Enter measured crew and productivity assumptions before evaluating recovery.');return;}try{const response=await fetchWithAuth(`${engineBase}/recovery-options`,{method:'POST',body:JSON.stringify({forecastCompletionDate:simulation.simulatedCompletion,options:option?[option]:[]})});const payload=await readPayload(response);setRecoveryResult(payload.data);}catch(error){setSimulationError(error instanceof Error?error.message:'Recovery evaluation failed.');}};
   useEffect(()=>{const earliest=visibleTasks.map(taskStart).filter((d):d is Date=>Boolean(d)).sort((a,b)=>a.getTime()-b.getTime())[0];if(earliest)setGanttCursor(earliest);},[projectId,visibleTasks]);
 
+  const formatTimestamp = (iso?: string | null) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
+  const refreshHistory = async () => {
+    if (!project) return;
+    try {
+      const base = `${API_BASE_URL}/projects/${encodeURIComponent(project.code || String(project.id))}/schedule`;
+      const res = await fetchWithAuth(`${base}/history`);
+      if (res.ok) {
+        const payload = await res.json();
+        setScheduleHistory(Array.isArray(payload.data) ? payload.data : []);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  interface ScheduleHistoryItem {
+    id?: string;
+    request_id?: string | null;
+    action?: string | null;
+    reason?: string | null;
+    created_at?: string | null;
+    actor_id?: string | null;
+    actor_name?: string | null;
+    task_id?: string | null;
+    task_name?: string | null;
+    previous_start_date?: string | null;
+    previous_end_date?: string | null;
+    new_start_date?: string | null;
+    new_end_date?: string | null;
+    previous_duration?: number | null;
+    new_duration?: number | null;
+    dependency_changes?: unknown;
+  }
+
+  interface ScheduleHistoryGroup {
+    id: string;
+    timestamp: string;
+    actorName: string;
+    primaryReason: string;
+    primaryItem: ScheduleHistoryItem;
+    cascadedItems: ScheduleHistoryItem[];
+  }
+
+  const groupedHistory = useMemo(() => {
+    const items = [...scheduleHistory] as ScheduleHistoryItem[];
+    items.sort((a, b) => {
+      const tA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const tB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return tB - tA;
+    });
+
+    const groups: ScheduleHistoryGroup[] = [];
+    let currentGroup: ScheduleHistoryGroup | null = null;
+
+    for (const item of items) {
+      const itemTime = item.created_at ? new Date(item.created_at).getTime() : 0;
+      const isCascade = item.action === 'CASCADE_SCHEDULE_UPDATE';
+
+      if (currentGroup) {
+        const groupTime = currentGroup.primaryItem.created_at
+          ? new Date(currentGroup.primaryItem.created_at).getTime()
+          : 0;
+        const timeDiff = Math.abs(groupTime - itemTime);
+
+        if (timeDiff <= 3500 && (isCascade || item.action === currentGroup.primaryItem.action)) {
+          if (isCascade) {
+            currentGroup.cascadedItems.push(item);
+            continue;
+          }
+        }
+      }
+
+      currentGroup = {
+        id: item.id || String(Math.random()),
+        timestamp: item.created_at || '',
+        actorName: item.actor_name || 'System / User',
+        primaryReason: item.reason || (isCascade ? 'Automated schedule cascade' : 'Schedule modification'),
+        primaryItem: item,
+        cascadedItems: [],
+      };
+      groups.push(currentGroup);
+    }
+
+    if (!historySearch.trim()) return groups;
+    const q = historySearch.toLowerCase();
+    return groups.filter(g => {
+      const actorMatch = g.actorName.toLowerCase().includes(q);
+      const reasonMatch = g.primaryReason.toLowerCase().includes(q);
+      const primaryTaskMatch = (g.primaryItem.task_name || '').toLowerCase().includes(q);
+      const cascadedTaskMatch = g.cascadedItems.some(c => (c.task_name || '').toLowerCase().includes(q));
+      const actionMatch = (g.primaryItem.action || '').toLowerCase().includes(q);
+      return actorMatch || reasonMatch || primaryTaskMatch || cascadedTaskMatch || actionMatch;
+    });
+  }, [scheduleHistory, historySearch]);
+
   return <main className="main-content schedule-page">
     <header className="schedule-heading"><div><div className="schedule-eyebrow">PROJECT CONTROLS <span>/</span> PLANNING &amp; TIMELINES</div><h1>Project Controls</h1><p>Coordinate site activities, critical path, and S-Curve performance tracking.</p></div><label className="schedule-project-select">Project<select value={projectId} onChange={e=>{setProjectId(e.target.value);setSelected(null);}}><option value="">All projects</option>{projects.map(p=><option key={p.id} value={p.id}>{p.code ? `${p.code} · ` : ''}{p.name}</option>)}</select></label></header>
     <section className="schedule-summary"><div className="schedule-project-mark"><CalendarDays size={20}/></div><div className="schedule-summary-name"><span>{project ? 'PROJECT SCHEDULE' : 'PORTFOLIO OVERVIEW'}</span><strong>{project?.name || 'All project schedules'}</strong></div><div className="schedule-summary-item"><span>{project ? 'PROJECT START' : 'EARLIEST TASK START'}</span><strong>{startDate || '—'}</strong></div><div className="schedule-summary-item"><span>{project ? 'TARGET COMPLETION' : 'LATEST TASK FINISH'}</span><strong>{endDate || '—'}</strong></div><div className="schedule-summary-item"><span>{project ? 'PROJECT DURATION' : 'SCHEDULE SPAN'}</span><strong>{duration ? `${duration} days` : '—'}</strong></div><div className="schedule-summary-status"><i/> {visibleTasks.length ? 'Schedule active' : 'No scheduled tasks'}</div></section>
-    <nav className="schedule-tabs" aria-label="Schedule views">{tabs.map(name=><button key={name} className={tab===name?'active':''} onClick={()=>setTab(name)}>{name==='Gantt Chart'?<Rows3 size={16}/>:name==='S-Curve'?<TrendingUp size={16}/>:name==='Calendar'?<CalendarDays size={16}/>:name==='Simulator'?<GitBranch size={16}/>:<ListChecks size={16}/>} {name}</button>)}</nav>
+    <nav className="schedule-tabs" aria-label="Schedule views">
+      <div className="schedule-tabs-list">
+        {tabs.map(name => (
+          <button key={name} className={tab === name ? 'active' : ''} onClick={() => setTab(name)}>
+            {name === 'Gantt Chart' ? <Rows3 size={16} /> : name === 'S-Curve' ? <TrendingUp size={16} /> : name === 'Calendar' ? <CalendarDays size={16} /> : <ListChecks size={16} />} {name}
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        className="schedule-history-nav-btn"
+        onClick={() => {
+          setShowHistoryModal(true);
+          refreshHistory();
+        }}
+        title="Schedule Modification History"
+      >
+        <History size={16} />
+        <span>Schedule History</span>
+        {scheduleHistory.length > 0 && <span className="history-badge">{scheduleHistory.length}</span>}
+      </button>
+    </nav>
     {loading ? <div className="schedule-state">Loading project schedule...</div> : error ? <div className="schedule-state error">{error}</div> : visibleTasks.length===0 ? <div className="schedule-state"><strong>No tasks to schedule yet</strong><span>Tasks with dates will appear here once they are added to this project.</span></div> : <>
       {tab==='Calendar' && <section className="schedule-card"><div className="schedule-toolbar"><div><h2>Project calendar</h2><span>{visibleTasks.length} activities</span></div><div className="schedule-controls"><button onClick={()=>changeCursor(-1)} aria-label="Previous period"><ChevronLeft/></button><strong>{title}</strong><button onClick={()=>changeCursor(1)} aria-label="Next period"><ChevronRight/></button><button className="today-button" onClick={()=>setCursor(new Date())}>Today</button><div className="view-switch">{(['Month','Week','Day'] as const).map(v=><button key={v} className={calendarView===v?'selected':''} onClick={()=>setCalendarView(v)}>{v}</button>)}</div></div></div>
         <div className={`schedule-calendar ${calendarView.toLowerCase()}`}><div className="calendar-weekdays">{(calendarView==='Day'?[cursor]:calendarDays.slice(0,7)).map(d=><div key={keyDay(d)}>{d.toLocaleDateString(undefined,{weekday:'short'})}<b>{calendarView==='Day'?d.toLocaleDateString(undefined,{month:'short',day:'numeric'}):''}</b></div>)}</div><div className="calendar-grid" style={{gridTemplateColumns:`repeat(${calendarDays.length},minmax(0,1fr))`}}>{calendarDays.map(day=>{const inMonth=day.getMonth()===cursor.getMonth();const today=keyDay(day)===keyDay(new Date());const items=visibleTasks.filter(t=>taskStart(t)&&taskEnd(t)&&taskStart(t)!<=day&&taskEnd(t)!>=day);return <div className={`calendar-cell ${!inMonth&&calendarView==='Month'?'outside':''} ${today?'today':''}`} key={keyDay(day)}><button className="calendar-date" onClick={()=>{setCursor(day);setCalendarView('Day');}}>{day.getDate()}</button>{items.map(t=><button key={t.id} className={`calendar-task ${statusClass(taskStatus(t))} ${String(selected)===String(t.id)?'is-selected':''} ${selected!==null&&related.has(String(t.id))?'is-related':''}`} onClick={()=>setSelected(t.id)} title={`${t.task_name}: ${labelDate(t.start_date)} – ${labelDate(t.due_date)}`}><i/><span>{t.task_name}</span></button>)}</div>})}</div></div>
@@ -844,6 +975,158 @@ export default function Schedule() {
       {tab==='Resource View' && <section className="schedule-card"><div className="schedule-toolbar"><div><h2>Resource allocation</h2><span>Activities grouped by assigned team</span></div></div><div className="resource-list">{Array.from(new Set(visibleTasks.map(t=>t.assignee?.trim()||'Unassigned'))).map(person=><section key={person}><header><div className="resource-avatar">{person==='Unassigned'?'?':person.slice(0,1).toUpperCase()}</div><strong>{person}</strong><span>{visibleTasks.filter(t=>(t.assignee?.trim()||'Unassigned')===person).length} activities</span></header>{visibleTasks.filter(t=>(t.assignee?.trim()||'Unassigned')===person).map(t=><button key={t.id} onClick={()=>{setSelected(t.id);setTab('Gantt Chart')}}><b>{t.task_name}</b><span>{labelDate(t.start_date)} → {labelDate(t.due_date)}</span></button>)}</section>)}</div></section>}
     </>}
     {chosen && tab==='Simulator' && <aside className="schedule-detail"><div><div><span className="detail-kicker">ACTIVITY DETAILS</span><h2>{chosen.task_name}</h2></div><button className="detail-close" onClick={()=>setSelected(null)} aria-label="Close details">x</button></div><p>{chosen.description||chosen.site_instructions||'No task description provided.'}</p><div className="detail-stats"><span>Start<strong>{labelDate(chosen.start_date)}</strong></span><span>Finish<strong>{labelDate(chosen.due_date)}</strong></span><span>Duration<strong>{taskStart(chosen)&&taskEnd(chosen)?`${daysBetween(taskStart(chosen)!,taskEnd(chosen)!)+1} days`:'Not set'}</strong></span><span>Progress<strong>{getTaskProgress(chosen)}%</strong></span></div><div className="detail-status"><span className={`status-dot ${statusClass(taskStatus(chosen))}`}/>{taskStatus(chosen)} {chosen.priority==='High'&&<b>High priority</b>}</div><h3>Dependencies</h3>{predecessors.length||successors.length?<><div className="dependency-list">{predecessors.map(id=>{const t=visibleTasks.find(x=>String(x.id)===String(id));return <button key={id} onClick={()=>t&&setSelected(t.id)}><span>PREDECESSOR</span><b>{t?.task_name||`Task ${id}`}</b><small>{t?labelDate(t.due_date):'Date unavailable'}</small><i>→</i></button>})}{successors.map(t=><button key={t.id} onClick={()=>setSelected(t.id)}><span>SUCCESSOR</span><b>{t.task_name}</b><small>{labelDate(t.start_date)}</small><i>→</i></button>)}</div></>:<p className="dependency-none">No predecessor or successor relationships are recorded.</p>}<div className="detail-assignee"><Clock3 size={15}/><span>Assigned team</span><b>{chosen.assignee||'Not assigned'}</b></div></aside>}
+
+    {showHistoryModal && (
+      <div className="schedule-history-overlay" onClick={() => setShowHistoryModal(false)}>
+        <div className="schedule-history-modal" onClick={e => e.stopPropagation()}>
+          <div className="schedule-history-head">
+            <div>
+              <h2>
+                <History size={20} />
+                Schedule Modification History
+              </h2>
+              <p>
+                Audit log of schedule changes, modification reasons, and automatically affected connected tasks.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="schedule-history-close"
+              onClick={() => setShowHistoryModal(false)}
+              aria-label="Close history modal"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="schedule-history-toolbar">
+            <input
+              type="text"
+              className="schedule-history-search"
+              placeholder="Search by task name, reason, or team member..."
+              value={historySearch}
+              onChange={e => setHistorySearch(e.target.value)}
+            />
+            <button
+              type="button"
+              className="schedule-history-refresh-btn"
+              onClick={refreshHistory}
+            >
+              Refresh
+            </button>
+          </div>
+
+          <div className="schedule-history-body">
+            {!project ? (
+              <div className="schedule-history-empty">
+                <h3>Select a Project</h3>
+                <p>Please select a project from the top dropdown to inspect its schedule modification history.</p>
+              </div>
+            ) : groupedHistory.length === 0 ? (
+              <div className="schedule-history-empty">
+                <h3>No Schedule History Recorded</h3>
+                <p>
+                  {historySearch
+                    ? 'No modifications matched your search query.'
+                    : 'No schedule changes or adjustments have been recorded for this project yet.'}
+                </p>
+              </div>
+            ) : (
+              groupedHistory.map(group => {
+                const p = group.primaryItem;
+                const isDueDateUpdate = p.action === 'DUE_DATE_UPDATE';
+                const isCascade = p.action === 'CASCADE_SCHEDULE_UPDATE';
+
+                return (
+                  <div key={group.id} className="schedule-history-group">
+                    <div className="schedule-history-group-head">
+                      <div className="schedule-history-group-meta">
+                        <span>
+                          <User size={14} />
+                          <strong>{group.actorName}</strong>
+                        </span>
+                        <span>
+                          <Clock3 size={14} />
+                          {formatTimestamp(group.timestamp)}
+                        </span>
+                      </div>
+                      <span className={`schedule-history-badge ${isCascade ? 'cascaded' : 'primary'}`}>
+                        {p.action || 'SCHEDULE MODIFICATION'}
+                      </span>
+                    </div>
+
+                    {group.primaryReason && (
+                      <div className="schedule-history-reason-box">
+                        <div className="schedule-history-reason-label">Reason for Modification</div>
+                        <div className="schedule-history-reason-text">{group.primaryReason}</div>
+                      </div>
+                    )}
+
+                    <div className="schedule-history-tasks-section">
+                      <div className="schedule-history-primary-card">
+                        <div className="schedule-history-task-title">
+                          <span className="schedule-history-badge primary">Modified Task</span>
+                          <strong>{p.task_name || (p.task_id ? `Task #${String(p.task_id).slice(0, 8)}` : 'Project Schedule')}</strong>
+                        </div>
+
+                        <div className="schedule-history-dates">
+                          {isDueDateUpdate ? (
+                            <>
+                              <span className="old-date">{labelDate(p.previous_end_date)}</span>
+                              <ArrowRight size={14} />
+                              <span className="new-date">{labelDate(p.new_end_date)}</span>
+                            </>
+                          ) : p.new_start_date || p.new_end_date ? (
+                            <>
+                              <span className="old-date">
+                                {labelDate(p.previous_start_date)} - {labelDate(p.previous_end_date)}
+                              </span>
+                              <ArrowRight size={14} />
+                              <span className="new-date">
+                                {labelDate(p.new_start_date)} - {labelDate(p.new_end_date)}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="new-date">Updated</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {group.cascadedItems.length > 0 && (
+                        <div className="schedule-history-cascaded-list">
+                          <div className="schedule-history-cascaded-head">
+                            Connected Tasks Automatically Moved ({group.cascadedItems.length}):
+                          </div>
+                          {group.cascadedItems.map((cascaded, idx) => (
+                            <div key={cascaded.id || idx} className="schedule-history-cascaded-item">
+                              <div className="schedule-history-task-title">
+                                <span className="schedule-history-badge cascaded">Shifted</span>
+                                <strong>
+                                  {cascaded.task_name || `Task #${String(cascaded.task_id).slice(0, 8)}`}
+                                </strong>
+                              </div>
+                              <div className="schedule-history-dates">
+                                <span className="old-date">
+                                  {labelDate(cascaded.previous_start_date)} - {labelDate(cascaded.previous_end_date)}
+                                </span>
+                                <ArrowRight size={14} />
+                                <span className="new-date">
+                                  {labelDate(cascaded.new_start_date)} - {labelDate(cascaded.new_end_date)}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+    )}
   </main>;
 }
 
