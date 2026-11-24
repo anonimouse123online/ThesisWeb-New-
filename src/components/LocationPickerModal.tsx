@@ -87,23 +87,33 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
   const innerCircleRef = useRef<L.Circle | null>(null);
   const reverseGeocodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Sync state when modal opens
+  // Sync state when modal opens or coordinates change
   useEffect(() => {
     if (isOpen) {
       const initLat = typeof initialLat === 'number' 
         ? initialLat 
-        : parseFloat(initialLat || '') || defaultLat;
+        : parseFloat(String(initialLat || '')) || defaultLat;
       const initLng = typeof initialLng === 'number' 
         ? initialLng 
-        : parseFloat(initialLng || '') || defaultLng;
+        : parseFloat(String(initialLng || '')) || defaultLng;
+      const initRadius = typeof radiusMeters === 'number' && radiusMeters > 0 ? radiusMeters : 200;
       setSelectedLat(initLat);
       setSelectedLng(initLng);
-      const initRadius = typeof radiusMeters === 'number' && radiusMeters > 0 ? radiusMeters : 200;
       setActiveRadius(initRadius);
+
+      // Relocate map center, surveyor marker, and geofence rings immediately if map is active
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.setView([initLat, initLng], 17);
+      }
+      if (markerRef.current) {
+        markerRef.current.setLatLng([initLat, initLng]);
+      }
       if (circleRef.current) {
+        circleRef.current.setLatLng([initLat, initLng]);
         circleRef.current.setRadius(initRadius);
       }
       if (innerCircleRef.current) {
+        innerCircleRef.current.setLatLng([initLat, initLng]);
         innerCircleRef.current.setRadius(initRadius * 0.5);
       }
       setSearchQuery('');
@@ -201,8 +211,16 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
         mapInstanceRef.current = null;
       }
 
+      const targetLat = typeof initialLat === 'number' 
+        ? initialLat 
+        : parseFloat(String(initialLat || '')) || defaultLat;
+      const targetLng = typeof initialLng === 'number' 
+        ? initialLng 
+        : parseFloat(String(initialLng || '')) || defaultLng;
+      const targetR = typeof radiusMeters === 'number' && radiusMeters > 0 ? radiusMeters : (activeRadius || 200);
+
       const map = L.map(mapContainerRef.current, {
-        center: [selectedLat, selectedLng],
+        center: [targetLat, targetLng],
         zoom: 17,
         zoomControl: false, // We use custom HUD controls
       });
@@ -227,18 +245,16 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
       });
 
       // Draggable Surveyor Pin
-      const marker = L.marker([selectedLat, selectedLng], {
+      const marker = L.marker([targetLat, targetLng], {
         icon: customPinIcon,
         draggable: true,
         title: 'Drag to adjust project site center coordinates'
       }).addTo(map);
       markerRef.current = marker;
 
-      const initialR = typeof radiusMeters === 'number' && radiusMeters > 0 ? radiusMeters : (activeRadius || 200);
-
       // Outer Geofence Circle
-      const circle = L.circle([selectedLat, selectedLng], {
-        radius: initialR,
+      const circle = L.circle([targetLat, targetLng], {
+        radius: targetR,
         color: '#f97316',
         weight: 2.5,
         fillColor: '#f97316',
@@ -248,8 +264,8 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
       circleRef.current = circle;
 
       // Inner Concentric 50% Safe Boundary
-      const innerCircle = L.circle([selectedLat, selectedLng], {
-        radius: initialR * 0.5,
+      const innerCircle = L.circle([targetLat, targetLng], {
+        radius: targetR * 0.5,
         color: '#ea580c',
         weight: 1.5,
         fillColor: '#ea580c',

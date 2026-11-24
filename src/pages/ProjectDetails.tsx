@@ -541,18 +541,30 @@ const ProjectDetails: React.FC = () => {
       try {
         setLoading(true);
         setError(null);
+        // Clear previous project and geofence state so it doesn't bleed into next project
+        setProject(null);
+        setGeofenceLat('');
+        setGeofenceLng('');
+        setGeofenceRadius(200);
+        setGeofenceEnabled(false);
+
         const res = await fetchWithAuth(`${API_URL}/projects`);
         if (!res.ok) throw new Error('Failed to fetch projects list');
         const json = await res.json();
         const list: Project[] = json.data ?? json ?? [];
         setAllProjects(list);
 
-        // Find matching project
-        const match = list.find(p => p.code === projectId || p.id === projectId);
+        // Find matching project (case-insensitive and support code, id, or name)
+        const targetId = decodeURIComponent(projectId || '').trim().toLowerCase();
+        const match = list.find(p => 
+          (p.code && p.code.toLowerCase() === targetId) || 
+          (p.id && p.id.toLowerCase() === targetId) ||
+          (p.name && p.name.toLowerCase() === targetId)
+        );
         if (match) {
           setProject(match);
         } else if (list.length > 0) {
-          const singleRes = await fetchWithAuth(`${API_URL}/projects/${projectId}`);
+          const singleRes = await fetchWithAuth(`${API_URL}/projects/${encodeURIComponent(projectId || '')}`);
           if (singleRes.ok) {
             const singleJson = await singleRes.json();
             setProject(singleJson.data);
@@ -728,7 +740,8 @@ const ProjectDetails: React.FC = () => {
     if (!project) return;
     setSavingGeofence(true);
     try {
-      const res = await fetchWithAuth(`${API_URL}/projects/${project.code}/geofence`, {
+      const targetIdentifier = encodeURIComponent(project.id || project.code);
+      const res = await fetchWithAuth(`${API_URL}/projects/${targetIdentifier}/geofence`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -741,13 +754,21 @@ const ProjectDetails: React.FC = () => {
       const data = await res.json();
       if (res.ok && data.success) {
         showToast('Site Geofence updated successfully!', 'success');
-        setProject(prev => prev ? {
-          ...prev,
+        const updatedFields = {
           geofence_latitude: data.data.geofence_latitude,
           geofence_longitude: data.data.geofence_longitude,
           geofence_radius: data.data.geofence_radius,
           geofence_enabled: data.data.geofence_enabled,
+        };
+        setProject(prev => prev ? {
+          ...prev,
+          ...updatedFields,
         } : prev);
+        // Synchronize allProjects so project switcher dropdown and lists have accurate per-project geofence
+        setAllProjects(prev => prev.map(p => (p.id === project.id || p.code === project.code) ? {
+          ...p,
+          ...updatedFields,
+        } : p));
       } else {
         showToast(data.message || 'Failed to update geofence.', 'error');
       }
@@ -3401,6 +3422,7 @@ const ProjectDetails: React.FC = () => {
 
       {/* 5. Geofence Location Picker Map Modal */}
       <LocationPickerModal
+        key={project?.id || project?.code || 'location-picker'}
         isOpen={showLocationPicker}
         onClose={() => setShowLocationPicker(false)}
         initialLat={geofenceLat}
