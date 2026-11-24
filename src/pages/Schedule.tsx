@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, ArrowRight, BarChart2, Calendar, CalendarDays, ChevronLeft, ChevronRight, Clock3, GitBranch, History, ListChecks, LockKeyhole, Printer, Rows3, TrendingDown, TrendingUp, User, X } from 'lucide-react';
+import { Activity, ArrowRight, BarChart2, Calendar, CalendarClock, CalendarDays, ChevronLeft, ChevronRight, Clock3, GitBranch, History, ListChecks, LockKeyhole, MessageSquareQuote, Printer, RefreshCw, Rows3, Search, TrendingDown, TrendingUp, X } from 'lucide-react';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import { getErrorMessage } from '../utils/errors';
 import { formatCalendarDate, toDateInputValue } from '../utils/dates';
@@ -822,6 +822,30 @@ export default function Schedule() {
     });
   };
 
+  const formatTimelineDate = (iso?: string | null) => {
+    if (!iso) return '—';
+    const clean = String(iso).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+    const [year, month, day] = clean.split('-').map(Number);
+    const mm = String(month).padStart(2, '0');
+    const dd = String(day).padStart(2, '0');
+    const yy = String(year).slice(-2);
+    return `${mm}/${dd}/${yy}`;
+  };
+
+  const getDateDeltaDays = (prev?: string | null, next?: string | null) => {
+    if (!prev || !next) return null;
+    const pStr = String(prev).slice(0, 10);
+    const nStr = String(next).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(pStr) || !/^\d{4}-\d{2}-\d{2}$/.test(nStr)) return null;
+    const p = new Date(`${pStr}T00:00:00`).getTime();
+    const n = new Date(`${nStr}T00:00:00`).getTime();
+    if (isNaN(p) || isNaN(n)) return null;
+    const diff = Math.round((n - p) / (1000 * 60 * 60 * 24));
+    if (diff === 0) return null;
+    return diff > 0 ? `+${diff}d` : `${diff}d`;
+  };
+
   const refreshHistory = async () => {
     if (!project) return;
     try {
@@ -865,43 +889,57 @@ export default function Schedule() {
   }
 
   const groupedHistory = useMemo(() => {
-    const items = [...scheduleHistory] as ScheduleHistoryItem[];
-    items.sort((a, b) => {
+    const rawItems = [...scheduleHistory] as ScheduleHistoryItem[];
+    if (!rawItems.length) return [];
+
+    rawItems.sort((a, b) => {
       const tA = a.created_at ? new Date(a.created_at).getTime() : 0;
       const tB = b.created_at ? new Date(b.created_at).getTime() : 0;
       return tB - tA;
     });
 
     const groups: ScheduleHistoryGroup[] = [];
-    let currentGroup: ScheduleHistoryGroup | null = null;
+    const processed = new Set<string>();
 
-    for (const item of items) {
+    for (let i = 0; i < rawItems.length; i++) {
+      const item = rawItems[i];
+      const itemId = item.id || String(i);
+      if (processed.has(itemId)) continue;
+
       const itemTime = item.created_at ? new Date(item.created_at).getTime() : 0;
-      const isCascade = item.action === 'CASCADE_SCHEDULE_UPDATE';
+      const cleanReason = (item.reason || '').replace(/^Cascaded:\s*/i, '').trim();
 
-      if (currentGroup) {
-        const groupTime = currentGroup.primaryItem.created_at
-          ? new Date(currentGroup.primaryItem.created_at).getTime()
-          : 0;
-        const timeDiff = Math.abs(groupTime - itemTime);
+      const relatedBatch: ScheduleHistoryItem[] = [item];
+      processed.add(itemId);
 
-        if (timeDiff <= 3500 && (isCascade || item.action === currentGroup.primaryItem.action)) {
-          if (isCascade) {
-            currentGroup.cascadedItems.push(item);
-            continue;
-          }
+      for (let j = i + 1; j < rawItems.length; j++) {
+        const other = rawItems[j];
+        const otherId = other.id || String(j);
+        if (processed.has(otherId)) continue;
+
+        const otherTime = other.created_at ? new Date(other.created_at).getTime() : 0;
+        const diff = Math.abs(itemTime - otherTime);
+        const otherCleanReason = (other.reason || '').replace(/^Cascaded:\s*/i, '').trim();
+
+        if (diff <= 4000 && (cleanReason === otherCleanReason || !cleanReason || !otherCleanReason)) {
+          relatedBatch.push(other);
+          processed.add(otherId);
         }
       }
 
-      currentGroup = {
-        id: item.id || String(Math.random()),
-        timestamp: item.created_at || '',
-        actorName: item.actor_name || 'System / User',
-        primaryReason: item.reason || (isCascade ? 'Automated schedule cascade' : 'Schedule modification'),
-        primaryItem: item,
-        cascadedItems: [],
-      };
-      groups.push(currentGroup);
+      const primaryIndex = relatedBatch.findIndex(x => x.action !== 'CASCADE_SCHEDULE_UPDATE');
+      const primaryItem = primaryIndex >= 0 ? relatedBatch[primaryIndex] : relatedBatch[0];
+      const cascadedItems = relatedBatch.filter((_, idx) => idx !== (primaryIndex >= 0 ? primaryIndex : 0));
+      const primaryReason = (primaryItem.reason || cleanReason || 'Schedule modification').replace(/^Cascaded:\s*/i, '');
+
+      groups.push({
+        id: primaryItem.id || String(Math.random()),
+        timestamp: primaryItem.created_at || item.created_at || '',
+        actorName: primaryItem.actor_name || item.actor_name || 'Project Member',
+        primaryReason,
+        primaryItem,
+        cascadedItems,
+      });
     }
 
     if (!historySearch.trim()) return groups;
@@ -911,8 +949,7 @@ export default function Schedule() {
       const reasonMatch = g.primaryReason.toLowerCase().includes(q);
       const primaryTaskMatch = (g.primaryItem.task_name || '').toLowerCase().includes(q);
       const cascadedTaskMatch = g.cascadedItems.some(c => (c.task_name || '').toLowerCase().includes(q));
-      const actionMatch = (g.primaryItem.action || '').toLowerCase().includes(q);
-      return actorMatch || reasonMatch || primaryTaskMatch || cascadedTaskMatch || actionMatch;
+      return actorMatch || reasonMatch || primaryTaskMatch || cascadedTaskMatch;
     });
   }, [scheduleHistory, historySearch]);
 
@@ -980,14 +1017,14 @@ export default function Schedule() {
       <div className="schedule-history-overlay" onClick={() => setShowHistoryModal(false)}>
         <div className="schedule-history-modal" onClick={e => e.stopPropagation()}>
           <div className="schedule-history-head">
-            <div>
-              <h2>
+            <div className="schedule-history-head-left">
+              <div className="schedule-history-icon-badge">
                 <History size={20} />
-                Schedule Modification History
-              </h2>
-              <p>
-                Audit log of schedule changes, modification reasons, and automatically affected connected tasks.
-              </p>
+              </div>
+              <div>
+                <h2>Schedule Modification History</h2>
+                <p>Audit trail of baseline adjustments, modification reasons, and automatic dependency cascades.</p>
+              </div>
             </div>
             <button
               type="button"
@@ -1000,122 +1037,139 @@ export default function Schedule() {
           </div>
 
           <div className="schedule-history-toolbar">
-            <input
-              type="text"
-              className="schedule-history-search"
-              placeholder="Search by task name, reason, or team member..."
-              value={historySearch}
-              onChange={e => setHistorySearch(e.target.value)}
-            />
+            <div className="schedule-history-search-wrap">
+              <Search size={15} className="schedule-history-search-icon" />
+              <input
+                type="text"
+                className="schedule-history-search"
+                placeholder="Search by activity name, reason, or team member..."
+                value={historySearch}
+                onChange={e => setHistorySearch(e.target.value)}
+              />
+            </div>
             <button
               type="button"
               className="schedule-history-refresh-btn"
               onClick={refreshHistory}
+              title="Refresh modification history"
             >
-              Refresh
+              <RefreshCw size={14} />
+              <span>Refresh</span>
             </button>
           </div>
 
           <div className="schedule-history-body">
             {!project ? (
               <div className="schedule-history-empty">
+                <History size={40} className="empty-icon" />
                 <h3>Select a Project</h3>
                 <p>Please select a project from the top dropdown to inspect its schedule modification history.</p>
               </div>
             ) : groupedHistory.length === 0 ? (
               <div className="schedule-history-empty">
-                <h3>No Schedule History Recorded</h3>
+                <History size={40} className="empty-icon" />
+                <h3>No Schedule Modifications Recorded</h3>
                 <p>
                   {historySearch
-                    ? 'No modifications matched your search query.'
+                    ? 'No modification events matched your search query.'
                     : 'No schedule changes or adjustments have been recorded for this project yet.'}
                 </p>
               </div>
             ) : (
               groupedHistory.map(group => {
                 const p = group.primaryItem;
-                const isDueDateUpdate = p.action === 'DUE_DATE_UPDATE';
-                const isCascade = p.action === 'CASCADE_SCHEDULE_UPDATE';
+                const primaryDelta = getDateDeltaDays(p.previous_end_date, p.new_end_date);
 
                 return (
                   <div key={group.id} className="schedule-history-group">
+                    {/* Meta Header */}
                     <div className="schedule-history-group-head">
                       <div className="schedule-history-group-meta">
-                        <span>
-                          <User size={14} />
+                        <div className="schedule-history-avatar">
+                          {group.actorName ? group.actorName.charAt(0).toUpperCase() : 'U'}
+                        </div>
+                        <div className="schedule-history-actor-info">
                           <strong>{group.actorName}</strong>
-                        </span>
-                        <span>
-                          <Clock3 size={14} />
-                          {formatTimestamp(group.timestamp)}
-                        </span>
+                          <span className="schedule-history-timestamp">
+                            <Clock3 size={13} />
+                            {formatTimestamp(group.timestamp)}
+                          </span>
+                        </div>
                       </div>
-                      <span className={`schedule-history-badge ${isCascade ? 'cascaded' : 'primary'}`}>
-                        {p.action || 'SCHEDULE MODIFICATION'}
+                      <span className="schedule-history-event-badge">
+                        <CalendarClock size={13} />
+                        Schedule Adjusted
                       </span>
                     </div>
 
+                    {/* Reason Callout */}
                     {group.primaryReason && (
                       <div className="schedule-history-reason-box">
-                        <div className="schedule-history-reason-label">Reason for Modification</div>
-                        <div className="schedule-history-reason-text">{group.primaryReason}</div>
+                        <div className="schedule-history-reason-label">
+                          <MessageSquareQuote size={13} />
+                          Reason for Modification
+                        </div>
+                        <div className="schedule-history-reason-text">"{group.primaryReason}"</div>
                       </div>
                     )}
 
-                    <div className="schedule-history-tasks-section">
+                    {/* Timeline of Changes Section */}
+                    <div className="schedule-history-timeline-section">
+                      <div className="schedule-history-section-title">Timeline of Changes</div>
+
+                      {/* Primary Modified Task */}
                       <div className="schedule-history-primary-card">
-                        <div className="schedule-history-task-title">
-                          <span className="schedule-history-badge primary">Modified Task</span>
-                          <strong>{p.task_name || (p.task_id ? `Task #${String(p.task_id).slice(0, 8)}` : 'Project Schedule')}</strong>
+                        <div className="schedule-history-task-left">
+                          <span className="task-role-badge primary">Directly Modified</span>
+                          <strong className="schedule-history-task-name">
+                            {p.task_name || (p.task_id ? `Task #${String(p.task_id).slice(0, 8)}` : 'Project Schedule')}
+                          </strong>
                         </div>
 
-                        <div className="schedule-history-dates">
-                          {isDueDateUpdate ? (
-                            <>
-                              <span className="old-date">{labelDate(p.previous_end_date)}</span>
-                              <ArrowRight size={14} />
-                              <span className="new-date">{labelDate(p.new_end_date)}</span>
-                            </>
-                          ) : p.new_start_date || p.new_end_date ? (
-                            <>
-                              <span className="old-date">
-                                {labelDate(p.previous_start_date)} - {labelDate(p.previous_end_date)}
-                              </span>
-                              <ArrowRight size={14} />
-                              <span className="new-date">
-                                {labelDate(p.new_start_date)} - {labelDate(p.new_end_date)}
-                              </span>
-                            </>
-                          ) : (
-                            <span className="new-date">Updated</span>
-                          )}
+                        <div className="schedule-history-timeline-chip-wrap">
+                          <div className="timeline-date-chip">
+                            <span className="chip-label">Due:</span>
+                            <span className="date-prev">{formatTimelineDate(p.previous_end_date)}</span>
+                            <ArrowRight size={13} className="timeline-arrow" />
+                            <span className="date-next">{formatTimelineDate(p.new_end_date)}</span>
+                            {primaryDelta && <span className="date-delta">{primaryDelta}</span>}
+                          </div>
                         </div>
                       </div>
 
+                      {/* Connected Tasks (Auto-Shifted Activities) */}
                       {group.cascadedItems.length > 0 && (
-                        <div className="schedule-history-cascaded-list">
+                        <div className="schedule-history-cascaded-wrapper">
                           <div className="schedule-history-cascaded-head">
-                            Connected Tasks Automatically Moved ({group.cascadedItems.length}):
+                            <GitBranch size={13} />
+                            <span>Connected Tasks Automatically Moved ({group.cascadedItems.length}):</span>
                           </div>
-                          {group.cascadedItems.map((cascaded, idx) => (
-                            <div key={cascaded.id || idx} className="schedule-history-cascaded-item">
-                              <div className="schedule-history-task-title">
-                                <span className="schedule-history-badge cascaded">Shifted</span>
-                                <strong>
-                                  {cascaded.task_name || `Task #${String(cascaded.task_id).slice(0, 8)}`}
-                                </strong>
-                              </div>
-                              <div className="schedule-history-dates">
-                                <span className="old-date">
-                                  {labelDate(cascaded.previous_start_date)} - {labelDate(cascaded.previous_end_date)}
-                                </span>
-                                <ArrowRight size={14} />
-                                <span className="new-date">
-                                  {labelDate(cascaded.new_start_date)} - {labelDate(cascaded.new_end_date)}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
+                          <div className="schedule-history-cascaded-list">
+                            {group.cascadedItems.map((cascaded, idx) => {
+                              const cascadedDelta = getDateDeltaDays(cascaded.previous_end_date, cascaded.new_end_date);
+                              const prevSpan = `${formatTimelineDate(cascaded.previous_start_date)} - ${formatTimelineDate(cascaded.previous_end_date)}`;
+                              const nextSpan = `${formatTimelineDate(cascaded.new_start_date)} - ${formatTimelineDate(cascaded.new_end_date)}`;
+
+                              return (
+                                <div key={cascaded.id || idx} className="schedule-history-cascaded-item">
+                                  <div className="schedule-history-task-left">
+                                    <span className="task-role-badge cascaded">Shifted</span>
+                                    <strong className="schedule-history-task-name">
+                                      {cascaded.task_name || `Task #${String(cascaded.task_id).slice(0, 8)}`}
+                                    </strong>
+                                  </div>
+                                  <div className="schedule-history-timeline-chip-wrap">
+                                    <div className="timeline-date-chip cascaded">
+                                      <span className="date-prev">{prevSpan}</span>
+                                      <ArrowRight size={13} className="timeline-arrow" />
+                                      <span className="date-next">{nextSpan}</span>
+                                      {cascadedDelta && <span className="date-delta">{cascadedDelta}</span>}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       )}
                     </div>
