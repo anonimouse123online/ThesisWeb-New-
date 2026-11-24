@@ -688,6 +688,7 @@
 .schedule-history-modal {
   background: #ffffff;
   width: min(840px, 96vw);
+  height: min(88vh, 880px);
   max-height: min(88vh, 880px);
   border-radius: 16px;
   box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(226, 232, 240, 0.8);
@@ -808,11 +809,26 @@
 
 .schedule-history-body {
   padding: 20px 24px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 18px;
   background: #f8fafc;
+}
+.schedule-history-body::-webkit-scrollbar {
+  width: 6px;
+}
+.schedule-history-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.schedule-history-body::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+.schedule-history-body::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 /* Timeline Event Group Card */
@@ -822,6 +838,7 @@
   background: #ffffff;
   overflow: hidden;
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+  flex-shrink: 0;
 }
 .schedule-history-group-head {
   padding: 14px 18px;

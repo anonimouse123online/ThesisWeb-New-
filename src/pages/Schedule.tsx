@@ -975,7 +975,7 @@ export default function Schedule() {
       >
         <History size={16} />
         <span>Schedule History</span>
-        {scheduleHistory.length > 0 && <span className="history-badge">{scheduleHistory.length}</span>}
+        {groupedHistory.length > 0 && <span className="history-badge">{groupedHistory.length}</span>}
       </button>
     </nav>
     {loading ? <div className="schedule-state">Loading project schedule...</div> : error ? <div className="schedule-state error">{error}</div> : visibleTasks.length===0 ? <div className="schedule-state"><strong>No tasks to schedule yet</strong><span>Tasks with dates will appear here once they are added to this project.</span></div> : <>
@@ -1127,13 +1127,22 @@ export default function Schedule() {
                         </div>
 
                         <div className="schedule-history-timeline-chip-wrap">
-                          <div className="timeline-date-chip">
-                            <span className="chip-label">Due:</span>
-                            <span className="date-prev">{formatTimelineDate(p.previous_end_date)}</span>
-                            <ArrowRight size={13} className="timeline-arrow" />
-                            <span className="date-next">{formatTimelineDate(p.new_end_date)}</span>
-                            {primaryDelta && <span className="date-delta">{primaryDelta}</span>}
-                          </div>
+                          {p.previous_start_date && p.new_start_date && p.previous_start_date !== p.new_start_date ? (
+                            <div className="timeline-date-chip">
+                              <span className="date-prev">{formatTimelineDate(p.previous_start_date)} - {formatTimelineDate(p.previous_end_date)}</span>
+                              <ArrowRight size={13} className="timeline-arrow" />
+                              <span className="date-next">{formatTimelineDate(p.new_start_date)} - {formatTimelineDate(p.new_end_date)}</span>
+                              {primaryDelta && <span className="date-delta">{primaryDelta}</span>}
+                            </div>
+                          ) : (
+                            <div className="timeline-date-chip">
+                              <span className="chip-label">Due:</span>
+                              <span className="date-prev">{formatTimelineDate(p.previous_end_date)}</span>
+                              <ArrowRight size={13} className="timeline-arrow" />
+                              <span className="date-next">{formatTimelineDate(p.new_end_date)}</span>
+                              {primaryDelta && <span className="date-delta">{primaryDelta}</span>}
+                            </div>
+                          )}
                         </div>
                       </div>
 
