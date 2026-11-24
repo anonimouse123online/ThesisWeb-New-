@@ -424,6 +424,7 @@ const ProjectDetails: React.FC = () => {
   const [assigningEngineerId, setAssigningEngineerId] = useState<string | null>(null);
   const [datePickerTask, setDatePickerTask] = useState<TaskItem | null>(null);
   const [selectedDueDate, setSelectedDueDate] = useState<string>('');
+  const [modificationReason, setModificationReason] = useState<string>('');
   const [savingTaskDueDate, setSavingTaskDueDate] = useState<boolean>(false);
 
   const isTurnoverTask = useCallback((t: TaskItem) => {
@@ -473,36 +474,52 @@ const ProjectDetails: React.FC = () => {
   const handleOpenDatePicker = (task: TaskItem) => {
     setDatePickerTask(task);
     setSelectedDueDate(task.due_date ? toDateInputValue(task.due_date) || '' : '');
+    setModificationReason('');
   };
 
-  const handleSaveTaskDueDate = async (taskId: string | number, dateValue: string) => {
+  const handleSaveTaskDueDate = async (taskId: string | number, dateValue: string, reasonValue?: string) => {
     if (!dateValue) return;
     try {
       setSavingTaskDueDate(true);
       const res = await fetchWithAuth(`${API_URL}/tasks/${taskId}/due-date`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dueDate: dateValue }),
+        body: JSON.stringify({
+          dueDate: dateValue,
+          reason: reasonValue?.trim() || undefined,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.error || data.message || 'Failed to update due date');
       }
-      setTasks(prev => prev.map(t => {
-        if (t.id !== taskId) return t;
-        const currentDueDate = t.due_date ? String(t.due_date).slice(0, 10) : null;
-        const origDueDate = t.original_due_date ? String(t.original_due_date).slice(0, 10) : currentDueDate;
-        // Extended ONLY if new due date is strictly after (>) the original given due date
-        const isExtended = Boolean(origDueDate && dateValue > origDueDate);
-        return {
-          ...t,
-          original_due_date: origDueDate || dateValue,
-          due_date: dateValue,
-          is_extended: isExtended,
-        };
-      }));
+
+      if (Array.isArray(data.affectedTasks) && data.affectedTasks.length > 0) {
+        const affectedMap = new Map(data.affectedTasks.map((at: any) => [String(at.id), at]));
+        setTasks(prev => prev.map(t => {
+          const match = affectedMap.get(String(t.id));
+          return match ? { ...t, ...match } : t;
+        }));
+      } else {
+        setTasks(prev => prev.map(t => {
+          if (t.id !== taskId) return t;
+          const currentDueDate = t.due_date ? String(t.due_date).slice(0, 10) : null;
+          const origDueDate = t.original_due_date ? String(t.original_due_date).slice(0, 10) : currentDueDate;
+          // Extended ONLY if new due date is strictly after (>) the original given due date
+          const isExtended = Boolean(origDueDate && dateValue > origDueDate);
+          return {
+            ...t,
+            original_due_date: origDueDate || dateValue,
+            due_date: dateValue,
+            is_extended: isExtended,
+          };
+        }));
+      }
+
       setDatePickerTask(null);
-      showToast(`Due date saved: ${formatCalendarDate(dateValue)}`, 'success');
+      setModificationReason('');
+      await fetchProjectTasks();
+      showToast(data.message || `Due date saved: ${formatCalendarDate(dateValue)}`, 'success');
     } catch (err: any) {
       showToast(getErrorMessage(err), 'error');
     } finally {
@@ -3381,7 +3398,7 @@ const ProjectDetails: React.FC = () => {
               </button>
             </div>
 
-            <div style={{ marginBottom: '20px' }}>
+            <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
                 Deadline Date
               </label>
@@ -3399,18 +3416,31 @@ const ProjectDetails: React.FC = () => {
               )}
             </div>
 
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                Reason for Modification
+              </label>
+              <input
+                type="text"
+                className="pm-input"
+                placeholder="Enter reason for modification"
+                value={modificationReason}
+                onChange={e => setModificationReason(e.target.value)}
+              />
+            </div>
+
             <div className="pm-modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button
                 type="button"
                 className="pd-btn-secondary"
-                onClick={() => setDatePickerTask(null)}
+                onClick={() => { setDatePickerTask(null); setModificationReason(''); }}
               >
                 Cancel
               </button>
               <button
                 type="button"
                 className="pd-btn-primary"
-                onClick={() => handleSaveTaskDueDate(datePickerTask.id, selectedDueDate)}
+                onClick={() => handleSaveTaskDueDate(datePickerTask.id, selectedDueDate, modificationReason)}
                 disabled={!selectedDueDate || savingTaskDueDate}
               >
                 {savingTaskDueDate ? 'Saving…' : 'Save Date'}
