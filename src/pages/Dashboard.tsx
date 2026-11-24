@@ -7,8 +7,6 @@ import ProfileDropdown from '../components/ProfileDropdown';
 import StatusBadge from '../components/StatusBadge';
 import '../components/Dashboard.css';
 import {
-  TrendingUp,
-  TrendingDown,
   Search,
   X,
   FolderClosed,
@@ -23,8 +21,8 @@ const BACKEND_URL = API_BASE_URL;
 interface StatItem {
   label: string;
   value: string;
-  trend: string;
-  up: boolean;
+  trend?: string;
+  up?: boolean;
   bg: string;
   clr: string;
   icon: string;
@@ -101,8 +99,6 @@ const renderStatIcon = (label: string, icon: string) => {
 const StatCard: React.FC<StatItem> = ({
   label,
   value,
-  trend,
-  up,
   bg,
   clr,
   icon
@@ -126,32 +122,9 @@ const StatCard: React.FC<StatItem> = ({
       {label}
     </p>
 
-    <p className="stat-value">
+    <p className="stat-value" style={{ marginBottom: 0 }}>
       {value}
     </p>
-
-    {trend && (
-      <p
-        className={`stat-trend ${
-          up ? 'text-green' : 'text-red'
-        }`}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '4px'
-        }}
-      >
-        {up ? (
-          <TrendingUp size={13} />
-        ) : (
-          <TrendingDown size={13} />
-        )}
-
-        <span>
-          {trend} from last month
-        </span>
-      </p>
-    )}
 
   </div>
 );
@@ -164,7 +137,6 @@ const Dashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Filter States
-  const [overviewRange, setOverviewRange] = useState('Last 30 days');
   const [selectedProjectFilter, setSelectedProjectFilter] = useState('All');
   const [selectedPmFilter, setSelectedPmFilter] = useState('All');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState('All');
@@ -258,14 +230,6 @@ const Dashboard: React.FC = () => {
     ...extraStatuses.map(s => ({ value: s, label: s })),
   ];
 
-  const timeRangeOptions = [
-    'Last 7 days',
-    'Last 30 days',
-    'Last 90 days',
-    'This Year',
-    'All time',
-  ];
-
   // Filter projects table
   const filteredProjects = projects.filter(p => {
     const matchSearch = !searchQuery ||
@@ -314,12 +278,6 @@ const Dashboard: React.FC = () => {
       <section className="mb-8">
         <div className="flex justify-between items-center mb-6">
           <h2 className="section-title">Overview</h2>
-          <Dropdown
-            options={timeRangeOptions}
-            value={overviewRange}
-            onChange={setOverviewRange}
-            align="right"
-          />
         </div>
         <div className="overview-grid">
 
@@ -333,8 +291,6 @@ const Dashboard: React.FC = () => {
   <StatCard
     label="Delayed Projects"
     value={String(delayedProjects)}
-    trend=""
-    up={false}
     bg="#fff1f2"
     clr="#ef4444"
     icon="AlertTriangle"
