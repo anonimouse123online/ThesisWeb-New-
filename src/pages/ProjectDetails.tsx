@@ -50,7 +50,6 @@ import {
   Pencil,
   MapPin,
   Crosshair,
-  Navigation,
   Radio
 } from 'lucide-react';
 
@@ -329,9 +328,6 @@ const ProjectDetails: React.FC = () => {
   const [geofenceRadius, setGeofenceRadius] = useState<number>(200);
   const [geofenceEnabled, setGeofenceEnabled] = useState<boolean>(false);
   const [savingGeofence, setSavingGeofence] = useState<boolean>(false);
-  const [isGettingLocation, setIsGettingLocation] = useState<boolean>(false);
-  const [geofenceTestResult, setGeofenceTestResult] = useState<{ isInside: boolean; message: string } | null>(null);
-  const [testingGeofence, setTestingGeofence] = useState<boolean>(false);
   const [showLocationPicker, setShowLocationPicker] = useState<boolean>(false);
 
   // Tab Data States
@@ -725,14 +721,12 @@ const ProjectDetails: React.FC = () => {
       setGeofenceLng(project.geofence_longitude != null ? String(project.geofence_longitude) : '');
       setGeofenceRadius(project.geofence_radius != null ? Number(project.geofence_radius) : 200);
       setGeofenceEnabled(Boolean(project.geofence_enabled));
-      setGeofenceTestResult(null);
     }
   }, [project?.id, project?.geofence_latitude, project?.geofence_longitude, project?.geofence_radius, project?.geofence_enabled]);
 
   const handleSaveGeofence = async () => {
     if (!project) return;
     setSavingGeofence(true);
-    setGeofenceTestResult(null);
     try {
       const res = await fetchWithAuth(`${API_URL}/projects/${project.code}/geofence`, {
         method: 'PATCH',
@@ -764,33 +758,6 @@ const ProjectDetails: React.FC = () => {
     }
   };
 
-  const handleUseCurrentLocation = () => {
-    if (isGettingLocation) return;
-    if (!navigator.geolocation) {
-      showToast('Geolocation is not supported by this browser.', 'error');
-      return;
-    }
-    setIsGettingLocation(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setIsGettingLocation(false);
-        setGeofenceLat(pos.coords.latitude.toFixed(6));
-        setGeofenceLng(pos.coords.longitude.toFixed(6));
-        showToast(`Captured GPS: ${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`, 'success');
-      },
-      (err) => {
-        setIsGettingLocation(false);
-        const reason = err.code === 1
-          ? 'Location permission denied by browser settings.'
-          : err.code === 2
-          ? 'Browser location unavailable on this computer. You can enter site coordinates manually or use sample coordinates.'
-          : 'Location request timed out. Please enter coordinates manually.';
-        showToast(reason, 'error');
-      },
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
-    );
-  };
-
   const handleLocationPicked = (lat: number, lng: number, newRadius?: number) => {
     setGeofenceLat(lat.toFixed(7));
     setGeofenceLng(lng.toFixed(7));
@@ -798,64 +765,6 @@ const ProjectDetails: React.FC = () => {
       setGeofenceRadius(newRadius);
     }
     showToast(`Updated site location: ${lat.toFixed(6)}, ${lng.toFixed(6)}${newRadius ? ` (${newRadius}m radius)` : ''}`, 'success');
-  };
-
-  const handleTestGeofence = () => {
-    if (!project || testingGeofence) return;
-    if (!geofenceLat || !geofenceLng) {
-      showToast('Please enter site latitude and longitude first.', 'error');
-      return;
-    }
-    if (!navigator.geolocation) {
-      showToast('Geolocation is not supported by this browser.', 'error');
-      return;
-    }
-    setTestingGeofence(true);
-    setGeofenceTestResult(null);
-
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const res = await fetchWithAuth(`${API_URL}/projects/${project.code}/geofence/verify`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              latitude: pos.coords.latitude,
-              longitude: pos.coords.longitude,
-            }),
-          });
-          const data = await res.json();
-          if (res.ok && data.success && data.data) {
-            setGeofenceTestResult({
-              isInside: Boolean(data.data.is_inside),
-              message: data.data.message || 'Verified successfully'
-            });
-          } else {
-            setGeofenceTestResult({
-              isInside: false,
-              message: data.message || 'Verification failed.'
-            });
-          }
-        } catch (err: unknown) {
-          setGeofenceTestResult({
-            isInside: false,
-            message: `Verification error: ${getErrorMessage(err)}`
-          });
-        } finally {
-          setTestingGeofence(false);
-        }
-      },
-      (err) => {
-        setTestingGeofence(false);
-        const reason = err.code === 1
-          ? 'Location permission denied by browser.'
-          : err.code === 2
-          ? 'Browser GPS unavailable on this computer. Use Android phone to test on-site GPS verification.'
-          : 'Location request timed out.';
-        showToast(reason, 'error');
-      },
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
-    );
   };
 
   // Add Subtask to Main Task in Table View
@@ -1816,50 +1725,8 @@ const ProjectDetails: React.FC = () => {
               </div>
             </div>
 
-            {/* Verification Test Result Banner */}
-            {geofenceTestResult && (
-              <div style={{
-                marginBottom: '16px',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                fontSize: '13px',
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                background: geofenceTestResult.isInside ? '#ecfdf5' : '#fef2f2',
-                color: geofenceTestResult.isInside ? '#065f46' : '#991b1b',
-                border: `1px solid ${geofenceTestResult.isInside ? '#a7f3d0' : '#fecaca'}`
-              }}>
-                {geofenceTestResult.isInside ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
-                <span>{geofenceTestResult.message}</span>
-              </div>
-            )}
-
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', paddingTop: '8px', borderTop: '1px solid #f1f5f9' }}>
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  onClick={handleUseCurrentLocation}
-                  disabled={isGettingLocation}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 14px',
-                    borderRadius: '8px',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    background: '#f8fafc',
-                    color: isGettingLocation ? '#94a3b8' : '#334155',
-                    border: '1px solid #cbd5e1',
-                    cursor: isGettingLocation ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  <Navigation size={14} color="#f15a24" />
-                  {isGettingLocation ? 'Capturing GPS...' : 'Use Current Location'}
-                </button>
-
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <button
                   type="button"
                   onClick={() => setShowLocationPicker(true)}
@@ -1881,28 +1748,6 @@ const ProjectDetails: React.FC = () => {
                 >
                   <MapPin size={14} color="#f15a24" />
                   Choose on Map
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleTestGeofence}
-                  disabled={testingGeofence || !geofenceLat || !geofenceLng}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 14px',
-                    borderRadius: '8px',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    background: '#f8fafc',
-                    color: testingGeofence ? '#94a3b8' : '#334155',
-                    border: '1px solid #cbd5e1',
-                    cursor: testingGeofence ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  <Crosshair size={14} color="#059669" />
-                  {testingGeofence ? 'Testing GPS...' : 'Test Location Status'}
                 </button>
 
                 {geofenceLat && geofenceLng && (
