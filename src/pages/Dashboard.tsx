@@ -323,10 +323,12 @@ const Dashboard: React.FC = () => {
         </div>
         <div className="overview-grid">
 
-  {stats.map(s => {
-    const label = s.label === 'Issues Reported' ? 'Issues' : s.label;
-    return <StatCard key={s.label} {...s} label={label} />;
-  })}
+  {stats
+    .filter(s => s.label !== 'Team Members')
+    .map(s => {
+      const label = s.label === 'Issues Reported' ? 'Issues' : s.label;
+      return <StatCard key={s.label} {...s} label={label} />;
+    })}
 
   <StatCard
     label="Delayed Projects"
