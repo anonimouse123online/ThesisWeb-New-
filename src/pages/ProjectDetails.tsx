@@ -2334,11 +2334,24 @@ const ProjectDetails: React.FC = () => {
                           : (res.status || (res.category === 'Equipment' ? 'Available' : 'In stock')));
                     const totalVal = qtyNum * (Number(res.unitPrice) || 0);
 
+                    const assignedTaskName = res.taskName?.trim() || (() => {
+                      if (res.taskId) {
+                        const matched = tasks.find(t => String(t.id) === String(res.taskId));
+                        if (matched) return matched.task_name;
+                      }
+                      const rName = (res.name || '').trim().toLowerCase();
+                      if (rName) {
+                        const matched = tasks.find(t => (t.materials_required || '').toLowerCase().includes(rName));
+                        if (matched) return matched.task_name;
+                      }
+                      return null;
+                    })();
+
                     return (
                       <tr key={res.id}>
                         <td className="pm-td-bold">
                           <div>{res.name}</div>
-                          {res.taskName ? (
+                          {assignedTaskName ? (
                             <span
                               style={{
                                 display: 'inline-flex',
@@ -2354,7 +2367,7 @@ const ProjectDetails: React.FC = () => {
                                 fontWeight: 500,
                               }}
                             >
-                              Task: {res.taskName}
+                              Task: {assignedTaskName}
                             </span>
                           ) : (
                             <span
