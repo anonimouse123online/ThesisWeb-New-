@@ -1700,28 +1700,28 @@ const ProjectDetails: React.FC = () => {
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>
                   Perimeter Radius (Meters) *
                 </label>
-                <select
-                  value={geofenceRadius}
-                  onChange={(e) => setGeofenceRadius(Number(e.target.value))}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e1',
-                    fontSize: '14px',
-                    outline: 'none',
-                    background: '#fff',
-                    boxSizing: 'border-box',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <option value={50}>50 meters (Compact Site)</option>
-                  <option value={100}>100 meters (Standard Lot)</option>
-                  <option value={200}>200 meters (Recommended)</option>
-                  <option value={350}>350 meters (Medium Compound)</option>
-                  <option value={500}>500 meters (Large Subdivision)</option>
-                  <option value={1000}>1,000 meters (Civil / Highway)</option>
-                </select>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    readOnly
+                    value={`${geofenceRadius} meters`}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px 10px 36px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      color: '#0f172a',
+                      background: '#f8fafc',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                      cursor: 'default'
+                    }}
+                    title="Perimeter radius is set via the interactive map"
+                  />
+                  <Radio size={16} color="#f15a24" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                </div>
               </div>
             </div>
 

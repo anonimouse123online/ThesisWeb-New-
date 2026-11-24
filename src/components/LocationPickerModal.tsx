@@ -98,7 +98,14 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
         : parseFloat(initialLng || '') || defaultLng;
       setSelectedLat(initLat);
       setSelectedLng(initLng);
-      setActiveRadius(radiusMeters || 200);
+      const initRadius = typeof radiusMeters === 'number' && radiusMeters > 0 ? radiusMeters : 200;
+      setActiveRadius(initRadius);
+      if (circleRef.current) {
+        circleRef.current.setRadius(initRadius);
+      }
+      if (innerCircleRef.current) {
+        innerCircleRef.current.setRadius(initRadius * 0.5);
+      }
       setSearchQuery('');
       setSearchResults([]);
     }
@@ -227,9 +234,11 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
       }).addTo(map);
       markerRef.current = marker;
 
+      const initialR = typeof radiusMeters === 'number' && radiusMeters > 0 ? radiusMeters : (activeRadius || 200);
+
       // Outer Geofence Circle
       const circle = L.circle([selectedLat, selectedLng], {
-        radius: activeRadius,
+        radius: initialR,
         color: '#f97316',
         weight: 2.5,
         fillColor: '#f97316',
@@ -240,7 +249,7 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
 
       // Inner Concentric 50% Safe Boundary
       const innerCircle = L.circle([selectedLat, selectedLng], {
-        radius: activeRadius * 0.5,
+        radius: initialR * 0.5,
         color: '#ea580c',
         weight: 1.5,
         fillColor: '#ea580c',
