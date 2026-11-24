@@ -1097,3 +1097,268 @@
   margin: 0 auto;
 }
 
+/* Clickable Task Hover Effects in Schedule Gantt */
+.gantt-info-row {
+  transition: background-color 0.15s ease;
+}
+.gantt-info-row:hover {
+  background: #f8fafc;
+}
+.gantt-info-row:hover b {
+  color: #ea580c;
+}
+.gantt-bar {
+  cursor: pointer;
+  transition: transform 0.12s ease, filter 0.12s ease, box-shadow 0.12s ease;
+}
+.gantt-bar:hover {
+  filter: brightness(0.96);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.15);
+}
+
+/* Schedule Quick Date Change Modal */
+.schedule-date-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  animation: scheduleDateFadeIn 0.18s ease-out;
+}
+@keyframes scheduleDateFadeIn {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.schedule-date-modal {
+  background: #ffffff;
+  width: min(440px, 94vw);
+  border-radius: 16px;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(226, 232, 240, 0.8);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-sizing: border-box;
+}
+
+.schedule-date-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.schedule-date-modal-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.3px;
+}
+
+.schedule-date-modal-subtitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+  font-size: 12.5px;
+  color: #64748b;
+  flex-wrap: wrap;
+}
+
+.schedule-date-modal-subtitle strong {
+  color: #0f172a;
+}
+
+.task-start-badge {
+  font-size: 11px;
+  font-weight: 600;
+  background: #f1f5f9;
+  color: #475569;
+  padding: 1px 7px;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+}
+
+.schedule-date-modal-close {
+  background: #f1f5f9;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.schedule-date-modal-close:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.schedule-date-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.schedule-date-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.schedule-date-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.schedule-date-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #dce3e7;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  color: #1e293b;
+  background: #ffffff;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.schedule-date-input:focus {
+  border-color: #ea580c;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.12);
+}
+
+.schedule-date-hint {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.schedule-date-cascade-hint {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #0369a1;
+}
+
+.schedule-date-cascade-hint .cascade-icon {
+  margin-top: 2px;
+  flex-shrink: 0;
+  color: #0284c7;
+}
+
+.schedule-date-cascade-hint strong {
+  display: block;
+  font-size: 11.5px;
+  color: #0c4a6e;
+  margin-bottom: 2px;
+}
+
+.schedule-date-cascade-hint p {
+  margin: 0;
+  font-size: 11.5px;
+  color: #0369a1;
+  line-height: 1.35;
+}
+
+.schedule-date-error {
+  padding: 9px 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.schedule-date-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.schedule-date-btn-secondary {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.schedule-date-btn-secondary:hover:not(:disabled) {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.schedule-date-btn-primary {
+  background: #ea580c;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 18px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(234, 88, 12, 0.22);
+  transition: all 0.15s ease;
+}
+
+.schedule-date-btn-primary:hover:not(:disabled) {
+  background: #c2410c;
+  box-shadow: 0 6px 16px rgba(234, 88, 12, 0.32);
+}
+
+.schedule-date-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Toast Message Banner */
+.schedule-toast-banner {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: #0f172a;
+  color: #ffffff;
+  padding: 12px 18px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+  z-index: 1100;
+  animation: scheduleToastIn 0.2s ease-out;
+}
+.schedule-toast-banner svg {
+  color: #10b981;
+}
+@keyframes scheduleToastIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+

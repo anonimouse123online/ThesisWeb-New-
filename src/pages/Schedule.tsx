@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, ArrowRight, BarChart2, Calendar, CalendarClock, CalendarDays, ChevronLeft, ChevronRight, Clock3, GitBranch, History, ListChecks, LockKeyhole, MessageSquareQuote, Printer, RefreshCw, Rows3, Search, TrendingDown, TrendingUp, X } from 'lucide-react';
+import { Activity, ArrowRight, BarChart2, Calendar, CalendarClock, CalendarDays, CheckCircle, ChevronLeft, ChevronRight, Clock3, GitBranch, History, ListChecks, LockKeyhole, MessageSquareQuote, Printer, RefreshCw, Rows3, Search, TrendingDown, TrendingUp, X } from 'lucide-react';
 import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import { getErrorMessage } from '../utils/errors';
 import { formatCalendarDate, toDateInputValue } from '../utils/dates';
@@ -7,7 +7,7 @@ import { getTaskProgress, getWorkStatus } from '../utils/taskWorkStatus';
 import { getScheduleTimelineUnits, projectTaskMatches } from '../utils/scheduleTimeline';
 import './Schedule.css';
 
-type Task = { id: string | number; task_name: string; start_date?: string; due_date?: string; status?: string; assignee?: string; description?: string; site_instructions?: string; progress_pct?: number; completion_percentage?: number; estimated_duration_days?: number | null; predecessor_task_ids?: string[]; project_id?: string | number; project_name?: string; project_code?: string; priority?: string; created_at?: string; };
+type Task = { id: string | number; task_name: string; start_date?: string; due_date?: string; status?: string; assignee?: string; description?: string; site_instructions?: string; progress_pct?: number; completion_percentage?: number; estimated_duration_days?: number | null; predecessor_task_ids?: string[]; project_id?: string | number; project_name?: string; project_code?: string; priority?: string; created_at?: string; original_due_date?: string; is_extended?: boolean; };
 type Project = { id: string | number; name: string; code?: string; start_date?: string; end_date?: string };
 type View = 'Gantt Chart' | 'S-Curve' | 'Calendar' | 'Simulator' | 'Resource View';
 type ScenarioType = 'Task Date Change' | 'Task delay' | 'Additional manpower' | 'Overtime' | 'Material delay' | 'Weather delay' | 'Construction resequencing' | 'Combined recovery scenario';
@@ -860,6 +860,91 @@ export default function Schedule() {
     }
   };
 
+  const [datePickerTask, setDatePickerTask] = useState<Task | null>(null);
+  const [selectedDueDate, setSelectedDueDate] = useState('');
+  const [modificationReason, setModificationReason] = useState('');
+  const [savingDueDate, setSavingDueDate] = useState(false);
+  const [dateSaveError, setDateSaveError] = useState('');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const handleOpenDatePicker = (task: Task) => {
+    setSelected(task.id);
+    setDatePickerTask(task);
+    setSelectedDueDate(task.due_date ? toDateInputValue(task.due_date) || '' : '');
+    setModificationReason('');
+    setDateSaveError('');
+  };
+
+  const refreshTasksAndSchedule = async () => {
+    try {
+      const tr = await fetchWithAuth(`${API_BASE_URL}/tasks`);
+      if (tr.ok) {
+        const tj = await tr.json();
+        const taskList = Array.isArray(tj) ? tj : tj.data || tj.tasks || [];
+        setTasks(taskList);
+      }
+    } catch {
+      // ignore
+    }
+    setEngineReload(v => v + 1);
+    await refreshHistory();
+  };
+
+  const handleSaveDueDate = async () => {
+    if (!datePickerTask || !selectedDueDate) return;
+    try {
+      setSavingDueDate(true);
+      setDateSaveError('');
+      const res = await fetchWithAuth(`${API_BASE_URL}/tasks/${datePickerTask.id}/due-date`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dueDate: selectedDueDate,
+          reason: modificationReason.trim() || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || data.message || 'Failed to update due date');
+      }
+
+      if (Array.isArray(data.affectedTasks) && data.affectedTasks.length > 0) {
+        const affectedMap = new Map(data.affectedTasks.map((at: any) => [String(at.id), at]));
+        setTasks(prev => prev.map(t => {
+          const match = affectedMap.get(String(t.id));
+          return match ? { ...t, ...match } : t;
+        }));
+      } else {
+        setTasks(prev => prev.map(t => {
+          if (String(t.id) !== String(datePickerTask.id)) return t;
+          const currentDueDate = t.due_date ? String(t.due_date).slice(0, 10) : null;
+          const origDueDate = t.original_due_date ? String(t.original_due_date).slice(0, 10) : currentDueDate;
+          const isExtended = Boolean(origDueDate && selectedDueDate > origDueDate);
+          return {
+            ...t,
+            original_due_date: origDueDate || selectedDueDate,
+            due_date: selectedDueDate,
+            is_extended: isExtended,
+          };
+        }));
+      }
+
+      setDatePickerTask(null);
+      setModificationReason('');
+      await refreshTasksAndSchedule();
+      showToast(data.message || `Due date updated: ${labelDate(selectedDueDate)}`);
+    } catch (err: any) {
+      setDateSaveError(getErrorMessage(err));
+    } finally {
+      setSavingDueDate(false);
+    }
+  };
+
   interface ScheduleHistoryItem {
     id?: string;
     request_id?: string | null;
@@ -980,12 +1065,12 @@ export default function Schedule() {
     </nav>
     {loading ? <div className="schedule-state">Loading project schedule...</div> : error ? <div className="schedule-state error">{error}</div> : visibleTasks.length===0 ? <div className="schedule-state"><strong>No tasks to schedule yet</strong><span>Tasks with dates will appear here once they are added to this project.</span></div> : <>
       {tab==='Calendar' && <section className="schedule-card"><div className="schedule-toolbar"><div><h2>Project calendar</h2><span>{visibleTasks.length} activities</span></div><div className="schedule-controls"><button onClick={()=>changeCursor(-1)} aria-label="Previous period"><ChevronLeft/></button><strong>{title}</strong><button onClick={()=>changeCursor(1)} aria-label="Next period"><ChevronRight/></button><button className="today-button" onClick={()=>setCursor(new Date())}>Today</button><div className="view-switch">{(['Month','Week','Day'] as const).map(v=><button key={v} className={calendarView===v?'selected':''} onClick={()=>setCalendarView(v)}>{v}</button>)}</div></div></div>
-        <div className={`schedule-calendar ${calendarView.toLowerCase()}`}><div className="calendar-weekdays">{(calendarView==='Day'?[cursor]:calendarDays.slice(0,7)).map(d=><div key={keyDay(d)}>{d.toLocaleDateString(undefined,{weekday:'short'})}<b>{calendarView==='Day'?d.toLocaleDateString(undefined,{month:'short',day:'numeric'}):''}</b></div>)}</div><div className="calendar-grid" style={{gridTemplateColumns:`repeat(${calendarDays.length},minmax(0,1fr))`}}>{calendarDays.map(day=>{const inMonth=day.getMonth()===cursor.getMonth();const today=keyDay(day)===keyDay(new Date());const items=visibleTasks.filter(t=>taskStart(t)&&taskEnd(t)&&taskStart(t)!<=day&&taskEnd(t)!>=day);return <div className={`calendar-cell ${!inMonth&&calendarView==='Month'?'outside':''} ${today?'today':''}`} key={keyDay(day)}><button className="calendar-date" onClick={()=>{setCursor(day);setCalendarView('Day');}}>{day.getDate()}</button>{items.map(t=><button key={t.id} className={`calendar-task ${statusClass(taskStatus(t))} ${String(selected)===String(t.id)?'is-selected':''} ${selected!==null&&related.has(String(t.id))?'is-related':''}`} onClick={()=>setSelected(t.id)} title={`${t.task_name}: ${labelDate(t.start_date)} – ${labelDate(t.due_date)}`}><i/><span>{t.task_name}</span></button>)}</div>})}</div></div>
+        <div className={`schedule-calendar ${calendarView.toLowerCase()}`}><div className="calendar-weekdays">{(calendarView==='Day'?[cursor]:calendarDays.slice(0,7)).map(d=><div key={keyDay(d)}>{d.toLocaleDateString(undefined,{weekday:'short'})}<b>{calendarView==='Day'?d.toLocaleDateString(undefined,{month:'short',day:'numeric'}):''}</b></div>)}</div><div className="calendar-grid" style={{gridTemplateColumns:`repeat(${calendarDays.length},minmax(0,1fr))`}}>{calendarDays.map(day=>{const inMonth=day.getMonth()===cursor.getMonth();const today=keyDay(day)===keyDay(new Date());const items=visibleTasks.filter(t=>taskStart(t)&&taskEnd(t)&&taskStart(t)!<=day&&taskEnd(t)!>=day);return <div className={`calendar-cell ${!inMonth&&calendarView==='Month'?'outside':''} ${today?'today':''}`} key={keyDay(day)}><button className="calendar-date" onClick={()=>{setCursor(day);setCalendarView('Day');}}>{day.getDate()}</button>{items.map(t=><button key={t.id} className={`calendar-task ${statusClass(taskStatus(t))} ${String(selected)===String(t.id)?'is-selected':''} ${selected!==null&&related.has(String(t.id))?'is-related':''}`} onClick={()=>handleOpenDatePicker(t)} title={`${t.task_name}: ${labelDate(t.start_date)} – ${labelDate(t.due_date)} · Click to change date`}><i/><span>{t.task_name}</span></button>)}</div>})}</div></div>
         <div className="schedule-legend"><span><i className="pending"/>Planned</span><span><i className="ongoing"/>In progress</span><span><i className="completed"/>Completed</span><span><i className="delayed"/>Delayed</span></div>
       </section>}
       {tab==='Gantt Chart' && <section className="schedule-card"><div className="schedule-toolbar"><div><h2>Gantt timeline</h2><span>{dated.length} scheduled activities · {visibleTasks.length-dated.length} without dates</span></div><div className="schedule-controls"><button onClick={()=>setGanttCursor(d=>addDays(d,ganttScale==='Day'?-28:ganttScale==='Week'?-168:-730))} aria-label="Previous timeline">{'<'}</button><button onClick={()=>setGanttCursor(new Date())} className="today-button">Today</button><button onClick={()=>setGanttCursor(d=>addDays(d,ganttScale==='Day'?28:ganttScale==='Week'?168:730))} aria-label="Next timeline">{'>'}</button><div className="view-switch">{(['Day','Week','Month'] as const).map(s=><button key={s} className={ganttScale===s?'selected':''} onClick={()=>setGanttScale(s)}>{s}</button>)}</div><button onClick={()=>setZoom(z=>Math.max(18,z-4))} aria-label="Zoom out">-</button><span className="zoom-label">{zoom}px</span><button onClick={()=>setZoom(z=>Math.min(52,z+4))} aria-label="Zoom in">+</button></div></div>
-      {dated.length===0 ? <div className="gantt-empty">No task dates are available for this schedule yet.</div> : (()=>{const unitDates=getScheduleTimelineUnits(ganttCursor,ganttScale);const unitWidth=zoom*(ganttScale==='Day'?1:ganttScale==='Week'?3:4);const axisStart=unitDates[0]||ganttCursor;const totalWidth=unitDates.length*unitWidth;const offset=(date:Date)=>ganttScale==='Day'?daysBetween(axisStart,date)*unitWidth:ganttScale==='Week'?Math.floor(daysBetween(axisStart,date)/7)*unitWidth:((date.getFullYear()-axisStart.getFullYear())*12+date.getMonth()-axisStart.getMonth())*unitWidth;const spanWidth=(a:Date,b:Date)=>Math.max(14, (ganttScale==='Day'?daysBetween(a,b)+1:ganttScale==='Week'?Math.floor(daysBetween(a,b)/7)+1:((b.getFullYear()-a.getFullYear())*12+b.getMonth()-a.getMonth())+1)*unitWidth-4);return <div className="gantt-layout"><div className="gantt-info"><div className="gantt-info-head"><span>ID</span><span>ACTIVITY</span><span>DUR.</span><span>PROGRESS</span></div>{visibleTasks.map(t=>{const a=taskStart(t),b=taskEnd(t),span=a&&b?daysBetween(a,b)+1:0;return <button key={t.id} className={`gantt-info-row ${String(selected)===String(t.id)?'is-selected':''} ${selected!==null&&related.has(String(t.id))?'is-related':''}`} onClick={()=>setSelected(t.id)}><span title={String(t.id)}>{String(t.id).slice(0,8)}</span><span><b>{t.task_name}</b><small>{a?keyDay(a):'No start'} · {b?keyDay(b):'No finish'}</small></span><span>{span?`${span}d`:'—'}</span><span>{getTaskProgress(t)}%</span></button>})}</div><div className="gantt-scroll"><div className="gantt-timeline" style={{'--unit-width':`${unitWidth}px`,width:`${totalWidth}px`} as React.CSSProperties}><div className="gantt-axis">{unitDates.map((d,i)=><div key={i} className={keyDay(d)===keyDay(new Date())?'today':''}><b>{ganttScale==='Month'?d.toLocaleDateString(undefined,{month:'short'}):ganttScale==='Week'?`W${Math.ceil(d.getDate()/7)}`:d.getDate()}</b><span>{ganttScale==='Day'?d.toLocaleDateString(undefined,{month:'short'}):d.getFullYear()}</span></div>)}</div><GanttDependencySvg tasks={ganttTasks} axisStart={axisStart} scale={ganttScale} unitWidth={unitWidth} selectedId={selected}/>{visibleTasks.map(t=>{const a=taskStart(t),b=taskEnd(t),pct=getTaskProgress(t);return <div className={`gantt-lane ${String(selected)===String(t.id)?'is-selected':''}`} key={t.id} onClick={()=>setSelected(t.id)}>{keyDay(new Date())>=keyDay(axisStart)&&keyDay(new Date())<keyDay(addDays(axisStart,ganttScale==='Day'?unitDates.length:ganttScale==='Week'?unitDates.length*7:900))&&<i className="gantt-today-line" style={{left:`${offset(new Date())+unitWidth/2}px`}}/>}{a&&b&&<button className={`gantt-bar ${statusClass(taskStatus(t))}`} style={{left:`${offset(a)}px`,width:`${spanWidth(a,b)}px`}} aria-label={`${t.task_name}, ${daysBetween(a,b)+1} days, ${pct}% complete`} title={`${t.task_name} · ${keyDay(a)} to ${keyDay(b)} · ${pct}%`} onClick={e=>{e.stopPropagation();setSelected(t.id);}}><i style={{width:`${pct}%`}}/><span>{daysBetween(a,b)>2?t.task_name:''}</span></button>}</div>})}</div></div></div>})()}
-      <div className="schedule-footnote">Select an activity to inspect dependencies. Timeline includes surrounding dates; use the scale and navigation controls to explore longer schedules. Dependency data is shown in the activity panel when provided by the task API.</div></section>}
+      {dated.length===0 ? <div className="gantt-empty">No task dates are available for this schedule yet.</div> : (()=>{const unitDates=getScheduleTimelineUnits(ganttCursor,ganttScale);const unitWidth=zoom*(ganttScale==='Day'?1:ganttScale==='Week'?3:4);const axisStart=unitDates[0]||ganttCursor;const totalWidth=unitDates.length*unitWidth;const offset=(date:Date)=>ganttScale==='Day'?daysBetween(axisStart,date)*unitWidth:ganttScale==='Week'?Math.floor(daysBetween(axisStart,date)/7)*unitWidth:((date.getFullYear()-axisStart.getFullYear())*12+date.getMonth()-axisStart.getMonth())*unitWidth;const spanWidth=(a:Date,b:Date)=>Math.max(14, (ganttScale==='Day'?daysBetween(a,b)+1:ganttScale==='Week'?Math.floor(daysBetween(a,b)/7)+1:((b.getFullYear()-a.getFullYear())*12+b.getMonth()-a.getMonth())+1)*unitWidth-4);return <div className="gantt-layout"><div className="gantt-info"><div className="gantt-info-head"><span>ID</span><span>ACTIVITY</span><span>DUR.</span><span>PROGRESS</span></div>{visibleTasks.map(t=>{const a=taskStart(t),b=taskEnd(t),span=a&&b?daysBetween(a,b)+1:0;return <button key={t.id} className={`gantt-info-row ${String(selected)===String(t.id)?'is-selected':''} ${selected!==null&&related.has(String(t.id))?'is-related':''}`} onClick={()=>handleOpenDatePicker(t)} title={`${t.task_name} · Click to change date`}><span title={String(t.id)}>{String(t.id).slice(0,8)}</span><span><b>{t.task_name}</b><small>{a?keyDay(a):'No start'} · {b?keyDay(b):'No finish'}</small></span><span>{span?`${span}d`:'—'}</span><span>{getTaskProgress(t)}%</span></button>})}</div><div className="gantt-scroll"><div className="gantt-timeline" style={{'--unit-width':`${unitWidth}px`,width:`${totalWidth}px`} as React.CSSProperties}><div className="gantt-axis">{unitDates.map((d,i)=><div key={i} className={keyDay(d)===keyDay(new Date())?'today':''}><b>{ganttScale==='Month'?d.toLocaleDateString(undefined,{month:'short'}):ganttScale==='Week'?`W${Math.ceil(d.getDate()/7)}`:d.getDate()}</b><span>{ganttScale==='Day'?d.toLocaleDateString(undefined,{month:'short'}):d.getFullYear()}</span></div>)}</div><GanttDependencySvg tasks={ganttTasks} axisStart={axisStart} scale={ganttScale} unitWidth={unitWidth} selectedId={selected}/>{visibleTasks.map(t=>{const a=taskStart(t),b=taskEnd(t),pct=getTaskProgress(t);return <div className={`gantt-lane ${String(selected)===String(t.id)?'is-selected':''}`} key={t.id} onClick={()=>setSelected(t.id)}>{keyDay(new Date())>=keyDay(axisStart)&&keyDay(new Date())<keyDay(addDays(axisStart,ganttScale==='Day'?unitDates.length:ganttScale==='Week'?unitDates.length*7:900))&&<i className="gantt-today-line" style={{left:`${offset(new Date())+unitWidth/2}px`}}/>}{a&&b&&<button className={`gantt-bar ${statusClass(taskStatus(t))}`} style={{left:`${offset(a)}px`,width:`${spanWidth(a,b)}px`}} aria-label={`${t.task_name}, ${daysBetween(a,b)+1} days, ${pct}% complete`} title={`${t.task_name} · ${keyDay(a)} to ${keyDay(b)} · Click to change date`} onClick={e=>{e.stopPropagation();handleOpenDatePicker(t);}}><i style={{width:`${pct}%`}}/><span>{daysBetween(a,b)>2?t.task_name:''}</span></button>}</div>})}</div></div></div>})()}
+      <div className="schedule-footnote">Click any activity row or timeline bar to modify its due date and view connected task shifts. Dependency lines show predecessor and successor links.</div></section>}
       {tab==='S-Curve' && <SCurveSection tasks={visibleTasks} project={project} summaryStart={summaryStart} summaryEnd={summaryEnd} labelDate={labelDate}/>}
       {tab==='Simulator' && <section className={`simulator-workspace ${engineCapabilities?.available&&engineCapabilities.taskDateSimulation&&engineSchedule?'engine-ready':''}`}>
       {engineLoading ? <div className="simulator-diagnostic"><h2>Checking Smart Schedule Engine…</h2><p>Loading this project’s capabilities and current schedule version.</p></div> : engineError ? <div className="simulator-diagnostic error"><h2>Simulator connection failed</h2><p>{engineError}</p><button onClick={()=>setEngineReload(value=>value+1)}>Retry</button></div> : !projectId ? <div className="simulator-diagnostic"><h2>Select a project</h2><p>Choose one project to check its Smart Schedule Engine capabilities and schedule version.</p></div> : !engineCapabilities?.available ? <div className="simulator-diagnostic"><h2>Smart Schedule Engine unavailable</h2><p>{engineCapabilities?.unavailableReason||'The backend reports that this project does not have the required scheduling capabilities.'}</p><p>Capability status: {engineCapabilities?.status||'unknown'}. Check the project scheduling migration, then retry.</p><button onClick={()=>setEngineReload(value=>value+1)}>Retry</button></div> : !engineCapabilities?.taskDateSimulation ? <div className="simulator-diagnostic"><h2>Task simulation capability unavailable</h2><p>The backend did not enable task date simulation for this project.</p><button onClick={()=>setEngineReload(value=>value+1)}>Retry</button></div> : !engineSchedule ? <div className="simulator-diagnostic"><h2>Schedule data unavailable</h2><p>The engine is available, but the project schedule could not be loaded.</p><button onClick={()=>setEngineReload(value=>value+1)}>Retry</button></div> : null}
@@ -1009,7 +1094,7 @@ export default function Schedule() {
 <section className="saved-scenarios"><h4>Saved Scenarios</h4><input value={scenarioSearch} onChange={e=>setScenarioSearch(e.target.value)} placeholder="Search saved scenarios" aria-label="Filter saved scenarios"/><select aria-label="Filter scenarios by status" value={scenarioStatusFilter} onChange={e=>setScenarioStatusFilter(e.target.value)}><option>All statuses</option>{Array.from(new Set(savedScenarios.map(s=>s.status))).map(status=><option key={status}>{status}</option>)}</select>{savedScenarios.filter(s=>s.name.toLowerCase().includes(scenarioSearch.toLowerCase())&&(scenarioStatusFilter==='All statuses'||s.status===scenarioStatusFilter)).map(s=><label key={s.id}><input type="checkbox" checked={selectedScenarioIds.includes(s.id)} onChange={e=>setSelectedScenarioIds(ids=>e.target.checked?[...ids,s.id]:ids.filter(id=>id!==s.id))}/><span>{s.name}</span><small>{s.status} · {labelDate(s.forecast_completion_date)}</small></label>)}<button onClick={compareScenarios} disabled={!engineCapabilities?.scenarioComparison||selectedScenarioIds.length<2}>Compare selected</button><button type="button" onClick={()=>setSelectedScenarioIds([])} disabled={!selectedScenarioIds.length}>Clear selection</button><small>{!engineCapabilities?.scenarioComparison?'Scenario comparison is unavailable for this project.':selectedScenarioIds.length<2?'Select at least two valid scenarios to compare.':'Ready to compare selected scenarios.'}</small>{scenarioComparison.map(item=><p key={String(item.id)}>{String(item.name||item.id)} · {labelDate(String(item.completionDate||''))} · {String(item.workingDayDifference??'—')} working days</p>)}</section>
 <section className="approval-queue"><h4>Change Requests</h4>{changeRequests.length===0?<small>No schedule change requests.</small>:changeRequests.map(request=><article key={String(request.id)}><b>{String(request.status).toUpperCase()} · {String(request.reason||'Schedule change')}</b><small>{String(request.id)} · {labelDate(String(request.created_at||''))}</small>{String(request.status).toLowerCase()==='pending'&&<div><button onClick={()=>reviewRequest(String(request.id),true)}>Approve &amp; apply</button><button onClick={()=>reviewRequest(String(request.id),false)}>Reject</button></div>}</article>)}</section>
 <section className="schedule-history"><h4>Schedule History</h4>{scheduleHistory.length===0?<small>No schedule history available.</small>:scheduleHistory.slice(0,8).map(item=><article key={String(item.id)}><b>{String(item.action||item.change_type||'Schedule change')}</b><small>{String(item.actor_name||item.actor_id||'User')} · {labelDate(String(item.created_at||''))}</small><span>{String(item.previous_start_date||'—')} → {String(item.new_start_date||'—')} · {String(item.reason||'')}</span></article>)}</section></aside></section>}
-      {tab==='Resource View' && <section className="schedule-card"><div className="schedule-toolbar"><div><h2>Resource allocation</h2><span>Activities grouped by assigned team</span></div></div><div className="resource-list">{Array.from(new Set(visibleTasks.map(t=>t.assignee?.trim()||'Unassigned'))).map(person=><section key={person}><header><div className="resource-avatar">{person==='Unassigned'?'?':person.slice(0,1).toUpperCase()}</div><strong>{person}</strong><span>{visibleTasks.filter(t=>(t.assignee?.trim()||'Unassigned')===person).length} activities</span></header>{visibleTasks.filter(t=>(t.assignee?.trim()||'Unassigned')===person).map(t=><button key={t.id} onClick={()=>{setSelected(t.id);setTab('Gantt Chart')}}><b>{t.task_name}</b><span>{labelDate(t.start_date)} → {labelDate(t.due_date)}</span></button>)}</section>)}</div></section>}
+      {tab==='Resource View' && <section className="schedule-card"><div className="schedule-toolbar"><div><h2>Resource allocation</h2><span>Activities grouped by assigned team</span></div></div><div className="resource-list">{Array.from(new Set(visibleTasks.map(t=>t.assignee?.trim()||'Unassigned'))).map(person=><section key={person}><header><div className="resource-avatar">{person==='Unassigned'?'?':person.slice(0,1).toUpperCase()}</div><strong>{person}</strong><span>{visibleTasks.filter(t=>(t.assignee?.trim()||'Unassigned')===person).length} activities</span></header>{visibleTasks.filter(t=>(t.assignee?.trim()||'Unassigned')===person).map(t=><button key={t.id} onClick={()=>handleOpenDatePicker(t)} title={`${t.task_name} · Click to change date`}><b>{t.task_name}</b><span>{labelDate(t.start_date)} → {labelDate(t.due_date)}</span></button>)}</section>)}</div></section>}
     </>}
     {chosen && tab==='Simulator' && <aside className="schedule-detail"><div><div><span className="detail-kicker">ACTIVITY DETAILS</span><h2>{chosen.task_name}</h2></div><button className="detail-close" onClick={()=>setSelected(null)} aria-label="Close details">x</button></div><p>{chosen.description||chosen.site_instructions||'No task description provided.'}</p><div className="detail-stats"><span>Start<strong>{labelDate(chosen.start_date)}</strong></span><span>Finish<strong>{labelDate(chosen.due_date)}</strong></span><span>Duration<strong>{taskStart(chosen)&&taskEnd(chosen)?`${daysBetween(taskStart(chosen)!,taskEnd(chosen)!)+1} days`:'Not set'}</strong></span><span>Progress<strong>{getTaskProgress(chosen)}%</strong></span></div><div className="detail-status"><span className={`status-dot ${statusClass(taskStatus(chosen))}`}/>{taskStatus(chosen)} {chosen.priority==='High'&&<b>High priority</b>}</div><h3>Dependencies</h3>{predecessors.length||successors.length?<><div className="dependency-list">{predecessors.map(id=>{const t=visibleTasks.find(x=>String(x.id)===String(id));return <button key={id} onClick={()=>t&&setSelected(t.id)}><span>PREDECESSOR</span><b>{t?.task_name||`Task ${id}`}</b><small>{t?labelDate(t.due_date):'Date unavailable'}</small><i>→</i></button>})}{successors.map(t=><button key={t.id} onClick={()=>setSelected(t.id)}><span>SUCCESSOR</span><b>{t.task_name}</b><small>{labelDate(t.start_date)}</small><i>→</i></button>)}</div></>:<p className="dependency-none">No predecessor or successor relationships are recorded.</p>}<div className="detail-assignee"><Clock3 size={15}/><span>Assigned team</span><b>{chosen.assignee||'Not assigned'}</b></div></aside>}
 
@@ -1188,6 +1273,129 @@ export default function Schedule() {
             )}
           </div>
         </div>
+      </div>
+    )}
+
+    {/* Task Due Date Modification Modal */}
+    {datePickerTask && (
+      <div
+        className="schedule-date-modal-overlay"
+        onClick={() => {
+          setDatePickerTask(null);
+          setModificationReason('');
+          setDateSaveError('');
+        }}
+      >
+        <div className="schedule-date-modal" onClick={e => e.stopPropagation()}>
+          <div className="schedule-date-modal-head">
+            <div>
+              <h2 className="schedule-date-modal-title">Select Due Date</h2>
+              <div className="schedule-date-modal-subtitle">
+                <span>Task: <strong>{datePickerTask.task_name}</strong></span>
+                {datePickerTask.start_date && (
+                  <span className="task-start-badge">
+                    Start: {labelDate(datePickerTask.start_date)}
+                  </span>
+                )}
+              </div>
+            </div>
+            <button
+              type="button"
+              className="schedule-date-modal-close"
+              onClick={() => {
+                setDatePickerTask(null);
+                setModificationReason('');
+                setDateSaveError('');
+              }}
+              aria-label="Close"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="schedule-date-modal-body">
+            <div className="schedule-date-field">
+              <label className="schedule-date-label">Deadline Date</label>
+              <input
+                type="date"
+                className="schedule-date-input"
+                value={selectedDueDate}
+                onChange={e => setSelectedDueDate(e.target.value)}
+                min={toDateInputValue(datePickerTask.start_date) || undefined}
+              />
+              {project?.end_date && (
+                <span className="schedule-date-hint">
+                  Project target finish date is {labelDate(project.end_date)}.
+                </span>
+              )}
+            </div>
+
+            <div className="schedule-date-field">
+              <label className="schedule-date-label">Reason for Modification</label>
+              <input
+                type="text"
+                className="schedule-date-input"
+                placeholder="Enter reason for modification"
+                value={modificationReason}
+                onChange={e => setModificationReason(e.target.value)}
+              />
+            </div>
+
+            {/* Inform if connected tasks will cascade */}
+            {(() => {
+              const cascadedSuccessors = visibleTasks.filter(t =>
+                t.predecessor_task_ids?.some(id => String(id) === String(datePickerTask.id)) ||
+                engineSchedule?.dependencies.some(d => String(d.predecessorTaskId) === String(datePickerTask.id) && String(d.successorTaskId) === String(t.id))
+              );
+              if (!cascadedSuccessors.length) return null;
+              return (
+                <div className="schedule-date-cascade-hint">
+                  <GitBranch size={14} className="cascade-icon" />
+                  <div>
+                    <strong>Connected tasks that will shift automatically ({cascadedSuccessors.length}):</strong>
+                    <p>{cascadedSuccessors.map(s => s.task_name).join(', ')}</p>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {dateSaveError && (
+              <div className="schedule-date-error" role="alert">
+                {dateSaveError}
+              </div>
+            )}
+          </div>
+
+          <div className="schedule-date-modal-actions">
+            <button
+              type="button"
+              className="schedule-date-btn-secondary"
+              onClick={() => {
+                setDatePickerTask(null);
+                setModificationReason('');
+                setDateSaveError('');
+              }}
+              disabled={savingDueDate}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="schedule-date-btn-primary"
+              onClick={handleSaveDueDate}
+              disabled={!selectedDueDate || savingDueDate}
+            >
+              {savingDueDate ? 'Saving…' : 'Save Date'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {toastMessage && (
+      <div className="schedule-toast-banner" role="status">
+        <CheckCircle size={16} />
+        <span>{toastMessage}</span>
       </div>
     )}
   </main>;
