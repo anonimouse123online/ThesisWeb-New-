@@ -6,7 +6,7 @@ import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import ProfileDropdown from '../components/ProfileDropdown';
 import StatusBadge from '../components/StatusBadge';
 import { showToast } from '../utils/toast';
-import { ArrowLeft, X, UserPlus, Check, Clock, Crown, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, X, Crown, ShieldCheck } from 'lucide-react';
 
 const API_URL = API_BASE_URL;
 
@@ -22,16 +22,12 @@ const ManageTeam: React.FC = () => {
   const { projectCode } = useParams<{ projectCode: string }>();
   const navigate = useNavigate();
 
-  const [projectName, setProjectName]         = useState<string>('');
-  const [members, setMembers]                 = useState<TeamMember[]>([]);
-  const [searchQuery, setSearchQuery]         = useState('');
-  const [loading, setLoading]                 = useState(true);
-  const [error, setError]                     = useState<string | null>(null);
-  const [showInviteModal, setShowInviteModal] = useState(false);
-  const [inviteCode, setInviteCode]           = useState<string | null>(null);
-  const [inviteLoading, setInviteLoading]     = useState(false);
-  const [copied, setCopied]                   = useState(false);
-  const [removingId, setRemovingId]           = useState<string | null>(null);
+  const [projectName, setProjectName] = useState<string>('');
+  const [members, setMembers]         = useState<TeamMember[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState<string | null>(null);
+  const [removingId, setRemovingId]   = useState<string | null>(null);
 
   // Read logged-in user from localStorage
   const storedUser = localStorage.getItem('user');
@@ -94,36 +90,6 @@ const ManageTeam: React.FC = () => {
     }
   };
 
-  // Generate / View project invite code
-  const handleOpenInviteModal = async () => {
-    setShowInviteModal(true);
-    setCopied(false);
-    setInviteLoading(true);
-    try {
-      const res = await fetchWithAuth(`${API_URL}/projects/${projectCode}/generate-code`, {
-        method: 'POST',
-      });
-      const data = await res.json();
-      if (res.ok && data.code) {
-        setInviteCode(data.code);
-      } else {
-        throw new Error(data.message || 'Failed to generate invite code');
-      }
-    } catch (err: unknown) {
-      showToast(getErrorMessage(err, '') || 'Could not generate code', 'error');
-    } finally {
-      setInviteLoading(false);
-    }
-  };
-
-  const handleCopyCode = () => {
-    if (!inviteCode) return;
-    navigator.clipboard.writeText(inviteCode);
-    setCopied(true);
-    showToast('Invite code copied to clipboard!', 'success');
-    setTimeout(() => setCopied(false), 2500);
-  };
-
   const getInitials = (name: string) =>
     (name || '?')
       .split(' ')
@@ -167,18 +133,13 @@ const ManageTeam: React.FC = () => {
         <ProfileDropdown userName={userName} userRole={userRole} />
       </header>
 
-      {/* Page Title & Quick Actions */}
+      {/* Page Title */}
       <div className="mt-title-row">
         <div>
           <h1 className="mt-page-title">Project Team &amp; Roster</h1>
           <p className="mt-page-sub">
-            {projectName ? `${projectName} (${projectCode})` : projectCode} — Manage team access and invitations
+            {projectName ? `${projectName} (${projectCode})` : projectCode} — Manage team access and roster
           </p>
-        </div>
-        <div className="mt-actions-group">
-          <button className="mt-invite-btn" onClick={handleOpenInviteModal} title="Generate or share invite code" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-            <UserPlus size={14} /> Invite Code
-          </button>
         </div>
       </div>
 
@@ -225,13 +186,8 @@ const ManageTeam: React.FC = () => {
             </div>
             <p className="mt-empty-title">No team members joined yet</p>
             <p className="mt-empty-sub">
-              Share a project invite code with site engineers and field personnel to let them join.
+              Team members will appear here once they join using the project invite code from the project dashboard.
             </p>
-            <div className="mt-empty-actions">
-              <button className="mt-invite-btn" onClick={handleOpenInviteModal} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                <UserPlus size={15} /> Generate Invite Code
-              </button>
-            </div>
           </div>
         ) : filteredMembers.length === 0 ? (
           <div className="mt-state">No matching team members found for "{searchQuery}".</div>
@@ -299,45 +255,6 @@ const ManageTeam: React.FC = () => {
           </div>
         )}
       </div>
-
-      {/* Invite Code Modal */}
-      {showInviteModal && (
-        <div className="mt-overlay">
-          <div className="mt-modal mt-modal--invite" onClick={(e) => e.stopPropagation()}>
-            <div className="mt-modal-header">
-              <h2 className="mt-modal-title">Project Invite Code</h2>
-              <button className="mt-modal-close" onClick={() => setShowInviteModal(false)} aria-label="Close">
-                <X size={16} />
-              </button>
-            </div>
-            <div className="mt-modal-body">
-              <p className="mt-invite-info">
-                Share this unique 6-character code with site engineers and field personnel. They can enter it in the <strong>SitePulse Mobile App</strong> or portal to join <strong>{projectName || projectCode}</strong> instantly.
-              </p>
-
-              {inviteLoading ? (
-                <div className="mt-invite-loading">Generating secure invite code…</div>
-              ) : (
-                <div className="mt-invite-box">
-                  <span className="mt-invite-code-text">{inviteCode || 'CODE-ERR'}</span>
-                  <button className="mt-copy-btn" onClick={handleCopyCode} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    {copied ? <><Check size={14} /> Copied</> : 'Copy Code'}
-                  </button>
-                </div>
-              )}
-
-              <p className="mt-invite-note" style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <Clock size={13} /> Codes are valid for 7 days and can be used by team members to join directly.
-              </p>
-            </div>
-            <div className="mt-modal-footer">
-              <button className="mt-btn-add" onClick={() => setShowInviteModal(false)}>
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </main>
   );
 };
