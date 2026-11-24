@@ -1995,21 +1995,6 @@ const TimeLog: React.FC = () => {
                                                               }}
                                                             >
                                                               <span>Outside Geofencing Zone</span>
-                                                              {meta.geofenceAlerts.length > 1 && (
-                                                                <span
-                                                                  style={{
-                                                                    fontSize: "10px",
-                                                                    fontWeight: 800,
-                                                                    color: "#9f1239",
-                                                                    background: "#ffe4e6",
-                                                                    border: "1px solid #fecdd3",
-                                                                    padding: "1px 6px",
-                                                                    borderRadius: "999px",
-                                                                  }}
-                                                                >
-                                                                  Incident #{idx + 1}
-                                                                </span>
-                                                              )}
                                                             </div>
 
                                                             <div className="detail-row" style={{ marginTop: "2px" }}>
