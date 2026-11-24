@@ -6,7 +6,7 @@ import { API_BASE_URL, fetchWithAuth } from '../utils/api';
 import ProfileDropdown from '../components/ProfileDropdown';
 import StatusBadge from '../components/StatusBadge';
 import { showToast } from '../utils/toast';
-import { ArrowLeft, ArrowRight, X, UserPlus, Check, CheckCircle2, Clock, Crown, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, X, UserPlus, Check, Clock, Crown, ShieldCheck } from 'lucide-react';
 
 const API_URL = API_BASE_URL;
 
@@ -18,43 +18,20 @@ interface TeamMember {
   joined_at: string;
 }
 
-interface AvailableUser {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-}
-
-const ROLE_SUGGESTIONS = [
-  'Site Engineer',
-  'Project Engineer',
-  'Safety Officer',
-  'QA/QC Engineer',
-  'Lead Architect',
-  'MEP Coordinator',
-  'Structural Engineer',
-  'Foreman',
-];
-
 const ManageTeam: React.FC = () => {
   const { projectCode } = useParams<{ projectCode: string }>();
   const navigate = useNavigate();
 
-  const [projectName, setProjectName]             = useState<string>('');
-  const [members, setMembers]                     = useState<TeamMember[]>([]);
-  const [availableMembers, setAvailableMembers]   = useState<AvailableUser[]>([]);
-  const [activeTab, setActiveTab]                 = useState<'active' | 'available'>('active');
-  const [searchQuery, setSearchQuery]             = useState('');
-  const [loading, setLoading]                     = useState(true);
-  const [error, setError]                         = useState<string | null>(null);
-  const [showInviteModal, setShowInviteModal]     = useState(false);
-  const [inviteCode, setInviteCode]               = useState<string | null>(null);
-  const [inviteLoading, setInviteLoading]         = useState(false);
-  const [copied, setCopied]                       = useState(false);
-  const [removingId, setRemovingId]               = useState<string | null>(null);
-  const [roleModalUser, setRoleModalUser]         = useState<AvailableUser | null>(null);
-  const [memberRoleInput, setMemberRoleInput]     = useState<string>('');
-  const [submittingRole, setSubmittingRole]       = useState(false);
+  const [projectName, setProjectName]         = useState<string>('');
+  const [members, setMembers]                 = useState<TeamMember[]>([]);
+  const [searchQuery, setSearchQuery]         = useState('');
+  const [loading, setLoading]                 = useState(true);
+  const [error, setError]                     = useState<string | null>(null);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteCode, setInviteCode]           = useState<string | null>(null);
+  const [inviteLoading, setInviteLoading]     = useState(false);
+  const [copied, setCopied]                   = useState(false);
+  const [removingId, setRemovingId]           = useState<string | null>(null);
 
   // Read logged-in user from localStorage
   const storedUser = localStorage.getItem('user');
@@ -72,10 +49,9 @@ const ManageTeam: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [projRes, membersRes, availRes] = await Promise.all([
+      const [projRes, membersRes] = await Promise.all([
         fetchWithAuth(`${API_URL}/projects/${projectCode}`),
         fetchWithAuth(`${API_URL}/projects/${projectCode}/members`),
-        fetchWithAuth(`${API_URL}/projects/${projectCode}/available-members`),
       ]);
 
       if (projRes.ok) {
@@ -88,11 +64,6 @@ const ManageTeam: React.FC = () => {
         setMembers(membersData.data ?? []);
       } else {
         throw new Error('Failed to load project members.');
-      }
-
-      if (availRes.ok) {
-        const availData = await availRes.json();
-        setAvailableMembers(availData.data ?? []);
       }
     } catch (err: unknown) {
       setError(getErrorMessage(err, '') || 'Failed to load team data.');
@@ -120,45 +91,6 @@ const ManageTeam: React.FC = () => {
       showToast(getErrorMessage(err, '') || 'Error removing member.', 'error');
     } finally {
       setRemovingId(null);
-    }
-  };
-
-  // Open role assignment modal when clicking "+ Add to Project"
-  const handleOpenRoleModal = (user: AvailableUser) => {
-    setRoleModalUser(user);
-    const sysRole = (user.role || '').toLowerCase();
-    const defaultRole = sysRole.includes('engineer')
-      ? 'Site Engineer'
-      : sysRole.includes('architect')
-        ? 'Lead Architect'
-        : sysRole.includes('admin')
-          ? 'Project Manager'
-          : user.role || 'Site Engineer';
-    setMemberRoleInput(defaultRole);
-  };
-
-  // Submit role and add user to project
-  const handleConfirmAddRole = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!roleModalUser) return;
-    const roleToAssign = memberRoleInput.trim() || roleModalUser.role || 'Member';
-    setSubmittingRole(true);
-    try {
-      const res = await fetchWithAuth(`${API_URL}/projects/${projectCode}/members`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: roleModalUser.id, role: roleToAssign }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to add member');
-
-      showToast(`${roleModalUser.name} added as ${roleToAssign}!`, 'success');
-      setRoleModalUser(null);
-      await fetchRoster();
-    } catch (err: unknown) {
-      showToast(getErrorMessage(err, '') || 'Error adding member.', 'error');
-    } finally {
-      setSubmittingRole(false);
     }
   };
 
@@ -211,13 +143,6 @@ const ManageTeam: React.FC = () => {
     m.role.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const filteredAvailable = availableMembers.filter((u) =>
-    !searchQuery ||
-    u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    u.role.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   return (
     <main className="main-content">
       <header className="pm-header">
@@ -260,20 +185,10 @@ const ManageTeam: React.FC = () => {
       {/* Tabs & Search Bar */}
       <div className="mt-toolbar">
         <div className="mt-tabs-bar">
-          <button
-            className={`mt-tab-btn ${activeTab === 'active' ? 'mt-tab-btn--active' : ''}`}
-            onClick={() => setActiveTab('active')}
-          >
+          <div className="mt-tab-btn mt-tab-btn--active" style={{ cursor: 'default' }}>
             <span>Active Project Team</span>
             <span className="mt-tab-badge">{members.length}</span>
-          </button>
-          <button
-            className={`mt-tab-btn ${activeTab === 'available' ? 'mt-tab-btn--active' : ''}`}
-            onClick={() => setActiveTab('available')}
-          >
-            <span>Available Accounts</span>
-            <span className="mt-tab-badge mt-tab-badge--avail">{availableMembers.length}</span>
-          </button>
+          </div>
         </div>
 
         <div className="mt-search-wrap">
@@ -298,299 +213,92 @@ const ManageTeam: React.FC = () => {
           <div className="mt-state">Loading project roster…</div>
         ) : error ? (
           <div className="mt-state mt-state--error">{error}</div>
-        ) : activeTab === 'active' ? (
-          /* TAB 1: ACTIVE PROJECT TEAM */
-          members.length === 0 ? (
-            <div className="mt-empty">
-              <div className="mt-empty-icon">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                  <circle cx="9" cy="7" r="4"/>
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                </svg>
-              </div>
-              <p className="mt-empty-title">No team members assigned yet</p>
-              <p className="mt-empty-sub">
-                {availableMembers.length > 0
-                  ? `There are ${availableMembers.length} registered team members ready to be added to this project, or you can share an invite code.`
-                  : 'Add engineers and site personnel to this project or generate an invite code.'}
-              </p>
-              <div className="mt-empty-actions">
-                {availableMembers.length > 0 && (
-                  <button className="mt-add-btn mt-add-btn--center" onClick={() => setActiveTab('available')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                    Browse Available Members ({availableMembers.length}) <ArrowRight size={14} />
-                  </button>
-                )}
-                <button className="mt-invite-btn" onClick={handleOpenInviteModal} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                  <UserPlus size={15} /> Generate Invite Code
-                </button>
-              </div>
+        ) : members.length === 0 ? (
+          <div className="mt-empty">
+            <div className="mt-empty-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
             </div>
-          ) : filteredMembers.length === 0 ? (
-            <div className="mt-state">No matching team members found for "{searchQuery}".</div>
-          ) : (
-            <div className="mt-table-wrap">
-              <table className="mt-table">
-                <thead>
-                  <tr>
-                    <th>Member</th>
-                    <th>Role</th>
-                    <th>Email</th>
-                    <th>Joined Date</th>
-                    <th>Status</th>
-                    <th style={{ textAlign: 'right' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredMembers.map((m) => (
-                    <tr key={m.id} style={m.role === 'Owner' ? { background: '#fffbeb' } : undefined}>
-                      <td>
-                        <div className="mt-member-cell">
-                          <span className="mt-avatar" style={{ background: m.role === 'Owner' ? '#f59e0b' : getAvatarColor(m.name) }}>
-                            {getInitials(m.name)}
-                          </span>
-                          <div>
-                            <span className="mt-member-name">{m.name} {m.role === 'Owner' && <Crown size={14} style={{ color: '#f59e0b', verticalAlign: '-2px', marginLeft: 4 }} />}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <span className="mt-role-chip" style={m.role === 'Owner' ? { background: '#fef3c7', color: '#b45309', fontWeight: 700 } : undefined}>
-                          {m.role === 'Owner' ? <><ShieldCheck size={13} style={{ verticalAlign: '-2px', marginRight: 3 }} /> Project Owner</> : m.role}
-                        </span>
-                      </td>
-                      <td className="mt-email">{m.email || '—'}</td>
-                      <td className="mt-joined">
-                        {m.joined_at
-                          ? new Date(m.joined_at).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                            })
-                          : '—'}
-                      </td>
-                      <td>
-                        <StatusBadge status="Active" />
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        {m.role === 'Owner' ? (
-                          <span style={{ fontSize: '12px', color: '#9ca3af', fontStyle: 'italic' }}>Owner</span>
-                        ) : (
-                          <button
-                            className="mt-remove-btn"
-                            onClick={() => handleRemove(m.id)}
-                            disabled={removingId === m.id}
-                          >
-                            {removingId === m.id ? 'Removing…' : 'Remove'}
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )
-        ) : (
-          /* TAB 2: AVAILABLE REGISTERED ACCOUNTS */
-          availableMembers.length === 0 ? (
-            <div className="mt-empty">
-              <div className="mt-empty-icon"><CheckCircle2 size={40} style={{ color: '#16a34a' }} /></div>
-              <p className="mt-empty-title">All registered members are in this project</p>
-              <p className="mt-empty-sub">
-                Every registered user in the system has already been added to {projectName || projectCode}.
-              </p>
-            </div>
-          ) : filteredAvailable.length === 0 ? (
-            <div className="mt-state">No matching registered accounts found for "{searchQuery}".</div>
-          ) : (
-            <div className="mt-table-wrap">
-              <div className="mt-section-intro">
-                <div>
-                  <h3 className="mt-section-h3">Registered Accounts Ready to Join</h3>
-                  <p className="mt-section-sub">
-                    These users have registered accounts in SitePulse. Click <strong>+ Add to Project</strong> to give them immediate access.
-                  </p>
-                </div>
-              </div>
-              <table className="mt-table">
-                <thead>
-                  <tr>
-                    <th>User</th>
-                    <th>System Role</th>
-                    <th>Email</th>
-                    <th>Status</th>
-                    <th style={{ textAlign: 'right' }}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredAvailable.map((u) => (
-                    <tr key={u.id}>
-                      <td>
-                        <div className="mt-member-cell">
-                          <span className="mt-avatar" style={{ background: getAvatarColor(u.name) }}>
-                            {getInitials(u.name)}
-                          </span>
-                          <div>
-                            <span className="mt-member-name">{u.name}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <span className="mt-role-chip">{u.role || 'Member'}</span>
-                      </td>
-                      <td className="mt-email">{u.email}</td>
-                      <td>
-                        <StatusBadge status="Ready to Join" />
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <button
-                          className="mt-add-direct-btn"
-                          onClick={() => handleOpenRoleModal(u)}
-                          disabled={submittingRole && roleModalUser?.id === u.id}
-                        >
-                          + Add to Project
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )
-        )}
-      </div>
-
-      {/* Role Assignment Modal when adding from Available Accounts */}
-      {roleModalUser && (
-        <div className="mt-overlay" onClick={() => !submittingRole && setRoleModalUser(null)}>
-          <div
-            className="mt-modal mt-modal--role"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="role-modal-title"
-          >
-            <div className="mt-modal-header">
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{
-                    width: '30px',
-                    height: '30px',
-                    borderRadius: '8px',
-                    background: '#fff7ed',
-                    border: '1px solid #ffedd5',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#ea580c',
-                  }}>
-                    <ShieldCheck size={17} />
-                  </div>
-                  <h2 className="mt-modal-title" id="role-modal-title">Assign Project Role</h2>
-                </div>
-                <p className="mt-modal-subtitle">Designate this member's project position and responsibility.</p>
-              </div>
-              <button
-                type="button"
-                className="mt-modal-close"
-                onClick={() => setRoleModalUser(null)}
-                aria-label="Close"
-                disabled={submittingRole}
-              >
-                <X size={15} />
+            <p className="mt-empty-title">No team members joined yet</p>
+            <p className="mt-empty-sub">
+              Share a project invite code with site engineers and field personnel to let them join.
+            </p>
+            <div className="mt-empty-actions">
+              <button className="mt-invite-btn" onClick={handleOpenInviteModal} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <UserPlus size={15} /> Generate Invite Code
               </button>
             </div>
-            <form onSubmit={handleConfirmAddRole}>
-              <div className="mt-modal-body">
-                {/* Member Preview Card */}
-                <div className="mt-role-user-card">
-                  <span
-                    className="mt-role-avatar"
-                    style={{ background: getAvatarColor(roleModalUser.name) }}
-                  >
-                    {getInitials(roleModalUser.name)}
-                  </span>
-                  <div className="mt-role-user-info">
-                    <span className="mt-role-user-name">{roleModalUser.name}</span>
-                    <span className="mt-role-user-email">{roleModalUser.email}</span>
-                  </div>
-                  <span className="mt-role-system-badge">
-                    {roleModalUser.role || 'Member'}
-                  </span>
-                </div>
-
-                {/* Role Input */}
-                <div className="mt-field">
-                  <label className="mt-label" htmlFor="member-role-input">
-                    Project Role / Position <span className="mt-required">*</span>
-                  </label>
-                  <input
-                    id="member-role-input"
-                    type="text"
-                    className="mt-role-input"
-                    placeholder="e.g. Site Engineer, Lead Architect, QA/QC Inspector..."
-                    value={memberRoleInput}
-                    onChange={(e) => setMemberRoleInput(e.target.value)}
-                    autoFocus
-                    required
-                  />
-                  <span className="mt-field-hint">
-                    This role will appear in the project roster, assignments, and reports.
-                  </span>
-                </div>
-
-                {/* Role Suggestions */}
-                <div className="mt-field">
-                  <span className="mt-suggestions-header">Quick Role Suggestions</span>
-                  <div className="mt-role-pills-wrap">
-                    {ROLE_SUGGESTIONS.map((role) => {
-                      const isSelected = memberRoleInput.trim().toLowerCase() === role.toLowerCase();
-                      return (
-                        <button
-                          key={role}
-                          type="button"
-                          className={`mt-role-pill-btn ${isSelected ? 'mt-role-pill-btn--active' : ''}`}
-                          onClick={() => setMemberRoleInput(role)}
-                        >
-                          {isSelected && <Check size={12} strokeWidth={2.5} />}
-                          {role}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-modal-footer">
-                <button
-                  type="button"
-                  className="mt-role-btn-cancel"
-                  onClick={() => setRoleModalUser(null)}
-                  disabled={submittingRole}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="mt-role-btn-submit"
-                  disabled={submittingRole || !memberRoleInput.trim()}
-                >
-                  {submittingRole ? (
-                    'Adding…'
-                  ) : (
-                    <>
-                      <UserPlus size={14} />
-                      + Add to Project
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
           </div>
-        </div>
-      )}
+        ) : filteredMembers.length === 0 ? (
+          <div className="mt-state">No matching team members found for "{searchQuery}".</div>
+        ) : (
+          <div className="mt-table-wrap">
+            <table className="mt-table">
+              <thead>
+                <tr>
+                  <th>Member</th>
+                  <th>Role</th>
+                  <th>Email</th>
+                  <th>Joined Date</th>
+                  <th>Status</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredMembers.map((m) => (
+                  <tr key={m.id} style={m.role === 'Owner' ? { background: '#fffbeb' } : undefined}>
+                    <td>
+                      <div className="mt-member-cell">
+                        <span className="mt-avatar" style={{ background: m.role === 'Owner' ? '#f59e0b' : getAvatarColor(m.name) }}>
+                          {getInitials(m.name)}
+                        </span>
+                        <div>
+                          <span className="mt-member-name">{m.name} {m.role === 'Owner' && <Crown size={14} style={{ color: '#f59e0b', verticalAlign: '-2px', marginLeft: 4 }} />}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="mt-role-chip" style={m.role === 'Owner' ? { background: '#fef3c7', color: '#b45309', fontWeight: 700 } : undefined}>
+                        {m.role === 'Owner' ? <><ShieldCheck size={13} style={{ verticalAlign: '-2px', marginRight: 3 }} /> Project Owner</> : m.role}
+                      </span>
+                    </td>
+                    <td className="mt-email">{m.email || '—'}</td>
+                    <td className="mt-joined">
+                      {m.joined_at
+                        ? new Date(m.joined_at).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })
+                        : '—'}
+                    </td>
+                    <td>
+                      <StatusBadge status="Active" />
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      {m.role === 'Owner' ? (
+                        <span style={{ fontSize: '12px', color: '#9ca3af', fontStyle: 'italic' }}>Owner</span>
+                      ) : (
+                        <button
+                          className="mt-remove-btn"
+                          onClick={() => handleRemove(m.id)}
+                          disabled={removingId === m.id}
+                        >
+                          {removingId === m.id ? 'Removing…' : 'Remove'}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* Invite Code Modal */}
       {showInviteModal && (
